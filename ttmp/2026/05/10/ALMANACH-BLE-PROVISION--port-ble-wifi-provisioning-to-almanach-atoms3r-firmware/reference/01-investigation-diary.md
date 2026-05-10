@@ -1249,3 +1249,121 @@ pnpm --prefix web run build-storybook
 BUILD_WEB_LOCAL=1 go run ./cmd/build-web
 go test ./...
 ```
+
+## Step 11: Browser service discovery error clarity and alternate UUID probe
+
+The first Chrome hardware attempt proved that the browser picker and GATT connection worked: Chrome displayed `ALM_0F2320`, the page selected it, the firmware logged `BLE provisioning client connected`, and GATT connected. The failure happened after connection during service discovery, but the UI incorrectly reported the generic chooser message "No printer selected".
+
+This step fixes that diagnostic mistake and broadens the service UUID probe. The client now asks Chrome for both the canonical UUID derived from the firmware byte array and the firmware-order UUID, then tries both during `getPrimaryService()`. It also logs each service probe so the next browser attempt can distinguish chooser, connection, and service-discovery failures.
+
+### Prompt Context
+
+**User prompt (verbatim):** "19:55:34 Using real Web Bluetooth ESP-IDF client
+19:55:34 Opening Chrome Bluetooth picker for ALM_ printers
+19:55:37 Selected ALM_0F2320
+19:55:37 Connecting to ALM_0F2320 over GATT
+19:55:37 GATT connection established
+19:55:38 ERROR: No printer selected. Choose an ALM_ device from Chrome's Bluetooth picker.
+
+Progress
+19:55:34 Using real Web Bluetooth ESP-IDF client
+19:55:34 Opening Chrome Bluetooth picker for ALM_ printers
+19:55:37 Selected ALM_0F2320
+19:55:37 Connecting to ALM_0F2320 over GATT
+19:55:37 GATT connection established
+19:55:38 ERROR: No printer selected. Choose an ALM_ device from Chrome's Bluetooth picker.
+19:56:03 Using real Web Bluetooth ESP-IDF client
+19:56:03 Opening Chrome Bluetooth picker for ALM_ printers
+19:56:07 Selected ALM_0F2320
+19:56:07 Connecting to ALM_0F2320 over GATT
+19:56:07 GATT connection established
+19:56:07 ERROR: No printer selected. Choose an ALM_ device from Chrome's Bluetooth picker.
+19:56:29 Disconnected from ALM_0F2320
+19:56:29 Disconnected from ALM_0F2320
+19:56:49 Using real Web Bluetooth ESP-IDF client
+19:56:49 Opening Chrome Bluetooth picker for ALM_ printers
+19:56:54 Selected ALM_0F2320
+19:56:54 Connecting to ALM_0F2320 over GATT
+19:56:54 GATT connection established
+19:56:54 ERROR: No printer selected. Choose an ALM_ device from Chrome's Bluetooth picker.
+
+It worked in first I see the printer in the dropdown, and I paired but then ti said no printer selected.
+
+But I did select a pritner (and that printer says Paired). 
+
+Now I reset the printer with 10s press. 
+
+You can use  tmux attach -talm-button-test  to see the idf.py logs."
+
+**Assistant interpretation:** The real device picker and GATT connection worked, but the browser failed during service discovery and produced a misleading error. Inspect firmware logs and update the browser client so the next attempt gives accurate service-discovery diagnostics and tries likely UUID byte-order variants.
+
+**Inferred user intent:** Debug the first real Chrome/Web Bluetooth hardware run and keep progressing toward browser provisioning.
+
+**Commit (code):** fb2d623e73b73c75f3b6af1cd523715b77e9daa4 — "Try alternate BLE service UUID"
+
+### What I did
+
+- Inspected the `alm-button-test` tmux monitor logs.
+- Confirmed firmware was advertising `ALM_0F2320` and logged `BLE provisioning client connected` during the browser attempt.
+- Updated `web/src/provisioning/espidf-client.js` to:
+  - Request both candidate service UUIDs in `optionalServices`.
+  - Probe both candidate UUIDs with `getPrimaryService()`.
+  - Log each service UUID probe.
+  - Report a service-discovery-specific error instead of the misleading chooser error after GATT connection.
+- Rebuilt the setup bundle.
+- Re-ran Storybook build, web build, and Go tests.
+
+### Why
+
+- The previous `NotFoundError` handling treated all Web Bluetooth `NotFoundError`s as chooser cancellations, but `getPrimaryService()` also throws `NotFoundError` when a service is absent or inaccessible.
+- The firmware UUID is configured as a byte array. The browser-visible UUID may need the firmware-order representation instead of the canonical reversed fields that I initially inferred.
+
+### What worked
+
+- Firmware logs confirmed the browser did connect to the BLE provisioning advertisement.
+- Validation passed:
+  - `pnpm --prefix web run build-storybook`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+  - `go test ./...`
+
+### What didn't work
+
+- The first browser attempt did not find the service UUID with the initial UUID candidate.
+- The error message was misleading because service discovery and chooser cancellation both surfaced as `NotFoundError`.
+
+### What I learned
+
+- At this point the browser path has proven picker and GATT connection, not service discovery.
+- The next Chrome attempt should show exactly which UUIDs were tried and whether the firmware-order UUID fixes discovery.
+
+### What was tricky to build
+
+- Web Bluetooth uses the same DOMException name for different stages. Context matters: `NotFoundError` before `requestDevice()` resolves means user/no device selection; `NotFoundError` after GATT connection means the requested service was not found or not granted.
+- Chrome only exposes services that were requested up front, so both UUID candidates need to be listed in `optionalServices` before either can be tested later.
+
+### What warrants a second pair of eyes
+
+- Confirm the final browser-visible UUID with `chrome://bluetooth-internals` if both candidates fail.
+- If both candidates fail but firmware logs a connection, inspect all primary services from a native BLE tool to determine what NimBLE is actually advertising.
+
+### What should be done in the future
+
+- Retest **Find BLE printer** from Chrome against the reset AtomS3R.
+- If service discovery succeeds, move to Browser BLE Phase 2: `proto-ver`.
+- If it still fails, capture Chrome bluetooth-internals service UUIDs and update the client accordingly.
+
+### Code review instructions
+
+- Review `web/src/provisioning/espidf-client.js` for the new `ESP_IDF_PROVISIONING_SERVICE_UUIDS` list and contextual error handling.
+- Validate by reloading `http://localhost:18299/setup`, clicking **Find BLE printer**, and checking progress logs for service probe lines.
+
+### Technical details
+
+Commands run:
+
+```bash
+tmux capture-pane -t alm-button-test -p -S -220
+pnpm --prefix web run build-storybook
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+go test ./...
+```
