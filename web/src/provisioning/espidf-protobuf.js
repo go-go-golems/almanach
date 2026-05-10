@@ -265,12 +265,27 @@ function decodeStatusPayload(bytes) {
 }
 
 function decodeRespGetStatus(bytes) {
-  const out = { status: 0, staState: WifiState.CONNECTED, hasFailReason: false, attemptsRemaining: 0 };
+  const out = { status: 0, staState: WifiState.CONNECTED, hasFailReason: false, attemptsRemaining: 0, connected: null };
   eachField(bytes, (field, wire, r) => {
     if (field === 1 && wire === WIRE_VARINT) out.status = r.varint();
     else if (field === 2 && wire === WIRE_VARINT) out.staState = r.varint();
     else if (field === 10 && wire === WIRE_VARINT) { out.failReason = r.varint(); out.hasFailReason = true; }
+    else if (field === 11 && wire === WIRE_LEN) out.connected = decodeConnectedState(r.bytesField());
     else if (field === 12 && wire === WIRE_LEN) out.attemptsRemaining = decodeAttemptFailed(r.bytesField()).attemptsRemaining;
+    else r.skip(wire);
+  });
+  return out;
+}
+
+function decodeConnectedState(bytes) {
+  const dec = new TextDecoder("utf-8");
+  const out = { ip4Addr: "", authMode: 0, ssid: "", bssid: new Uint8Array(), channel: 0 };
+  eachField(bytes, (field, wire, r) => {
+    if (field === 1 && wire === WIRE_LEN) out.ip4Addr = dec.decode(r.bytesField());
+    else if (field === 2 && wire === WIRE_VARINT) out.authMode = r.varint();
+    else if (field === 3 && wire === WIRE_LEN) out.ssid = dec.decode(r.bytesField());
+    else if (field === 4 && wire === WIRE_LEN) out.bssid = r.bytesField();
+    else if (field === 5 && wire === WIRE_VARINT) out.channel = r.varint();
     else r.skip(wire);
   });
   return out;

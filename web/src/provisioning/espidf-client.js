@@ -157,6 +157,33 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
     return decodeWifiConfigPayload(response);
   }
 
+  async function reportProvisionedDevice(status) {
+    const ip = status.connected?.ip4Addr;
+    if (!ip) {
+      log("Printer connected, but BLE status did not include an IP address to report to localhost.");
+      return null;
+    }
+    const device = {
+      serviceName: bluetoothDevice?.name || "",
+      ip,
+      ssid: status.connected?.ssid || "",
+      source: "web-bluetooth",
+    };
+    try {
+      const response = await fetch("/api/setup/provisioned-device", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(device),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      log(`Reported provisioned printer ${ip} to local setup server`);
+      return device;
+    } catch (error) {
+      log(`Could not report printer IP ${ip} to local setup server: ${error.message || error}`);
+      return device;
+    }
+  }
+
   async function sendEncryptedControl(payload) {
     if (!securitySession) throw new Error("Security 1 session is not established.");
     const encrypted = await securitySession.encrypt(payload);
@@ -292,7 +319,9 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
         const stateText = wifiStateText(status.staState);
         log(`WiFi provisioning status: ${stateText}`);
         if (status.staState === WifiState.CONNECTED) {
-          return { ok: true, status, message: "Printer connected to WiFi successfully." };
+          const device = await reportProvisionedDevice(status);
+          const ipSuffix = device?.ip ? ` at ${device.ip}` : "";
+          return { ok: true, status, device, message: `Printer connected to WiFi successfully${ipSuffix}.` };
         }
         if (status.staState === WifiState.CONNECTION_FAILED) {
           const reason = status.hasFailReason ? ` (${wifiFailReasonText(status.failReason)})` : "";

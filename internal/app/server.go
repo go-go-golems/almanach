@@ -12,6 +12,7 @@ type Server struct {
 	cfg           Config
 	allocatorCtx  context.Context
 	allocatorDone context.CancelFunc
+	setupDevices  *setupDeviceStore
 }
 
 // RegisterRoutes wires all HTTP handlers onto the given mux.
@@ -21,6 +22,13 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 
 	// SPA static files (loaded by Chrome headless)
 	registerStaticRoutes(mux, s.cfg.WebDir)
+
+	if s.setupDevices == nil {
+		s.setupDevices = &setupDeviceStore{}
+	}
+
+	// Setup rendezvous API
+	mux.HandleFunc("/api/setup/provisioned-device", s.handleProvisionedDevice)
 
 	// Render API
 	mux.HandleFunc("/api/render", s.handleRender)
@@ -34,7 +42,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,
 		"version": Version,
-		"printer": s.cfg.PrinterIP,
+		"printer": s.effectivePrinterIP(),
 	})
 }
 
@@ -84,7 +92,8 @@ func (s *Server) handleRenderAndPrint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.cfg.PrinterIP == "" {
+	printerIP := s.effectivePrinterIP()
+	if printerIP == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"ok":    false,
 			"error": "ALMANACH_PRINTER_IP not configured",
@@ -102,7 +111,7 @@ func (s *Server) handleRenderAndPrint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Forward to ESP32
-	printerURL := fmt.Sprintf("http://%s/api/print/bitmap", s.cfg.PrinterIP)
+	printerURL := fmt.Sprintf("http://%s/api/print/bitmap", printerIP)
 	printResp, err := sendBitmapToPrinter(printerURL, result.Bitmap, s.cfg.FeedLines)
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
