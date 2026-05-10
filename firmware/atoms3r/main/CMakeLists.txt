@@ -9,6 +9,9 @@ idf_component_register(
         "provisioning_mgr.c"
         "provisioning_cmd.c"
         "web_server.c"
+        "backlight.cpp"
+        "display_hal.cpp"
+        "display_app.cpp"
     PRIV_REQUIRES
         console
         esp_driver_gpio
@@ -18,9 +21,13 @@ idf_component_register(
         esp_netif
         esp_event
         esp_http_server
+        esp_driver_spi
+        esp_driver_i2c
         protocomm
         wifi_provisioning
         bt
+    REQUIRES
+        M5GFX
     EMBED_TXTFILES
         "index.html"
         "assets/almanach/almanach.html"

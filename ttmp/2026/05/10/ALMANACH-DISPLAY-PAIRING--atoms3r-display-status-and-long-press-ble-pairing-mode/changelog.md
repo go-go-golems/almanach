@@ -26,3 +26,16 @@ Uploaded the AtomS3R display pairing design bundle to reMarkable.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-DISPLAY-PAIRING--atoms3r-display-status-and-long-press-ble-pairing-mode/design/01-atoms3r-display-status-and-long-press-ble-pairing-design-guide.md — Uploaded in bundle.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-DISPLAY-PAIRING--atoms3r-display-status-and-long-press-ble-pairing-mode/reference/01-investigation-diary.md — Uploaded in bundle.
 - /ai/2026/05/10/ALMANACH-DISPLAY-PAIRING/ALMANACH_AtomS3R_Display_Pairing_Guide.pdf — reMarkable destination.
+
+## 2026-05-10
+
+Phase 0/1 implementation: added M5GFX managed dependency, Almanach display/backlight/button Kconfig, text-only AtomS3R display bring-up, and best-effort boot screen wiring.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/idf_component.yml — M5GFX managed component dependency.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/dependencies.lock — ESP-IDF component lockfile.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/Kconfig.projbuild — Almanach display/backlight/button configuration.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_hal.cpp — AtomS3R GC9107 display bring-up.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Text-only boot/status/error display API.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Best-effort display initialization and boot screen.

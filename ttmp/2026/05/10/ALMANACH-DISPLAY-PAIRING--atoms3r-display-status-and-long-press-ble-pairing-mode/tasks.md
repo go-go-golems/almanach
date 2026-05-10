@@ -2,15 +2,43 @@
 
 ## TODO
 
-- [ ] Add tasks here
-
-
 - [x] Analyze AtomS3R display/GIF/button donor firmware in esp32-s3-m5
 - [x] Create intern-facing display status and long-press BLE pairing design guide
-- [ ] Resolve AtomS3R GPIO7 backlight gate versus printer UART pin conflict before implementation
-- [ ] Port text-only display bring-up into Almanach firmware
-- [ ] Add display status task for BLE provisioning, WiFi, IP, and web readiness
-- [ ] Add long-press button state machine for pairing/reset mode
-- [ ] Add optional GIF playback after status and pairing flows are validated
-- [ ] Validate on AtomS3R hardware and update diary with monitor/display results
 - [x] Upload display pairing design guide to reMarkable
+
+## Implementation plan
+
+- [x] Phase 0: Resolve implementation constraints before code
+  - [x] Confirm whether standalone Almanach should vendor display dependencies or use ESP-IDF component manager
+  - [x] Confirm GPIO7 conflict between AtomS3R backlight gate and printer UART mapping
+  - [x] Decide initial backlight strategy: I2C brightness only with disabled GPIO gate
+- [x] Phase 1: Add text-only display infrastructure
+  - [x] Add display/backlight Kconfig with Almanach-specific symbols
+  - [x] Add M5GFX/display dependency without coupling to esp32-s3-m5 donor paths
+  - [x] Add `display_hal.cpp/.h` for AtomS3R GC9107 initialization
+  - [x] Add `display_app.cpp/.h` for boot/status/error screens
+  - [x] Wire display initialization into `app_main.c`
+  - [x] Build firmware and commit text-only display bring-up
+- [ ] Phase 2: Add display status model
+  - [ ] Add a polling UI status task
+  - [ ] Read `provisioning_mgr_get_status()` into display status
+  - [ ] Read `wifi_mgr_is_connected()` and `wifi_mgr_get_ip()` into display status
+  - [ ] Show BLE service name, PoP, client/security state, WiFi state, IP, and web readiness
+  - [ ] Build firmware and commit display status screens
+- [ ] Phase 3: Add button long-press pairing mode
+  - [ ] Add `button_input` ISR plus task state machine for GPIO41 active-low
+  - [ ] Detect short press, pairing hold, and reset-confirm hold outside ISR context
+  - [ ] On pairing hold, call `provisioning_mgr_start_if_needed()` and show pairing screen
+  - [ ] On reset-confirm hold, erase console WiFi and provisioning state consistently with `prov_reset`
+  - [ ] Build firmware and commit long-press pairing behavior
+- [ ] Phase 4: Hardware validation
+  - [ ] Flash AtomS3R and validate boot/status screen
+  - [ ] Validate erased-flash BLE pairing screen
+  - [ ] Validate long-press pairing behavior
+  - [ ] Validate reset-confirm behavior only after on-screen feedback is visible
+  - [ ] Update diary/changelog with monitor/display observations
+- [ ] Phase 5: Optional GIF animation layer
+  - [ ] Vendor or add `echo_gif` and AnimatedGIF dependencies
+  - [ ] Add storage/asset strategy for GIF files
+  - [ ] Add GIF background/screensaver mode that never blocks status rendering
+  - [ ] Validate heap stability and status preemption during provisioning/errors

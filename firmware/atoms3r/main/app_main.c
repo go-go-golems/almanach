@@ -15,6 +15,7 @@
 #include "esp_check.h"
 #include "nvs_flash.h"
 
+#include "display_app.h"
 #include "nvs_store.h"
 #include "printer_cmd.h"
 #include "printer_drv.h"
@@ -148,27 +149,35 @@ void app_main(void)
     ESP_LOGI(TAG, "AtomS3R Lite + K118 printer");
     ESP_LOGI(TAG, "============================");
 
-    /* 1. NVS */
+    /* 1. Local display (best-effort; serial console remains authoritative). */
+    esp_err_t display_err = display_app_init();
+    if (display_err == ESP_OK) {
+        display_app_show_boot("AtomS3R", "Booting...");
+    } else {
+        ESP_LOGW(TAG, "Display init skipped/failed: %s", esp_err_to_name(display_err));
+    }
+
+    /* 2. NVS */
     ESP_ERROR_CHECK(nvs_store_init());
 
-    /* 2. Network stack */
+    /* 3. Network stack */
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    /* 3. WiFi manager */
+    /* 4. WiFi manager */
     ESP_ERROR_CHECK(wifi_mgr_init());
 
-    /* 4. Printer UART */
+    /* 5. Printer UART */
     ESP_ERROR_CHECK(printer_drv_init());
     apply_saved_printer_settings();
 
-    /* 5. Start WiFi from saved credentials or BLE provisioning */
+    /* 6. Start WiFi from saved credentials or BLE provisioning */
     start_network_onboarding();
 
-    /* 6. Start background task that launches the web server once WiFi is up */
+    /* 7. Start background task that launches the web server once WiFi is up */
     xTaskCreate(web_server_task, "web_wait", 4096, NULL, 2, NULL);
 
-    /* 7. Start the interactive console (blocks forever) */
+    /* 8. Start the interactive console (blocks forever) */
     esp_console_repl_t *repl = NULL;
     esp_console_repl_config_t repl_cfg = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     repl_cfg.prompt = "stoms3r> ";
@@ -181,12 +190,12 @@ void app_main(void)
     ESP_ERROR_CHECK(
         esp_console_new_repl_usb_serial_jtag(&hw_cfg, &repl_cfg, &repl));
 
-    /* 8. Register commands */
+    /* 9. Register commands */
     esp_console_register_help_command();
     printer_cmd_register();
     wifi_cmd_register();
     provisioning_cmd_register();
 
-    /* 9. Start REPL — does not return */
+    /* 10. Start REPL — does not return */
     ESP_ERROR_CHECK(esp_console_start_repl(repl));
 }
