@@ -1564,3 +1564,114 @@ pnpm --prefix web run build-storybook
 BUILD_WEB_LOCAL=1 go run ./cmd/build-web
 go test ./...
 ```
+
+## Step 14: Browser Security 1 and encrypted provisioning port
+
+This step used the completed native Go implementation as the reference for the browser JavaScript port. The browser client already handled Chrome's picker, GATT connection, service discovery, endpoint mapping, and `proto-ver`; this step added the missing binary protocol layers: Security 1, protobuf message helpers, encrypted WiFi config commands, and status polling.
+
+The implementation is intentionally close to the Go shape. Web Bluetooth remains a transport that sends bytes to named ESP-IDF endpoints. The protocol layer builds `SessionData` and `WiFiConfigPayload` messages, establishes the same X25519/PoP/AES-CTR Security 1 session, and then sends encrypted SetConfig, ApplyConfig, and GetStatus requests.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Ok, create a new project report in the obsidian vault as a deep dive technical blog post written in a textbook style (see skill), about implementing the provisioning part in go and how it all works and which protocols are involved. We will later update this document to cover the JS part as well.
+
+Once you are done, wokr on the JS port."
+
+**Assistant interpretation:** First write a durable textbook-style Obsidian article explaining the native Go provisioning implementation and protocol stack, then start porting the now-proven Go protocol flow into the browser Web Bluetooth client.
+
+**Inferred user intent:** Preserve the native implementation knowledge as reusable documentation and use it immediately as the reference for the browser credential-transfer implementation.
+
+**Commit (code):** 251268104a9758de9658a93cd0a1091ba65c3b89 — "Port ESP-IDF provisioning flow to browser"
+
+### What I did
+
+- Created Obsidian article:
+  - `/home/manuel/code/wesen/obsidian-vault/Projects/2026/05/10/ARTICLE - Almanach BLE Provisioning - Native Go Protocol Deep Dive.md`
+- Added `@noble/curves` to the web package for X25519.
+- Added `web/src/provisioning/espidf-protobuf.js` with minimal protobuf helpers for:
+  - Security 1 `SessionData` setup0/setup1 messages
+  - Security 1 response parsing
+  - WiFi SetConfig, ApplyConfig, and GetStatus messages
+  - WiFi status response parsing with oneof-aware fail-reason presence
+- Added `web/src/provisioning/security1.js` with:
+  - X25519 key generation and shared-secret derivation
+  - SHA-256(PoP) XOR key adjustment via WebCrypto
+  - continuous AES-CTR stream adapter via WebCrypto
+  - setup0/setup1 proof validation
+- Updated `web/src/provisioning/espidf-client.js` to:
+  - send and read binary endpoint payloads
+  - establish Security 1 over `prov-session`
+  - send encrypted WiFi credentials over `prov-config`
+  - apply config and poll status
+- Updated `ProvisioningWizard.jsx` user-facing copy and real-flow log message.
+- Rebuilt web assets into `internal/web/embed/public/setup-bundle.js`.
+- Ran:
+  - `pnpm --prefix web run build`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+  - `go test ./...`
+
+### Why
+
+- The browser already had transport proof through `proto-ver`; the next useful milestone was credential transfer.
+- The native Go implementation provided a concrete, hardware-validated reference for Security 1 and WiFi config sequencing.
+- Keeping the browser protocol code byte-oriented mirrors the Go `Transport.Send(endpoint, bytes)` boundary and keeps Web Bluetooth details out of the cryptographic logic.
+
+### What worked
+
+- The setup bundle builds with the new browser Security 1 and protobuf modules.
+- The Go embedded-web build succeeds.
+- `go test ./...` still passes.
+
+### What didn't work
+
+- Browser hardware validation was not run in this step. The device is currently provisioned after the native Go validation, so repeated BLE provisioning requires reset/reprovision support or state clearing.
+- I initially installed both `@noble/curves` and `@noble/ciphers`, but removed `@noble/ciphers` after implementing the continuous AES-CTR adapter with WebCrypto.
+
+### What I learned
+
+- WebCrypto can provide the AES primitive, but it does not expose a stateful streaming AES-CTR object. The browser implementation therefore tracks counter and block offset explicitly and asks WebCrypto for the needed keystream bytes for each chunk.
+- The browser protobuf surface is small enough to implement directly for the required message subset, but this should be reviewed before expanding scope.
+
+### What was tricky to build
+
+- The AES-CTR stream adapter is the browser equivalent of Go's `cipher.Stream`. It must preserve the same stream continuity as ESP-IDF and the Go implementation. The adapter tracks the current counter and intra-block offset so separate WebCrypto calls still behave like one continuous stream.
+- The protobuf helpers must encode nested oneof fields with the exact ESP-IDF field numbers. A message can look structurally reasonable in JavaScript but still be rejected by the device if the oneof wrapper field is wrong.
+
+### What warrants a second pair of eyes
+
+- Review `web/src/provisioning/security1.js`, especially the AES-CTR counter/offset advancement logic.
+- Review `web/src/provisioning/espidf-protobuf.js` field numbers against the vendored ESP-IDF schemas.
+- Consider replacing hand-written protobuf helpers with generated JavaScript bindings if the browser protocol grows beyond this small subset.
+
+### What should be done in the future
+
+- Hardware-validate the browser provisioning flow after adding or using a reset/reprovision path.
+- Update the Obsidian article with a JavaScript section once browser hardware validation succeeds.
+
+### Code review instructions
+
+- Start with `web/src/provisioning/security1.js` for Security 1.
+- Then inspect `web/src/provisioning/espidf-protobuf.js` for protobuf field mapping.
+- Then inspect `web/src/provisioning/espidf-client.js` for Web Bluetooth transport integration.
+- Validate with:
+
+```bash
+pnpm --prefix web run build
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+go test ./...
+```
+
+### Technical details
+
+The browser implementation maps the native Go flow as follows:
+
+```text
+Go TinyGoTransport.Send(endpoint, bytes)
+  -> browser sendEndpointBytes(endpoint, Uint8Array)
+
+Go Security1Session
+  -> browser Security1Session with @noble/curves X25519 and WebCrypto SHA-256/AES-CTR
+
+Go WiFiConfigPayload helpers
+  -> browser espidf-protobuf.js minimal encoders/decoders
+```

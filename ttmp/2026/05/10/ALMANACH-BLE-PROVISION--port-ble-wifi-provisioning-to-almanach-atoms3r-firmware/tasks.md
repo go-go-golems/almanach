@@ -42,6 +42,14 @@
   - [x] Add Storybook state for real BLE connected/discovery-ready UI
   - [x] Validate web build and Storybook build
 - [x] Browser BLE Phase 2: implement browser proto-ver endpoint probe
-- [ ] Browser BLE Phase 3: decide library vs native implementation for ESP-IDF Security 1/protobuf
-- [ ] Browser BLE Phase 4: send WiFi credentials and poll provisioning result from Chrome
+- [x] Browser BLE Phase 3: decide library vs native implementation for ESP-IDF Security 1/protobuf
+  - [x] Use `@noble/curves` for X25519
+  - [x] Add minimal ESP-IDF protobuf helpers for Security 1 and WiFi config payloads
+  - [x] Use WebCrypto SHA-256 and AES-CTR stream adapter instead of adding a cipher package
+- [x] Browser BLE Phase 4: send WiFi credentials and poll provisioning result from Chrome
+  - [x] Add binary endpoint send/read support
+  - [x] Implement browser Security 1 setup0/setup1
+  - [x] Implement encrypted SetConfig/ApplyConfig/GetStatus
+  - [x] Wire real setup wizard flow through Security 1 and status polling
+  - [x] Build setup bundle and embedded assets
 - [ ] Browser BLE Phase 5: browser hardware validation against AtomS3R and diary/changelog update

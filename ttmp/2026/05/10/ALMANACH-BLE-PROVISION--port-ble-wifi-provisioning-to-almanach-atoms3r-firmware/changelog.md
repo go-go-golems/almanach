@@ -215,3 +215,16 @@ Added browser-side ESP-IDF endpoint discovery and `proto-ver` probing after Chro
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt setup bundle
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/tasks.md — Marks Browser BLE Phase 2 complete
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records browser proto-ver implementation
+
+## 2026-05-10
+
+Browser provisioning port: created a textbook-style Obsidian deep dive on the native Go provisioning implementation, then ported the ESP-IDF provisioning protocol layers into the Web Bluetooth client. The browser setup flow now includes Security 1, minimal protobuf helpers, encrypted WiFi SetConfig/ApplyConfig/GetStatus, and status polling. Hardware browser validation remains pending because the device is currently provisioned after native Go validation.
+
+### Related Files
+
+- /home/manuel/code/wesen/obsidian-vault/Projects/2026/05/10/ARTICLE - Almanach BLE Provisioning - Native Go Protocol Deep Dive.md — Textbook-style project report and protocol explanation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/security1.js — Browser Security 1 implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-protobuf.js — Minimal ESP-IDF protobuf helpers for browser provisioning
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Web Bluetooth client with encrypted provisioning flow
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.jsx — Real-flow UI text and logging updates
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt embedded setup bundle
