@@ -62,8 +62,14 @@ func TestClientProvisionWiFiStopsOnFailedStatus(t *testing.T) {
 	if status.StateText() != "failed" {
 		t.Fatalf("state text = %q, want failed", status.StateText())
 	}
+	if !status.HasFailReason {
+		t.Fatalf("expected fail reason to be present")
+	}
 	if status.FailReason != espidf.WifiConnectFailedReason_AuthError {
 		t.Fatalf("fail reason = %s, want AuthError", status.FailReason)
+	}
+	if status.FailReasonText() != "AuthError" {
+		t.Fatalf("fail reason text = %q, want AuthError", status.FailReasonText())
 	}
 }
 

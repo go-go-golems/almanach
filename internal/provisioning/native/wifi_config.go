@@ -13,6 +13,7 @@ type WiFiStatus struct {
 	Status            espidf.Status
 	State             espidf.WifiStationState
 	FailReason        espidf.WifiConnectFailedReason
+	HasFailReason     bool
 	AttemptsRemaining uint32
 }
 
@@ -33,6 +34,13 @@ func (s WiFiStatus) StateText() string {
 
 func (s WiFiStatus) Terminal() bool {
 	return s.State == espidf.WifiStationState_Connected || s.State == espidf.WifiStationState_ConnectionFailed || s.State == espidf.WifiStationState_Disconnected
+}
+
+func (s WiFiStatus) FailReasonText() string {
+	if !s.HasFailReason {
+		return ""
+	}
+	return s.FailReason.String()
 }
 
 func (c *Client) SetWiFiConfig(ctx context.Context, ssid, passphrase string) (espidf.Status, error) {
@@ -136,9 +144,12 @@ func GetWiFiStatus(ctx context.Context, t Transport, sec *Security1Session) (*Wi
 	}
 	status := resp.GetRespGetStatus()
 	out := &WiFiStatus{
-		Status:     status.GetStatus(),
-		State:      status.GetStaState(),
-		FailReason: status.GetFailReason(),
+		Status: status.GetStatus(),
+		State:  status.GetStaState(),
+	}
+	if _, ok := status.GetState().(*espidf.RespGetStatus_FailReason); ok {
+		out.FailReason = status.GetFailReason()
+		out.HasFailReason = true
 	}
 	if attempt := status.GetAttemptFailed(); attempt != nil {
 		out.AttemptsRemaining = attempt.GetAttemptsRemaining()

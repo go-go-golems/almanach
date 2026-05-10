@@ -90,7 +90,7 @@ func runNativeBLEProvision(ctx context.Context, s *BLEProvisionSettings, gp midd
 		types.MRP("capabilities", info.Capabilities),
 		types.MRP("wifi_status", status.Status.String()),
 		types.MRP("wifi_state", status.StateText()),
-		types.MRP("wifi_fail_reason", status.FailReason.String()),
+		types.MRP("wifi_fail_reason", status.FailReasonText()),
 		types.MRP("wifi_attempts_remaining", status.AttemptsRemaining),
 		types.MRP("duration_ms", duration.Milliseconds()),
 		types.MRP("endpoint_count", len(transport.Endpoints())),

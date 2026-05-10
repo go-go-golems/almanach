@@ -64,6 +64,12 @@
   - [x] Add native dry-run row
   - [x] Run `go test ./...`
   - [x] Update diary/changelog and commit Phase 7
-- [ ] Phase 8: hardware validate native Go provisioning against AtomS3R
+- [x] Phase 8: hardware validate native Go provisioning against AtomS3R
+  - [x] Run native provisioning against `ALM_0F2320` with provided WiFi credentials
+  - [x] Confirm native command reaches `wifi_state=connected`
+  - [x] Confirm firmware logs show Security 1 session, received SSID, STA got IP, web server start, and provisioning stop
+  - [x] Fix misleading default fail-reason output for connected status
+  - [x] Run `go test ./...`
+  - [ ] Update diary/changelog and commit Phase 8
 - [ ] Phase 9: use native Go implementation as reference for future browser JavaScript port
 - [x] Upload native Go provisioning design package to reMarkable
