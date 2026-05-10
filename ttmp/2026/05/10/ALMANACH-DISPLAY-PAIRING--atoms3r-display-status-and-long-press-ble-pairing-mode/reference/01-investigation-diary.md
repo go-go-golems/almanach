@@ -856,3 +856,93 @@ This confirms the revised 3-second pairing action works on a provisioned device.
 Relevant runtime log file:
 
 - `/tmp/almanach-button-monitor.log`
+
+
+## Step 10: Improve long-hold reset countdown visibility
+
+This step investigated the user's report that holding the button for a long time did not visibly change the screen much. The logs show the button reached the 3-second pairing threshold again while BLE provisioning was already running, but there was no 10-second reset log and no reboot. The existing screen feedback was also too subtle: the hold screen still said `PAIRING` and printed small millisecond text, which is hard to distinguish from the normal pairing screen on a 128x128 display.
+
+The firmware now renders a much clearer hold screen after pairing starts: `PAIR ON`, `Release OK`, and a larger `RESET Ns` countdown that turns red near the reset threshold. The button task also logs hold progress once per second after the pairing threshold so future hardware tests can show whether the hold is still being sampled and how long remains before reset.
+
+### Prompt Context
+
+**User prompt (verbatim):** "i did for a long time but i din't see much change on the screen."
+
+**Assistant interpretation:** Inspect the button logs after a longer hold and improve the on-device reset countdown feedback because the screen state was not obvious.
+
+**Inferred user intent:** Make the button UX understandable without needing serial logs, especially while distinguishing safe pairing from destructive reset.
+
+**Commit (code):** pending — display countdown and hold-progress logging update.
+
+### What I did
+
+- Read `/tmp/almanach-button-monitor.log` and the active `alm-button-test` monitor pane.
+- Confirmed a later hold reached the pairing threshold while provisioning was already running:
+  - `button pairing hold reached: 3094 ms`
+  - `provisioning: BLE provisioning already running`
+- Did not see a 10-second reset log or reboot after that hold.
+- Updated `display_app_show_pairing_hold()` to use clearer large text:
+  - before pairing: `PAIR in Ns`
+  - after pairing: `PAIR ON`, `Release OK`, `RESET Ns`, `keep hold`
+  - countdown turns red for the final 3 seconds.
+- Updated `button_input.c` to log hold progress once per second after the pairing threshold:
+  - `button held: <held_ms> ms (reset in <remaining_ms> ms)`
+- Built firmware successfully.
+
+### What worked
+
+Build passed after the feedback changes:
+
+```text
+stoms3r.bin binary size 0x17c0c0 bytes. Smallest app partition is 0x400000 bytes. 0x283f40 bytes (63%) free.
+Project build complete.
+```
+
+The prior log evidence explains why the screen looked ambiguous:
+
+```text
+I button_input: button pairing hold reached: 3094 ms
+I provisioning: BLE provisioning already running
+```
+
+That was a valid pairing state, but not a visible reset-progress state.
+
+### What didn't work
+
+- The 10-second reset path is still not validated. I did not see `button reset hold reached; clearing WiFi/provisioning state` or a reboot in the latest log excerpt.
+- The improved display feedback has been built but still needs flashing and another physical hold test.
+
+### What I learned
+
+- The display copy needs to distinguish safe pairing from destructive reset. `PAIRING` plus millisecond text is not enough on a tiny 128x128 screen.
+- Serial logs should include countdown progress for long holds so we can tell the difference between a user releasing early, a sampling problem, or a display-only visibility problem.
+
+### What was tricky to build
+
+- The same button hold has two phases: non-destructive pairing after 3 seconds and destructive reset at 10 seconds. The screen must tell the user that releasing after 3 seconds is safe, but continuing to hold will reset credentials.
+- The display status task may redraw normal status once per second, so the hold screen needs to be visually bold enough to notice while the button task refreshes it.
+
+### What warrants a second pair of eyes
+
+- Review whether display writes from the status task and button task should be serialized with a mutex or routed through one UI task.
+- Review whether destructive reset should require releasing after 10 seconds instead of firing immediately while held.
+
+### What should be done in the future
+
+- Flash this improved feedback firmware.
+- Hold the button through 10 seconds and watch for both screen countdown and serial progress logs.
+- If reset still does not fire, inspect button level sampling while held and display/task concurrency.
+
+### Code review instructions
+
+- Start with `firmware/atoms3r/main/display_app.cpp`, `display_app_show_pairing_hold()`.
+- Then review `firmware/atoms3r/main/button_input.c` for once-per-second hold progress logging.
+- Validate by flashing and holding the button for 11 seconds.
+
+### Technical details
+
+Relevant files:
+
+- `/tmp/almanach-button-monitor.log`
+- `firmware/atoms3r/main/display_app.cpp`
+- `firmware/atoms3r/main/button_input.c`

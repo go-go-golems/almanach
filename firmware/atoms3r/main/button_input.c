@@ -127,6 +127,7 @@ static void button_task(void *arg)
     int64_t last_edge_us = 0;
     bool pairing_announced = false;
     bool reset_triggered = false;
+    uint32_t last_hold_log_s = 0;
 
     while (true) {
         button_edge_t ev = {0};
@@ -147,11 +148,26 @@ static void button_task(void *arg)
             press_start_us = now_us;
             pairing_announced = false;
             reset_triggered = false;
+            last_hold_log_s = 0;
             ESP_LOGI(TAG, "button press started");
         }
 
         if (pressed && press_start_us != 0) {
             const uint32_t held_ms = (uint32_t)((now_us - press_start_us) / 1000);
+
+            const uint32_t held_s = held_ms / 1000;
+            if (held_s != last_hold_log_s) {
+                last_hold_log_s = held_s;
+                if (held_ms >= (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS) {
+                    uint32_t remaining_ms = 0;
+                    if (held_ms < (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS) {
+                        remaining_ms = (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS - held_ms;
+                    }
+                    ESP_LOGI(TAG, "button held: %lu ms (reset in %lu ms)",
+                             (unsigned long)held_ms,
+                             (unsigned long)remaining_ms);
+                }
+            }
 
             if (held_ms >= (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS && !pairing_announced) {
                 ESP_LOGI(TAG, "button pairing hold reached: %lu ms", (unsigned long)held_ms);
@@ -175,6 +191,7 @@ static void button_task(void *arg)
             press_start_us = 0;
             pairing_announced = false;
             reset_triggered = false;
+            last_hold_log_s = 0;
         }
 
         was_pressed = pressed;

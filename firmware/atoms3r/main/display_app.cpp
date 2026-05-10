@@ -164,14 +164,42 @@ void display_app_show_pairing_hold(uint32_t held_ms, uint32_t target_ms)
     if (!s_inited) {
         return;
     }
+
+    const uint32_t pair_ms = CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS;
+    const uint32_t remaining_ms = (held_ms < target_ms) ? (target_ms - held_ms) : 0;
+    const uint32_t remaining_s = (remaining_ms + 999) / 1000;
+
     s_canvas.fillScreen(TFT_BLACK);
     s_canvas.setCursor(0, 0);
-    set_text(TFT_YELLOW);
-    s_canvas.println("PAIRING");
-    set_text(TFT_WHITE);
-    s_canvas.println("Keep holding");
-    s_canvas.printf("%lu/%lu ms\n", (unsigned long)held_ms, (unsigned long)target_ms);
-    s_canvas.println("Release cancel");
+
+    if (held_ms < pair_ms) {
+        set_text(TFT_YELLOW);
+        s_canvas.setTextSize(2);
+        s_canvas.println("PAIR");
+        set_text(TFT_WHITE);
+        s_canvas.printf("in %lus\n", (unsigned long)((pair_ms - held_ms + 999) / 1000));
+    } else {
+        set_text(TFT_YELLOW);
+        s_canvas.setTextSize(2);
+        s_canvas.println("PAIR ON");
+        set_text(TFT_WHITE);
+        s_canvas.println("Release OK");
+
+        s_canvas.setCursor(0, 58);
+        set_text(remaining_s <= 3 ? TFT_RED : TFT_ORANGE);
+        s_canvas.setTextSize(2);
+        if (remaining_s > 0) {
+            s_canvas.printf("RESET %lus\n", (unsigned long)remaining_s);
+        } else {
+            s_canvas.println("RESET");
+        }
+        set_text(TFT_WHITE);
+        s_canvas.println("keep hold");
+    }
+
+    s_canvas.setCursor(0, 116);
+    set_text(TFT_DARKGREY);
+    s_canvas.printf("%lu/%lu ms", (unsigned long)held_ms, (unsigned long)target_ms);
     display_present_canvas(s_canvas);
 }
 

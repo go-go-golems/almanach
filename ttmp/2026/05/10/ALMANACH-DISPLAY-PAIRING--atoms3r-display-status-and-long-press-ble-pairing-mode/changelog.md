@@ -107,3 +107,13 @@ Confirmed the revised 3-second AtomS3R button hold starts BLE pairing mode on ha
 ### Related Files
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Revised pairing hold behavior validated on hardware.
+
+
+## 2026-05-10
+
+Improved long-hold reset feedback after hardware testing showed the 3-second pairing threshold was reached but the screen did not clearly communicate the continued hold/reset countdown. The display now shows larger `PAIR ON` and `RESET Ns` text, and the button task logs hold progress once per second after pairing.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Clearer 128x128 pairing/reset countdown UI.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Once-per-second hold progress logging after pairing threshold.
