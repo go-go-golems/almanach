@@ -18,6 +18,7 @@
 #include "esp_log.h"
 
 #include "nvs_store.h"
+#include "provisioning_mgr.h"
 #include "wifi_mgr.h"
 
 static const char *TAG __attribute__((unused)) = "wifi_cmd";
@@ -125,10 +126,16 @@ static int do_wifi_forget(int argc, char **argv)
     wifi_mgr_disconnect();
     esp_err_t err = nvs_store_erase_wifi();
     if (err != ESP_OK) {
-        printf("Error erasing credentials: %s\n", esp_err_to_name(err));
+        printf("Error erasing explicit WiFi credentials: %s\n", esp_err_to_name(err));
         return 1;
     }
-    printf("WiFi credentials erased\n");
+
+    err = provisioning_mgr_reset();
+    if (err != ESP_OK) {
+        printf("Warning: provisioning state reset failed: %s\n", esp_err_to_name(err));
+    }
+
+    printf("WiFi credentials and provisioning state erased\n");
     return 0;
 }
 

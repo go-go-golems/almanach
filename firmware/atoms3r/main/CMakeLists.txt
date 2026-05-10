@@ -7,6 +7,7 @@ idf_component_register(
         "wifi_cmd.c"
         "nvs_store.c"
         "provisioning_mgr.c"
+        "provisioning_cmd.c"
         "web_server.c"
     PRIV_REQUIRES
         console

@@ -318,3 +318,85 @@ Successful build summary:
 Successfully created esp32s3 image.
 stoms3r.bin binary size 0x158140 bytes. Smallest app partition is 0x400000 bytes. 0x2a7ec0 bytes (66%) free.
 ```
+
+## Step 4: Phase 4 and 5 provisioning console commands and reset semantics
+
+This step added user-visible console commands for the BLE provisioning lifecycle. The firmware now exposes `prov_status`, `prov_start`, and `prov_reset` alongside the existing WiFi commands, and `wifi_forget` now clears both the explicit console WiFi namespace and the ESP-IDF provisioning state.
+
+The point of this phase is operability. Once the firmware is flashed, a developer can use USB Serial/JTAG to inspect the provisioning service name and PoP, start provisioning if needed, or reset the device back into first-boot provisioning mode without manually erasing flash from the host.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Continue the phased implementation and keep console-based recovery paths available.
+
+**Inferred user intent:** Make the provisioning work testable and recoverable from the serial console before hardware BLE validation.
+
+**Commit (code):** pending — this step will be committed after diary/changelog update.
+
+### What I did
+
+- Added `firmware/atoms3r/main/provisioning_cmd.h`.
+- Added `firmware/atoms3r/main/provisioning_cmd.c`.
+- Registered new commands in `app_main.c`:
+  - `prov_status`
+  - `prov_start`
+  - `prov_reset`
+- Added `provisioning_cmd.c` to `main/CMakeLists.txt`.
+- Updated `wifi_cmd.c` so `wifi_forget` now calls `provisioning_mgr_reset()` after erasing explicit WiFi credentials.
+- Built firmware successfully:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+### Why
+
+- BLE provisioning needs a console recovery surface because wrong WiFi credentials, wrong PoP, or stale provisioning state are common during development.
+- A reset command should clear both storage paths: explicit `nvs_store` WiFi keys and ESP-IDF provisioning state.
+
+### What worked
+
+- Firmware built successfully after adding the command module and reset integration.
+- Output image remained well inside the app partition:
+  - `stoms3r.bin binary size 0x158a30 bytes`
+  - Free space: `0x2a75d0 bytes (66%)`
+
+### What didn't work
+
+- No compile failures in this phase.
+
+### What I learned
+
+- The provisioning manager API created in Step 3 was sufficient for console status/start/reset without exposing ESP-IDF provisioning internals to command handlers.
+- Separating `provisioning_cmd.c` from `wifi_cmd.c` keeps station-mode commands and provisioning lifecycle commands easier to review.
+
+### What was tricky to build
+
+- Reset semantics are easy to get wrong because there are two credential paths. `prov_reset` and `wifi_forget` now both erase explicit WiFi credentials and reset provisioning state; `prov_reset` additionally reboots immediately so the device re-enters the normal boot decision tree.
+
+### What warrants a second pair of eyes
+
+- Review whether `wifi_forget` should reboot like `prov_reset` or whether non-rebooting behavior is preferable for a console command named `wifi_forget`.
+- Review whether `prov_start` should force provisioning after reset, or whether refusing when already provisioned is safer.
+
+### What should be done in the future
+
+- Flash to hardware and use monitor/console to verify the commands are registered and behave as intended.
+- Test `prov_reset` after successful provisioning.
+
+### Code review instructions
+
+- Review `provisioning_cmd.c` command behavior and messages.
+- Review `app_main.c` command registration.
+- Review `wifi_cmd.c` `do_wifi_forget()` reset behavior.
+- Validate with:
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+### Technical details
+
+New command summary:
+
+```text
+prov_status  Show provisioning manager state, BLE service name, PoP, and current IP
+prov_start   Start BLE provisioning if the device is not already provisioned
+prov_reset   Erase explicit/provisioned WiFi state and reboot
+```

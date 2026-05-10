@@ -48,3 +48,16 @@ Phases 2-3: added provisioning manager, MAC-derived BLE service identity/PoP, pr
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/wifi_mgr.c — Stored-credential station start helper
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Phases 2-3 diary entry
 
+
+## 2026-05-10
+
+Phases 4-5: added provisioning console commands and made WiFi forget/reset clear ESP-IDF provisioning state as well as explicit NVS credentials.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Provisioning command registration
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_cmd.c — prov_status/prov_start/prov_reset command implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_cmd.h — Provisioning command registration API
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/wifi_cmd.c — wifi_forget clears provisioning state
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Phases 4-5 diary entry
+

@@ -18,6 +18,7 @@
 #include "nvs_store.h"
 #include "printer_cmd.h"
 #include "printer_drv.h"
+#include "provisioning_cmd.h"
 #include "provisioning_mgr.h"
 #include "web_server.h"
 #include "wifi_cmd.h"
@@ -184,6 +185,7 @@ void app_main(void)
     esp_console_register_help_command();
     printer_cmd_register();
     wifi_cmd_register();
+    provisioning_cmd_register();
 
     /* 9. Start REPL — does not return */
     ESP_ERROR_CHECK(esp_console_start_repl(repl));
