@@ -1452,3 +1452,17 @@ grep -R "wifi_prov_scheme_ble_set_service_uuid" -n /home/manuel/esp/esp-idf-5.4.
 go test ./...
 cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build
 ```
+
+### Flash and retest setup update
+
+After committing the static UUID fix, I stopped the old serial monitor, flashed the AtomS3R, and restarted `alm-button-test` with `./build.sh /dev/ttyACM0 monitor`. The flashed app reports version `3e5f7ab`, boots into BLE provisioning, and advertises service name `ALM_0F2320` with PoP `alm-0f2320`.
+
+Commands run:
+
+```bash
+cd almanach/firmware/atoms3r
+./build.sh /dev/ttyACM0 flash
+tmux new-session -d -s alm-button-test './build.sh /dev/ttyACM0 monitor'
+```
+
+The next validation step is to hard-refresh Chrome at `http://localhost:18299/setup`, forget the old `ALM_0F2320` entry if Chrome cached it, and retry **Find BLE printer** against the newly flashed firmware.

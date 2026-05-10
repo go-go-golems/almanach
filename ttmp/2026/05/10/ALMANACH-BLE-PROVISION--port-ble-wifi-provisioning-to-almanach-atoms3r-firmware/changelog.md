@@ -194,3 +194,12 @@ Fixed the firmware BLE provisioning service UUID lifetime bug exposed by Chrome 
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Keeps custom BLE service UUID in static storage for ESP-IDF pointer lifetime
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records Chrome service-discovery debugging and firmware fix
+
+## 2026-05-10
+
+Flashed the AtomS3R with the static BLE service UUID firmware fix and restarted the `alm-button-test` monitor session for browser retesting.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Firmware fix included in flashed image
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Flash/monitor validation note
