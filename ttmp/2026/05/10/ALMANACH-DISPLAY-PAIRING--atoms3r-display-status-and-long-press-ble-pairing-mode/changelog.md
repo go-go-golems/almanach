@@ -117,3 +117,14 @@ Improved long-hold reset feedback after hardware testing showed the 3-second pai
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Clearer 128x128 pairing/reset countdown UI.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Once-per-second hold progress logging after pairing threshold.
+
+
+## 2026-05-10
+
+Updated the button/reset model so reset countdown is reachable from an already-active pairing screen. A press that starts while BLE provisioning is running now immediately arms reset countdown instead of re-triggering pairing. Display drawing is also guarded by a mutex to reduce status-task/button-task canvas contention.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Adds explicit already-pairing reset-countdown path.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Adds reset hold screen and display draw mutex.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.h — Exposes reset hold screen function.

@@ -946,3 +946,98 @@ Relevant files:
 - `/tmp/almanach-button-monitor.log`
 - `firmware/atoms3r/main/display_app.cpp`
 - `firmware/atoms3r/main/button_input.c`
+
+
+## Step 11: Make reset reachable from the already-pairing screen
+
+This step addressed a UX/state-model problem found in the live button logs. The user held the button while the device was already in BLE pairing mode and expected to be able to continue into reset from that screen. The logs showed the button task reaching the 3-second threshold again and reporting `BLE provisioning already running`, but no reset transition was logged. The implementation was not a formal state machine; it used per-press booleans such as `pairing_announced` and `reset_triggered`, which made the already-pairing case too implicit.
+
+The firmware now treats a press that begins while provisioning is already running as a reset-countdown press from the start. It shows a dedicated reset hold screen immediately, logs once-per-second progress from the beginning of that hold, and still triggers the same 10-second reset path. I also added a display mutex so the status task and button task do not draw to the shared M5Canvas concurrently.
+
+### Prompt Context
+
+**User prompt (verbatim):** "it should be possible to get there from within the pairing screen too. Are we using a state machine? Look at my logs..."
+
+**Assistant interpretation:** Inspect the logs for the long-hold behavior while already in pairing mode, explain whether the button code is currently a state machine, and make reset reachable from the pairing screen.
+
+**Inferred user intent:** The physical UX should be: once the device is on the pairing screen, continuing/starting a long hold should visibly progress toward reset rather than re-triggering pairing or appearing stuck.
+
+**Commit (code):** pending — pairing-screen reset countdown fix.
+
+### What I did
+
+- Read `/tmp/almanach-button-monitor.log` and `/tmp/almanach-button-monitor2.log`.
+- Confirmed old logs showed repeated pairing-threshold events without reset:
+  - `button pairing hold reached: 3094 ms`
+  - `provisioning: BLE provisioning already running`
+- Confirmed newer countdown logs progressed to 5 seconds, but did not show reset or release in the captured excerpt:
+  - `button held: 3094 ms (reset in 6906 ms)`
+  - `button held: 4044 ms (reset in 5956 ms)`
+  - `button held: 5044 ms (reset in 4956 ms)`
+- Updated `button_input.c` so when a press starts while `provisioning_mgr_get_status()` reports `running=true`, the task sets a `reset_countdown_only` state and shows reset countdown immediately.
+- Added `display_app_show_reset_hold()` for an explicit reset screen.
+- Added a FreeRTOS mutex around display drawing in `display_app.cpp` to serialize display writes from the status task and button task.
+- Built firmware successfully.
+
+### What worked
+
+The build passed:
+
+```text
+stoms3r.bin binary size 0x17c3a0 bytes. Smallest app partition is 0x400000 bytes. 0x283c60 bytes (63%) free.
+Project build complete.
+```
+
+The code now has an explicit state for the already-pairing press path:
+
+```c
+if (provisioning_mgr_get_status(&st) == ESP_OK && st.running) {
+    pairing_announced = true;
+    reset_countdown_only = true;
+    ESP_LOGI(TAG, "button press started while pairing is already active; reset countdown armed");
+    display_app_show_reset_hold(0, CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS);
+}
+```
+
+### What didn't work
+
+- This is built but not yet flashed/tested on hardware in this step.
+- The code is still not a full table-driven state machine; it is a small explicit per-press state model with booleans. That may be sufficient, but a real enum-based state machine would be clearer if button/display behavior grows further.
+
+### What I learned
+
+- The logs showed the problem clearly: the button task was re-entering the pairing threshold while the device was already in pairing mode. It needed to switch into reset countdown semantics instead.
+- The display path had another risk: both the display status task and button task can draw. That can make screen feedback appear to flicker or fail to update. A mutex is the first step toward making the UI deterministic.
+
+### What was tricky to build
+
+- Reset has to be reachable from two entry points: a fresh normal screen hold and an already-pairing screen hold. Those two paths should share the same destructive reset function but use different display copy.
+- The already-pairing case should not wait another 3 seconds before showing reset progress. It should immediately tell the user that reset countdown is armed.
+
+### What warrants a second pair of eyes
+
+- Review whether the button model should be refactored into an explicit enum state machine, for example `IDLE`, `HOLD_FOR_PAIR`, `PAIRING_ACTIVE`, `HOLD_FOR_RESET`, `RESETTING`.
+- Review whether the display mutex should become a proper single UI task/message queue instead of locking around M5Canvas calls.
+
+### What should be done in the future
+
+- Flash this build and validate: from the pairing screen, press and hold for 10 seconds and verify reset logs/reboot.
+- If the behavior remains confusing, move to a formal state machine and require release-after-countdown confirmation before destructive reset.
+
+### Code review instructions
+
+- Start in `firmware/atoms3r/main/button_input.c`, especially `reset_countdown_only` and the press-start branch.
+- Then review `firmware/atoms3r/main/display_app.cpp` for display mutex and `display_app_show_reset_hold()`.
+- Validate on hardware by entering pairing mode, then pressing/holding again until reset.
+
+### Technical details
+
+Relevant observed logs:
+
+```text
+I button_input: button pairing hold reached: 3094 ms
+I provisioning: BLE provisioning already running
+I button_input: button held: 3094 ms (reset in 6906 ms)
+I button_input: button held: 4044 ms (reset in 5956 ms)
+I button_input: button held: 5044 ms (reset in 4956 ms)
+```

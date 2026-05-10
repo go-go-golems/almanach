@@ -12,6 +12,8 @@
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 #include "M5GFX.h"
 
@@ -24,6 +26,22 @@ static bool s_inited = false;
 static const int s_w = CONFIG_ALMANACH_ATOMS3R_LCD_HRES;
 static const int s_h = CONFIG_ALMANACH_ATOMS3R_LCD_VRES;
 static M5Canvas s_canvas(&display_get());
+static SemaphoreHandle_t s_draw_lock = NULL;
+
+static bool begin_draw(void)
+{
+    if (!s_draw_lock) {
+        return true;
+    }
+    return xSemaphoreTake(s_draw_lock, pdMS_TO_TICKS(250)) == pdTRUE;
+}
+
+static void end_draw(void)
+{
+    if (s_draw_lock) {
+        xSemaphoreGive(s_draw_lock);
+    }
+}
 
 static void set_text(uint16_t fg)
 {
@@ -49,6 +67,12 @@ esp_err_t display_app_init(void)
 #else
     if (s_inited) {
         return ESP_OK;
+    }
+
+    s_draw_lock = xSemaphoreCreateMutex();
+    if (!s_draw_lock) {
+        ESP_LOGE(TAG, "display mutex allocation failed");
+        return ESP_ERR_NO_MEM;
     }
 
     ESP_LOGI(TAG, "display boot; free_heap=%" PRIu32 " dma_free=%" PRIu32,
@@ -87,7 +111,7 @@ bool display_app_is_ready(void)
 
 void display_app_show_boot(const char *line1, const char *line2)
 {
-    if (!s_inited) {
+    if (!s_inited || !begin_draw()) {
         return;
     }
     s_canvas.fillScreen(TFT_BLACK);
@@ -102,11 +126,12 @@ void display_app_show_boot(const char *line1, const char *line2)
         s_canvas.println(line2);
     }
     display_present_canvas(s_canvas);
+    end_draw();
 }
 
 void display_app_show_status(const display_status_t *st)
 {
-    if (!s_inited || !st) {
+    if (!s_inited || !st || !begin_draw()) {
         return;
     }
 
@@ -157,11 +182,12 @@ void display_app_show_status(const display_status_t *st)
     set_text(TFT_DARKGREY);
     s_canvas.println("Hold: Pair");
     display_present_canvas(s_canvas);
+    end_draw();
 }
 
 void display_app_show_pairing_hold(uint32_t held_ms, uint32_t target_ms)
 {
-    if (!s_inited) {
+    if (!s_inited || !begin_draw()) {
         return;
     }
 
@@ -201,11 +227,43 @@ void display_app_show_pairing_hold(uint32_t held_ms, uint32_t target_ms)
     set_text(TFT_DARKGREY);
     s_canvas.printf("%lu/%lu ms", (unsigned long)held_ms, (unsigned long)target_ms);
     display_present_canvas(s_canvas);
+    end_draw();
+}
+
+void display_app_show_reset_hold(uint32_t held_ms, uint32_t target_ms)
+{
+    if (!s_inited || !begin_draw()) {
+        return;
+    }
+
+    const uint32_t remaining_ms = (held_ms < target_ms) ? (target_ms - held_ms) : 0;
+    const uint32_t remaining_s = (remaining_ms + 999) / 1000;
+
+    s_canvas.fillScreen(TFT_BLACK);
+    s_canvas.setCursor(0, 0);
+    set_text(TFT_RED);
+    s_canvas.setTextSize(2);
+    s_canvas.println("RESET");
+    set_text(remaining_s <= 3 ? TFT_RED : TFT_ORANGE);
+    s_canvas.setTextSize(2);
+    if (remaining_s > 0) {
+        s_canvas.printf("in %lus\n", (unsigned long)remaining_s);
+    } else {
+        s_canvas.println("NOW");
+    }
+    set_text(TFT_WHITE);
+    s_canvas.println("Keep hold");
+    s_canvas.println("Release cancel");
+    s_canvas.setCursor(0, 116);
+    set_text(TFT_DARKGREY);
+    s_canvas.printf("%lu/%lu ms", (unsigned long)held_ms, (unsigned long)target_ms);
+    display_present_canvas(s_canvas);
+    end_draw();
 }
 
 void display_app_show_error(const char *line1, const char *line2)
 {
-    if (!s_inited) {
+    if (!s_inited || !begin_draw()) {
         return;
     }
     s_canvas.fillScreen(TFT_BLACK);
@@ -220,4 +278,5 @@ void display_app_show_error(const char *line1, const char *line2)
         s_canvas.println(line2);
     }
     display_present_canvas(s_canvas);
+    end_draw();
 }

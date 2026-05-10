@@ -127,6 +127,7 @@ static void button_task(void *arg)
     int64_t last_edge_us = 0;
     bool pairing_announced = false;
     bool reset_triggered = false;
+    bool reset_countdown_only = false;
     uint32_t last_hold_log_s = 0;
 
     while (true) {
@@ -148,8 +149,18 @@ static void button_task(void *arg)
             press_start_us = now_us;
             pairing_announced = false;
             reset_triggered = false;
+            reset_countdown_only = false;
             last_hold_log_s = 0;
-            ESP_LOGI(TAG, "button press started");
+
+            provisioning_status_t st = {0};
+            if (provisioning_mgr_get_status(&st) == ESP_OK && st.running) {
+                pairing_announced = true;
+                reset_countdown_only = true;
+                ESP_LOGI(TAG, "button press started while pairing is already active; reset countdown armed");
+                display_app_show_reset_hold(0, CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS);
+            } else {
+                ESP_LOGI(TAG, "button press started");
+            }
         }
 
         if (pressed && press_start_us != 0) {
@@ -158,7 +169,7 @@ static void button_task(void *arg)
             const uint32_t held_s = held_ms / 1000;
             if (held_s != last_hold_log_s) {
                 last_hold_log_s = held_s;
-                if (held_ms >= (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS) {
+                if (reset_countdown_only || held_ms >= (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS) {
                     uint32_t remaining_ms = 0;
                     if (held_ms < (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS) {
                         remaining_ms = (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS - held_ms;
@@ -169,7 +180,10 @@ static void button_task(void *arg)
                 }
             }
 
-            if (held_ms >= (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS && !pairing_announced) {
+            if (reset_countdown_only && !reset_triggered &&
+                held_ms < (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS) {
+                display_app_show_reset_hold(held_ms, CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS);
+            } else if (held_ms >= (uint32_t)CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS && !pairing_announced) {
                 ESP_LOGI(TAG, "button pairing hold reached: %lu ms", (unsigned long)held_ms);
                 display_app_show_pairing_hold(held_ms, CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS);
                 maybe_start_pairing();
@@ -191,6 +205,7 @@ static void button_task(void *arg)
             press_start_us = 0;
             pairing_announced = false;
             reset_triggered = false;
+            reset_countdown_only = false;
             last_hold_log_s = 0;
         }
 
