@@ -94,7 +94,7 @@ func bleProvisionFields() []*fields.Definition {
 		fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print the resolved command without executing it")),
 		fields.New("timeout", fields.TypeInteger, fields.WithDefault(120), fields.WithHelp("Timeout in seconds for the esp_prov.py subprocess")),
 		fields.New("install-hints", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print Linux/ESP-IDF dependency installation hints before running")),
-		fields.New("implementation", fields.TypeChoice, fields.WithDefault("python"), fields.WithChoices("python", "native"), fields.WithHelp("Provisioning implementation to use; native currently supports action=version")),
+		fields.New("implementation", fields.TypeChoice, fields.WithDefault("python"), fields.WithChoices("python", "native"), fields.WithHelp("Provisioning implementation to use; native supports action=version and action=provision")),
 	}
 }
 
@@ -113,10 +113,6 @@ func (c *BLEProvisionCommand) RunIntoGlazeProcessor(ctx context.Context, vals *v
 		return errors.New("--timeout must be greater than zero")
 	}
 
-	if s.Implementation == "native" {
-		return runNativeBLEProvision(ctx, s, gp)
-	}
-
 	passphrase := s.Passphrase
 	readPassphrase := false
 	if s.Action == "provision" && passphrase == "" {
@@ -126,6 +122,11 @@ func (c *BLEProvisionCommand) RunIntoGlazeProcessor(ctx context.Context, vals *v
 			return err
 		}
 		readPassphrase = true
+	}
+	s.Passphrase = passphrase
+
+	if s.Implementation == "native" {
+		return runNativeBLEProvision(ctx, s, gp, readPassphrase)
 	}
 
 	pythonPath := s.Python
