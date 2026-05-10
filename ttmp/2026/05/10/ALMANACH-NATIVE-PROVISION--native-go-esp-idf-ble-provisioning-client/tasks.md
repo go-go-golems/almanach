@@ -9,7 +9,12 @@
 - [x] Inspect firmware/browser evidence needed for native Go compatibility
 - [x] Write intern-facing native Go provisioning design guide
 - [x] Write investigation diary
-- [ ] Phase 1: add Go package layout for native provisioning transport/protocol modules
+- [x] Phase 1: add Go package layout for native provisioning transport/protocol modules
+  - [x] Create `internal/provisioning/native` package with transport interfaces and high-level client skeleton
+  - [x] Add fake transport test helper for protocol unit tests without BLE hardware
+  - [x] Implement native `proto-ver` parsing/verification against fake transport
+  - [x] Run `go test ./...`
+  - [ ] Update diary/changelog and commit Phase 1
 - [ ] Phase 2: generate or hand-maintain Go protobuf bindings from ESP-IDF schemas
 - [ ] Phase 3: implement BLE transport using a Linux BlueZ-capable Go BLE library
 - [ ] Phase 4: implement proto-ver and endpoint discovery parity with browser/Linux Python client
