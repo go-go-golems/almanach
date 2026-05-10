@@ -82,3 +82,24 @@ Hardware smoke-tested BLE provisioning boot path on AtomS3R after erase/flash; v
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Fixed provisioning_mgr_start_if_needed to report already-running state correctly
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Hardware smoke-test diary entry
 
+
+## 2026-05-10
+
+Added Linux Go/Glazed ble-provision command for local ESP-IDF BLE provisioning feedback loops; validated protocol version check against AtomS3R.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Go/Glazed BLE provisioning command wrapping ESP-IDF esp_prov.py
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_root.go — Registers ble-provision verb
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/design-doc/03-linux-go-cli-ble-provisioning-feedback-loop-design-and-implementation-guide.md — Intern-facing design and implementation guide
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Linux CLI provisioning diary entry
+
+
+## 2026-05-10
+
+Uploaded Linux CLI BLE provisioning guide to reMarkable at /ai/2026/05/10/ALMANACH-BLE-PROVISION.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/design-doc/03-linux-go-cli-ble-provisioning-feedback-loop-design-and-implementation-guide.md — Uploaded as ALMANACH_BLE_Linux_CLI_Provisioning_Guide.pdf
+

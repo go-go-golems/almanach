@@ -60,6 +60,14 @@ func NewRootCommand(version string) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	bleProvisionCmd, err := newBLEProvisionCommand()
+	if err != nil {
+		return nil, err
+	}
+	if err := addGlazedCommand(rootCmd, bleProvisionCmd); err != nil {
+		return nil, err
+	}
+
 	return rootCmd, nil
 }
 

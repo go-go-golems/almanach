@@ -609,3 +609,114 @@ provisioning:   Device    : ALM_0F2320
 provisioning:   Security  : Security 1
 provisioning:   PoP       : alm-0f2320
 ```
+
+## Step 6: Linux Go/Glazed BLE provisioning command
+
+This step added a developer feedback-loop command to the Almanach binary: `ble-provision`. The command is implemented as a Glazed verb in Go, but it delegates the low-level ESP-IDF BLE/protocomm protocol to Espressif's maintained `esp_prov.py` client.
+
+### Prompt Context
+
+**User prompt (verbatim):** "can you build a linux go cli tool (actually make it a verb with glazed commands in the current almanach binary to do ble provisioning, we are on linux?) Create  a detailed analysis / design / implementation guide that is for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file references. It should be very clear and technical. Store in the ticket and the nupload to remarkable. That way we can test the provisioning in a feedback loop locally"
+
+**Assistant interpretation:** Add a practical Linux command to the existing Go CLI now, document how it works for a new intern, validate it against the currently advertising AtomS3R, and publish the guide to reMarkable.
+
+**Inferred user intent:** Avoid relying only on phone/Web Bluetooth provisioning while firmware is still being iterated; keep all local testing in the Almanach CLI/terminal workflow.
+
+**Commit (code):** pending after documentation and upload.
+
+### What I did
+
+- Added `internal/app/cmd_ble_provision.go`.
+- Registered `ble-provision` in `internal/app/cmd_root.go`.
+- Implemented Glazed flags for:
+  - `--action provision|reset|reprov|version`
+  - `--service-name`
+  - `--ssid`
+  - `--passphrase`
+  - `--pop`
+  - `--sec-ver`
+  - `--proto-ver`
+  - `--idf-path`
+  - `--python`
+  - `--esp-prov`
+  - `--timeout`
+  - `--dry-run`
+  - `--install-hints`
+- Used Espressif's `esp_prov.py` for the actual provisioning/reset/reprovision operations.
+- Added a special `version` action that imports Espressif's Python helper functions and exits after the `proto-ver` check, because upstream `esp_prov.py` otherwise continues into WiFi scan/config after checking the version.
+- Installed missing ESP-IDF Python provisioning dependencies into the local ESP-IDF Python env:
+  - `protobuf`
+  - `bleak`
+  - `dbus-fast`
+  - `cryptography` was already installed
+- Wrote the intern-facing design guide:
+  - `design-doc/03-linux-go-cli-ble-provisioning-feedback-loop-design-and-implementation-guide.md`
+
+### Validation
+
+Commands run:
+
+```bash
+go test ./...
+go build ./cmd/almanach-render-service
+go run ./cmd/almanach-render-service ble-provision --action version --service-name ALM_0F2320 --pop alm-0f2320 --timeout 30 --output yaml
+```
+
+The protocol check succeeded against the physical AtomS3R BLE advertisement:
+
+```text
+Discovering...
+Connecting...
+Getting Services...
+proto-ver response :  {
+        "prov": {
+                "ver": "v1.1",
+                "sec_ver": 1,
+                "sec_patch_ver": 0,
+                "cap": ["wifi_scan"]
+        }
+}
+==== Verified protocol version successfully ====
+Disconnecting...
+```
+
+### What worked
+
+- Go/Glazed integration compiled and tests passed.
+- Linux BLE discovery and GATT service lookup worked through `bleak`/BlueZ.
+- The AtomS3R returned ESP-IDF provisioning protocol `v1.1` with Security 1 and `wifi_scan` capability.
+- The command returns a structured Glazed row and redacts the WiFi passphrase from displayed command output.
+
+### What didn't work
+
+- Initial direct `esp_prov.py` runs failed because the selected ESP-IDF Python environment lacked `protobuf`.
+- The first `version` action design used `esp_prov.py --proto_ver v1.1`, but upstream `esp_prov.py` continued into WiFi scanning after successful version verification and then failed at an interactive AP selection prompt. I replaced that path with a short Python snippet that imports Espressif functions and exits immediately after version verification.
+
+### What I learned
+
+- ESP-IDF 5.4 `wifi_prov_mgr` reports provisioning protocol version `v1.1`.
+- A host-side version check is enough to prove the Linux BLE stack, service discovery, and `proto-ver` endpoint without sending WiFi credentials.
+
+### What was tricky to build
+
+- Keeping the command inside Go/Glazed while avoiding a risky pure-Go reimplementation of ESP protocomm. The wrapper approach gives a working feedback loop immediately while documenting the trade-off.
+- The upstream Python client is interactive by default for scans and passphrases, so the Glazed command must require SSID for provisioning and provide a custom non-mutating version check.
+
+### What warrants a second pair of eyes
+
+- Review whether passing WiFi passphrase to `esp_prov.py` as a process argument is acceptable for local development. The command redacts outputs, but argv may still briefly contain the secret.
+- Review whether the next phase should patch Espressif tooling for stdin secrets or jump directly to a pure-Go protocomm implementation.
+
+### What should be done in the future
+
+- Run `ble-provision --action provision` with real WiFi credentials and validate full WiFi join, web server startup, `/api/status`, reboot autoconnect, and reset/reprovision.
+- Consider adding a native `scan` action returning Glazed rows.
+- Consider adding `wait-api` to poll the printer after provisioning succeeds.
+
+### Code review instructions
+
+- Review `internal/app/cmd_ble_provision.go` for flag behavior, path resolution, timeout handling, and secret redaction.
+- Review `internal/app/cmd_root.go` for command registration.
+- Validate with:
+  - `go test ./...`
+  - `go run ./cmd/almanach-render-service ble-provision --action version --service-name ALM_0F2320 --pop alm-0f2320 --timeout 30 --output yaml`
