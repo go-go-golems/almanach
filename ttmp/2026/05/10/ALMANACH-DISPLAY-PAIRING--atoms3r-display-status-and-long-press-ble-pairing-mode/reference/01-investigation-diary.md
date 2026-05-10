@@ -777,3 +777,82 @@ cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build
 cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 flash
 cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 monitor
 ```
+
+
+## Step 9: Confirm 3-second button pairing mode on hardware
+
+This step confirmed the revised 3-second pairing behavior after the user reported the device was in pair mode. The monitor logs show a 3.383-second hold, the new 3-second threshold firing, and BLE provisioning advertising as `ALM_0F2320` with PoP `alm-0f2320`.
+
+This closes the uncertainty from the previous physical test: the button GPIO and long-hold detector work, and the provisioned-device pairing path now actually starts BLE provisioning instead of returning `Device already provisioned; BLE provisioning not started`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "it's in pair mode now"
+
+**Assistant interpretation:** Read the live monitor logs and confirm whether the updated button behavior put the device into BLE pairing mode.
+
+**Inferred user intent:** Verify that the newly flashed 3-second button behavior is working on real hardware.
+
+**Commit (code):** 56d57b7 — "Tune AtomS3R button pairing and reset holds"
+
+### What I did
+
+- Read the active tmux monitor session `alm-button-test`.
+- Filtered `/tmp/almanach-button-monitor.log` for button, BLE, protocomm, and provisioning lines.
+- Confirmed the 3-second hold crossed the threshold and started BLE advertising.
+- Marked long-press pairing validation complete in the display pairing task list.
+
+### What worked
+
+Monitor evidence:
+
+```text
+I button_input: button init: gpio=41 active_low=1 debounce_ms=50 pair_hold_ms=3000 reset_hold_ms=10000
+I button_input: button press started
+I button_input: button pairing hold reached: 3093 ms
+I BLE_INIT: Bluetooth MAC: 98:88:e0:0f:23:22
+I protocomm_nimble: BLE Host Task Started
+I NimBLE: GAP procedure initiated: advertise;
+I wifi_prov_mgr: Provisioning started with service name : ALM_0F2320
+I provisioning: BLE WiFi provisioning started
+I provisioning:   Device    : ALM_0F2320
+I provisioning:   PoP       : alm-0f2320
+I button_input: button released after 3383 ms
+```
+
+This confirms the revised 3-second pairing action works on a provisioned device.
+
+### What didn't work
+
+- No failure was observed in the 3-second pairing validation.
+- Reset-confirm remains intentionally untested because it is destructive and should only be tested when ready to reprovision.
+
+### What I learned
+
+- `provisioning_mgr_start_force()` is the right behavior for the physical pairing button: users expect a provisioned device to become discoverable again.
+- A 3-second hold is reachable and logged clearly; the 10-second reset gap should reduce accidental credential wipes.
+
+### What was tricky to build
+
+- Entering provisioning mode while already connected to WiFi causes WiFi to disconnect as ESP-IDF provisioning takes over station/provisioning flow. That is expected but worth documenting because pairing mode is not just a passive advertisement.
+
+### What warrants a second pair of eyes
+
+- Confirm whether pairing mode should disconnect current WiFi immediately, or whether the long-term UX should present a confirmation/countdown before entering provisioning.
+- Confirm whether the display should explicitly show `Pairing: ALM_0F2320` while advertising.
+
+### What should be done in the future
+
+- Test the 10-second reset-confirm behavior when ready to reprovision.
+- Consider adding a timeout to forced pairing mode if no client connects.
+
+### Code review instructions
+
+- Review `button_input.c` around `maybe_start_pairing()` and the hold-threshold loop.
+- Validate with a 3.5-second press and monitor for `Provisioning started with service name`.
+
+### Technical details
+
+Relevant runtime log file:
+
+- `/tmp/almanach-button-monitor.log`

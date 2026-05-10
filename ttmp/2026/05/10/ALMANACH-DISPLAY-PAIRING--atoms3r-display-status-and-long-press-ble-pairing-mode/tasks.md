@@ -38,7 +38,7 @@
   - [x] Validate full BLE WiFi provisioning and reboot autoconnect with display firmware enabled
   - [x] Validate /api/status after reboot autoconnect
   - [x] Fix web server startup gap when provisioning succeeds after the initial 30s boot wait
-  - [ ] Validate long-press pairing behavior
+  - [x] Validate long-press pairing behavior
   - [ ] Validate reset-confirm behavior only after on-screen feedback is visible
   - [x] Adjust button thresholds to 3s pairing / 10s reset after hardware press testing
   - [x] Update diary/changelog with monitor/display observations

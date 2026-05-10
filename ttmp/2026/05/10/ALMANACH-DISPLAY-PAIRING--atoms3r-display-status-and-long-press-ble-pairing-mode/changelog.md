@@ -98,3 +98,12 @@ Adjusted AtomS3R button UX after physical press logs showed the hold detector wo
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Pairing hold now force-starts BLE provisioning.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/Kconfig.projbuild — Reset hold default increased to 10 seconds.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/sdkconfig.defaults — Committed button timing defaults for fresh builds.
+
+
+## 2026-05-10
+
+Confirmed the revised 3-second AtomS3R button hold starts BLE pairing mode on hardware. Monitor logs show `button pairing hold reached: 3093 ms`, NimBLE advertising, and `wifi_prov_mgr` starting service `ALM_0F2320`.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Revised pairing hold behavior validated on hardware.
