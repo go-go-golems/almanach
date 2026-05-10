@@ -14,25 +14,25 @@
 #include "freertos/task.h"
 
 #include "driver/gpio.h"
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 
 #include "esp_err.h"
 #include "esp_log.h"
 
 static const char *TAG = "display_backlight";
 static bool s_bl_i2c_inited = false;
+static i2c_master_bus_handle_t s_bl_i2c_bus = NULL;
+static i2c_master_dev_handle_t s_bl_i2c_dev = NULL;
 static constexpr i2c_port_t BL_I2C_PORT = I2C_NUM_0;
 
 static esp_err_t backlight_i2c_write_reg_u8(uint8_t reg, uint8_t value)
 {
 #if CONFIG_ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+    if (!s_bl_i2c_dev) {
+        return ESP_ERR_INVALID_STATE;
+    }
     uint8_t buf[2] = {reg, value};
-    return i2c_master_write_to_device(
-        BL_I2C_PORT,
-        (uint8_t)CONFIG_ALMANACH_ATOMS3R_BL_I2C_ADDR,
-        buf,
-        sizeof(buf),
-        pdMS_TO_TICKS(1000));
+    return i2c_master_transmit(s_bl_i2c_dev, buf, sizeof(buf), 1000);
 #else
     (void)reg;
     (void)value;
@@ -54,26 +54,32 @@ static esp_err_t backlight_i2c_init(void)
              (unsigned)CONFIG_ALMANACH_ATOMS3R_BL_I2C_ADDR,
              (unsigned)CONFIG_ALMANACH_ATOMS3R_BL_I2C_REG);
 
-    i2c_config_t conf = {};
-    conf.mode = I2C_MODE_MASTER;
-    conf.scl_io_num = (gpio_num_t)CONFIG_ALMANACH_ATOMS3R_BL_I2C_SCL_GPIO;
-    conf.sda_io_num = (gpio_num_t)CONFIG_ALMANACH_ATOMS3R_BL_I2C_SDA_GPIO;
-    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-    conf.master.clk_speed = 400000;
+    i2c_master_bus_config_t bus_config = {};
+    bus_config.clk_source = I2C_CLK_SRC_DEFAULT;
+    bus_config.glitch_ignore_cnt = 7;
+    bus_config.i2c_port = BL_I2C_PORT;
+    bus_config.scl_io_num = (gpio_num_t)CONFIG_ALMANACH_ATOMS3R_BL_I2C_SCL_GPIO;
+    bus_config.sda_io_num = (gpio_num_t)CONFIG_ALMANACH_ATOMS3R_BL_I2C_SDA_GPIO;
+    bus_config.flags.enable_internal_pullup = true;
 
-    esp_err_t err = i2c_param_config(BL_I2C_PORT, &conf);
+    esp_err_t err = i2c_new_master_bus(&bus_config, &s_bl_i2c_bus);
+    if (err == ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "I2C bus already initialized; disabling direct backlight I2C control");
+        return err;
+    }
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_param_config failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "i2c_new_master_bus failed: %s", esp_err_to_name(err));
         return err;
     }
 
-    err = i2c_driver_install(BL_I2C_PORT, conf.mode, 0, 0, 0);
-    if (err == ESP_ERR_INVALID_STATE) {
-        err = ESP_OK;
-    }
+    i2c_device_config_t dev_config = {};
+    dev_config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    dev_config.device_address = (uint16_t)CONFIG_ALMANACH_ATOMS3R_BL_I2C_ADDR;
+    dev_config.scl_speed_hz = 400000;
+
+    err = i2c_master_bus_add_device(s_bl_i2c_bus, &dev_config, &s_bl_i2c_dev);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "i2c_master_bus_add_device failed: %s", esp_err_to_name(err));
         return err;
     }
 

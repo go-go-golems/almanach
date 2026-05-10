@@ -32,11 +32,12 @@
   - [x] On reset-confirm hold, erase console WiFi and provisioning state consistently with `prov_reset`
   - [x] Build firmware and commit long-press pairing behavior
 - [ ] Phase 4: Hardware validation
-  - [ ] Flash AtomS3R and validate boot/status screen
-  - [ ] Validate erased-flash BLE pairing screen
+  - [x] Fix ESP-IDF I2C driver_ng conflict from initial hardware flash
+  - [x] Flash AtomS3R and validate boot/status boot logs
+  - [x] Validate BLE pairing state in monitor logs after boot
   - [ ] Validate long-press pairing behavior
   - [ ] Validate reset-confirm behavior only after on-screen feedback is visible
-  - [ ] Update diary/changelog with monitor/display observations
+  - [x] Update diary/changelog with monitor/display observations
 - [ ] Phase 5: Optional GIF animation layer
   - [ ] Vendor or add `echo_gif` and AnimatedGIF dependencies
   - [ ] Add storage/asset strategy for GIF files

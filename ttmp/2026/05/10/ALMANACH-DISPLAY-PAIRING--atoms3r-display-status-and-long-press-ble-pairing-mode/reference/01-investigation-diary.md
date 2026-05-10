@@ -341,3 +341,90 @@ This step added physical button handling for pairing mode. The firmware now conf
 - Compare `reset_provisioning_and_reboot()` with `provisioning_cmd.c` `prov_reset` semantics.
 - Validate with:
   - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+## Step 5: Phase 4 first hardware flash, I2C conflict fix, and monitor validation
+
+This step flashed the display/button firmware to the physical AtomS3R and caught a runtime-only I2C driver conflict. The first flashed build entered a reboot loop before `app_main()` because the backlight helper used the legacy `driver/i2c.h` driver while the managed M5GFX component pulled in the newer I2C driver stack. ESP-IDF aborts when both old and new I2C drivers are linked.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Flash when needed and keep a detailed diary of what worked and what failed.
+
+**Inferred user intent:** Validate the display and button implementation on real hardware instead of stopping at compile success.
+
+**Commit (code):** pending — this step includes the I2C driver fix.
+
+### What I did
+
+- Flashed the firmware to `/dev/ttyACM0`:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 flash`
+- Started monitor in tmux:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 monitor`
+- Observed a boot-loop abort before `app_main()`:
+  - `E i2c: CONFLICT! driver_ng is not allowed to be used with this old driver`
+  - abort at `check_i2c_driver_conflict` in ESP-IDF's legacy I2C driver.
+- Fixed `backlight.cpp` to use ESP-IDF's new I2C master API:
+  - `driver/i2c_master.h`
+  - `i2c_new_master_bus()`
+  - `i2c_master_bus_add_device()`
+  - `i2c_master_transmit()`
+- Rebuilt and reflashed successfully.
+- Re-ran monitor and confirmed the firmware boots through display initialization, BLE provisioning, and button setup.
+
+### What worked after the fix
+
+Monitor showed:
+
+```text
+I display_app: display boot; free_heap=8673128 dma_free=279180
+I display_backlight: backlight i2c init: port=0 scl=0 sda=45 addr=0x30 reg=0x0e
+I display_hal: m5gfx init: pclk=40000000Hz gap=(0,32)
+I display_app: canvas ok: 32768 bytes
+I stoms3r: No saved WiFi credentials — starting BLE provisioning
+I wifi_prov_mgr: Provisioning started with service name : ALM_0F2320
+I button_input: button init: gpio=41 active_low=1 debounce_ms=50 pair_hold_ms=2500 reset_hold_ms=5000
+```
+
+This validates that:
+
+- The M5GFX component initializes without crashing.
+- The AtomS3R display path creates the 128x128 canvas.
+- BLE provisioning still starts.
+- The GPIO41 button handler starts.
+- Serial console still starts.
+
+### What didn't work / what remains unvalidated
+
+- I cannot confirm visual LCD readability from the serial transcript alone. The monitor proves display init and canvas allocation, but a human should still inspect the screen.
+- I did not physically press and hold the button in this step. Long-press behavior is built and booted, but not physically validated.
+- Because I did not erase flash in this step, the validation reflects the current no-saved-WiFi state, not a full erase/flash cycle.
+
+### What I learned
+
+- The donor comment about legacy I2C being safer is not valid with the managed M5GFX component selected here. The component manager version links the new I2C driver stack, so any legacy I2C use causes an early abort.
+- The display path must use the new I2C master API or disable direct backlight I2C entirely.
+
+### What was tricky to build
+
+- The failure happens before normal application logs, during global constructor/driver conflict checking. It is invisible to compile-time validation and only appears after flashing.
+- The fix needed to preserve the no-GPIO7-gate strategy while changing only the I2C backend.
+
+### What warrants a second pair of eyes
+
+- Review whether direct backlight I2C control is necessary if M5GFX can own the AtomS3R light device.
+- Review whether the I2C bus conflict handling should try to attach to an existing bus or simply skip direct backlight control when the bus already exists.
+
+### What should be done in the future
+
+- Visually inspect the LCD for boot/status text orientation, contrast, and clipping.
+- Physically test button hold thresholds.
+- If the display is dark, resolve the GPIO7 backlight gate versus printer UART conflict before enabling gate control.
+
+### Code review instructions
+
+- Review `backlight.cpp` for new I2C driver usage.
+- Validate on hardware with:
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build && ./build.sh /dev/ttyACM0 flash`
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 monitor`
