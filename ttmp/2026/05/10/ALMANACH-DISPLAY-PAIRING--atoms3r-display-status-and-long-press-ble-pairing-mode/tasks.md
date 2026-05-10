@@ -25,12 +25,12 @@
   - [x] Read `wifi_mgr_is_connected()` and `wifi_mgr_get_ip()` into display status
   - [x] Show BLE service name, PoP, client/security state, WiFi state, IP, and web readiness
   - [x] Build firmware and commit display status screens
-- [ ] Phase 3: Add button long-press pairing mode
-  - [ ] Add `button_input` ISR plus task state machine for GPIO41 active-low
-  - [ ] Detect short press, pairing hold, and reset-confirm hold outside ISR context
-  - [ ] On pairing hold, call `provisioning_mgr_start_if_needed()` and show pairing screen
-  - [ ] On reset-confirm hold, erase console WiFi and provisioning state consistently with `prov_reset`
-  - [ ] Build firmware and commit long-press pairing behavior
+- [x] Phase 3: Add button long-press pairing mode
+  - [x] Add `button_input` ISR plus task state machine for GPIO41 active-low
+  - [x] Detect short press, pairing hold, and reset-confirm hold outside ISR context
+  - [x] On pairing hold, call `provisioning_mgr_start_if_needed()` and show pairing screen
+  - [x] On reset-confirm hold, erase console WiFi and provisioning state consistently with `prov_reset`
+  - [x] Build firmware and commit long-press pairing behavior
 - [ ] Phase 4: Hardware validation
   - [ ] Flash AtomS3R and validate boot/status screen
   - [ ] Validate erased-flash BLE pairing screen

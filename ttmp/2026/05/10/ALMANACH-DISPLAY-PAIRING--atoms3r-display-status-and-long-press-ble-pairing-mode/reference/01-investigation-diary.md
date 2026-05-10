@@ -262,3 +262,82 @@ This step added the first live status display path. The firmware now starts a `d
 - Confirm the task reads state but does not mutate provisioning or WiFi behavior.
 - Validate with:
   - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+## Step 4: Phase 3 long-press pairing button
+
+This step added physical button handling for pairing mode. The firmware now configures the AtomS3R button on GPIO41, queues GPIO edge events from an ISR, and runs the pairing/reset state machine in a FreeRTOS task.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Continue implementing the ticket phases after display status rendering.
+
+**Inferred user intent:** Make the device enter pairing mode from the physical button, with safe reset behavior for already-provisioned devices.
+
+**Commit (code):** pending — this step will be committed after diary/changelog update.
+
+### What I did
+
+- Added `firmware/atoms3r/main/button_input.h`.
+- Added `firmware/atoms3r/main/button_input.c`.
+- Added `button_input.c` to `main/CMakeLists.txt`.
+- Included `button_input.h` from `app_main.c`.
+- Started `button_input_start()` during boot after the display status task setup.
+- Implemented GPIO41 active-low button handling with:
+  - GPIO interrupt on any edge
+  - ISR-to-queue delivery
+  - task-context debounce and hold-duration logic
+  - pairing hold threshold from `CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS`
+  - reset-confirm threshold from `CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS`
+- On pairing threshold, the task calls `provisioning_mgr_start_if_needed()` and shows pairing status.
+- On reset-confirm threshold, the task follows the same semantics as `prov_reset`:
+  - disconnect WiFi
+  - erase explicit console WiFi credentials
+  - reset ESP-IDF provisioning state
+  - reboot
+- Built firmware successfully:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+### Why
+
+- Long-press detection belongs in task context, not interrupt context. The ISR should only enqueue minimal edge data.
+- The physical button reset path should match serial `prov_reset` so the device has one clear definition of "return to pairing mode".
+
+### What worked
+
+- Firmware built successfully.
+- Output image remains within partition limits:
+  - `stoms3r.bin binary size 0x17cbf0 bytes`
+  - free app partition space: `0x283410 bytes (63%)`
+
+### What didn't work
+
+- This has not yet been flashed and physically validated. Button edge polarity, display feedback, and reset behavior still need hardware testing.
+
+### What I learned
+
+- The Kconfig values from the design are sufficient for the first button implementation: GPIO41, active-low, 50 ms debounce, 2500 ms pairing hold, and 5000 ms reset hold.
+- Keeping reset semantics in one helper inside `button_input.c` makes it easy to compare against `provisioning_cmd.c` during review.
+
+### What was tricky to build
+
+- The task must continue polling while the button is held, even if no new GPIO edge arrives. The implementation uses a 100 ms queue receive timeout so hold thresholds are detected before release.
+- Calling `provisioning_mgr_start_if_needed()` on a provisioned device should be harmless; destructive reset is delayed until the longer reset-confirm threshold.
+
+### What warrants a second pair of eyes
+
+- Review whether the physical button should ever erase credentials automatically, or whether the first hardware implementation should stop at non-destructive pairing start.
+- Review if `GPIO_INTR_ANYEDGE` behaves reliably on this AtomS3R button or if the task should poll level without relying on both edges.
+
+### What should be done in the future
+
+- Flash and test short press, pairing hold, release-to-cancel, and reset-confirm hold.
+- If the LCD is too slow/noisy during hold progress updates, reduce update frequency or move hold-progress display into the display status task.
+
+### Code review instructions
+
+- Review `button_input.c` for ISR/task separation.
+- Compare `reset_provisioning_and_reboot()` with `provisioning_cmd.c` `prov_reset` semantics.
+- Validate with:
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`

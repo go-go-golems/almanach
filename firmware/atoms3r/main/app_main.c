@@ -15,6 +15,7 @@
 #include "esp_check.h"
 #include "nvs_flash.h"
 
+#include "button_input.h"
 #include "display_app.h"
 #include "nvs_store.h"
 #include "printer_cmd.h"
@@ -211,6 +212,10 @@ void app_main(void)
     /* 7. Start background display status task and web-server wait task. */
     if (display_app_is_ready()) {
         xTaskCreate(display_status_task, "display_status", 4096, NULL, 2, NULL);
+    }
+    esp_err_t button_err = button_input_start();
+    if (button_err != ESP_OK) {
+        ESP_LOGW(TAG, "Button input unavailable: %s", esp_err_to_name(button_err));
     }
     xTaskCreate(web_server_task, "web_wait", 4096, NULL, 2, NULL);
 

@@ -48,3 +48,13 @@ Phase 2 implementation: added a polling display status task that renders provisi
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Added `display_status_task()` and display status task startup.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Existing text status renderer used by the task.
+
+## 2026-05-10
+
+Phase 3 implementation: added GPIO41 button ISR/task handling for long-press BLE pairing mode and reset-confirm credential clearing.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Button ISR, debounce, pairing hold, and reset-confirm hold implementation.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.h — Button input startup API.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Button task startup during boot.

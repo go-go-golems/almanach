@@ -9,6 +9,7 @@ idf_component_register(
         "provisioning_mgr.c"
         "provisioning_cmd.c"
         "web_server.c"
+        "button_input.c"
         "backlight.cpp"
         "display_hal.cpp"
         "display_app.cpp"
