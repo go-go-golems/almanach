@@ -19,12 +19,19 @@ RelatedFiles:
       Note: Commands used during hardware validation
     - Path: firmware/atoms3r/main/printer_drv.c
       Note: Current UART driver validated at 460800
+    - Path: internal/web/embed/public/almanach-bundle.js
+      Note: Regenerated embedded web bundle
+    - Path: web/dist/almanach-bundle.js
+      Note: Regenerated web dist bundle
+    - Path: web/src/almanach-studio.jsx
+      Note: Light thermal image tone implementation
 ExternalSources: []
 Summary: Chronological investigation diary for the AtomS3R/K118 UART serial interface comparison between old working firmware and copied Almanach firmware.
 LastUpdated: 2026-05-10T22:04:00-04:00
 WhatFor: Use this diary to resume UART serial debugging, understand what was tested, and avoid mistaking TX/RX echo for printer protocol replies.
 WhenToUse: Use when comparing old stoms3r firmware, sdkconfig, ESP-IDF versions, printer UART pins, CTS flow control, or serial probe behavior.
 ---
+
 
 
 # Diary
@@ -440,3 +447,289 @@ The decisive fix was not changing the pinout or ESP-IDF SDK configuration. The p
 - Confirmed after restart:
   - `printer_get_baud` -> `esp32_baud=460800 printer_baud=460800 raw=uart baudrate: 460800`
   - `printer_status` -> `raw: 14 00 00 0F`
+
+
+## Step 5: Re-test Almanach server render-and-print path after UART baud fix
+
+With the copied firmware booting at the printer's persisted 460800 baud, I re-tested the higher-level Almanach server path instead of only the serial console commands. This validates the end-to-end chain from localhost render server through the printer HTTP endpoint down to the K118 UART driver.
+
+Both the tiny text-focused cat layout and the one-image cat layout printed successfully through `/api/render-and-print`. This confirms the earlier HTTP print failures were at least partly caused by the firmware/printer baud mismatch, not by the localhost setup rendezvous or render server itself.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Can we try printing an almanach test again, through the server?"
+
+**Assistant interpretation:** Send test Almanach layouts through the running localhost render server to the newly fixed printer firmware.
+
+**Inferred user intent:** Validate that the user-facing server print workflow works after fixing the underlying printer UART baud configuration.
+
+**Commit (code):** N/A — hardware/server validation only.
+
+### What I did
+- Checked the running setup/render server:
+  - `curl -sS http://localhost:18299/health`
+  - returned `{"ok":true,"printer":"192.168.1.242","version":"dev"}`
+- Confirmed persisted setup-discovered printer state:
+  - `curl -sS http://localhost:18299/api/setup/provisioned-device`
+  - returned `ALM_0F2320 -> 192.168.1.242`
+- Sent the tiny cat layout through the server:
+  - `curl -sS -X POST http://localhost:18299/api/render-and-print -H 'Content-Type: application/json' --data-binary @/tmp/cat-tiny.json`
+- Sent the one-image cat layout through the server:
+  - `curl -sS -X POST http://localhost:18299/api/render-and-print -H 'Content-Type: application/json' --data-binary @/tmp/cat-one-image.json`
+
+### Why
+- Serial console success proves the firmware UART path works, but the real product path is: layout JSON -> localhost render server -> bitmap POST to printer HTTP endpoint -> firmware UART -> K118.
+- Testing through `/api/render-and-print` validates that the persisted printer IP and HTTP print endpoint still work after the baud fix.
+
+### What worked
+- Tiny cat layout response:
+  - `height=298`
+  - `width=384`
+  - `ok=true`
+  - `printed=true`
+  - `printerResponse={"ok":true}`
+- One-image cat layout response:
+  - `height=627`
+  - `width=384`
+  - `ok=true`
+  - `printed=true`
+  - `printerResponse={"ok":true}`
+- The server used the persisted printer IP `192.168.1.242` correctly.
+
+### What didn't work
+- N/A for these two test layouts. Larger multi-image layouts may still need separate testing because they previously exposed long-duration HTTP/bitmap limitations.
+
+### What I learned
+- The server path is healthy for small and medium test prints once the printer UART baud is correct.
+- The one-image layout that previously timed out now returned success, which strongly implicates the baud mismatch as the major blocker for prior printer HTTP behavior.
+
+### What was tricky to build
+- This validation spans multiple layers, so success depends on both the render server's persisted printer state and the firmware's persisted printer baud settings.
+- The setup server was already running from earlier work; it did not need a restart for this test because the printer IP persistence was already loaded and correct.
+
+### What warrants a second pair of eyes
+- Re-test the largest image-heavy Almanach layouts before declaring the whole image pipeline fixed.
+- Review whether the printer HTTP handler waits until UART printing is complete before responding; large bitmap jobs may still need respond-before-print or longer client timeouts.
+
+### What should be done in the future
+- Try the larger `/tmp/cat-interesting-facts-almanach.json` or six-image layout after confirming the printer is ready.
+- If larger layouts still fail, investigate HTTP handler timeout/streaming separately from UART baud.
+- Add a short playbook command sequence for server print validation after printer baud recovery.
+
+### Code review instructions
+- Server path starts in:
+  - `almanach/internal/app/server.go`, `handleRenderAndPrint`
+- Printer HTTP client path:
+  - `almanach/internal/app/printer.go`, `sendBitmapToPrinter`
+- Firmware endpoint path:
+  - `almanach/firmware/atoms3r/main/web_server.c`
+  - `almanach/firmware/atoms3r/main/printer_drv.c`
+
+### Technical details
+- Successful tiny response saved at:
+  - `/tmp/almanach-server-print-cat-tiny-response.json`
+- Successful one-image response saved at:
+  - `/tmp/almanach-server-print-cat-one-image-response.json`
+
+
+## Step 6: Test longer foo-cat ZIP bundles and isolate HTTP body-size threshold
+
+The user asked to use the `foo-` images because they are actual cat images, and asked whether longer failures mean we need bitmap streaming. I created ZIP layout bundles that reference `images/foo-cat-NN.png` assets instead of embedding data URLs, then printed them with the CLI `print --layout bundle.zip` path.
+
+The result is that ZIP layout input works, and medium-length prints now succeed. However, very long rendered bitmaps still fail around the firmware HTTP receive stage before UART bitmap printing begins. This is not a ZIP input problem and not an immediate UART streaming problem; it is most likely a firmware HTTP request-body receive/connection-size issue for large bitmap POST bodies.
+
+### Prompt Context
+
+**User prompt (verbatim):** "try sending as zip"
+
+**Assistant interpretation:** Create a ZIP layout bundle with external image files and print that, rather than embedding all images as data URLs in JSON.
+
+**Inferred user intent:** Reduce layout payload bloat and test whether ZIP-based image handling avoids long-print failures.
+
+**Commit (code):** N/A — hardware/server validation only.
+
+### What I did
+- Built ZIP bundles under `/tmp` using real `foo-banner-*.png` cat images from:
+  - `/home/manuel/workspaces/2026-05-08/extract-almanach/esp32-s3-m5/ttmp/2026/05/08/ALMANACH-IMAGE-BLOCKS--add-almanach-image-blocks-and-upload-support/various/grid-banners/foo`
+- Created and tested:
+  - `/tmp/foo-cat-long-bundle.zip` with 8 images
+  - `/tmp/foo-cat-4-bundle.zip` with 4 images
+  - `/tmp/foo-cat-5-bundle.zip` with 5 images
+  - `/tmp/foo-cat-6-bundle.zip` with 6 images
+  - `/tmp/foo-cat-7-bundle.zip` with 7 images
+- Printed using:
+  - `go run ./cmd/almanach-render-service print --layout /tmp/foo-cat-N-bundle.zip --printer-ip 192.168.1.242 --output json`
+
+### Why
+- ZIP bundles avoid putting base64 image data in the author-facing layout file; the CLI unpacks/loads the images and inlines them for the browser render step.
+- This tests the existing ZIP layout support without changing the HTTP printer endpoint.
+
+### What worked
+- 4-image ZIP succeeded:
+  - rendered bitmap `384x1221`
+  - sent bitmap `height=1293`
+  - `bytes=62064`
+  - `printer_ok=true`
+- 5-image ZIP succeeded:
+  - rendered bitmap `384x1485`
+  - sent bitmap `height=1557`
+  - `bytes=74736`
+  - `printer_ok=true`
+- 6-image ZIP succeeded:
+  - rendered bitmap `384x1748`
+  - sent bitmap `height=1820`
+  - `bytes=87360`
+  - `printer_ok=true`
+
+### What didn't work
+- 8-image ZIP failed:
+  - rendered bitmap `384x2374`
+  - bitmap body `113952 bytes`
+  - error: `use of closed network connection`
+- 7-image ZIP failed:
+  - rendered bitmap `384x2012`
+  - bitmap body about `100032 bytes` after feed rows
+  - error: `use of closed network connection`
+- Firmware logs for the failed long request showed only the pre-read reset:
+  - `TX 2 bytes: 1B 40`
+  - `httpd_uri: uri handler execution failed`
+- Firmware logs for successful requests showed the raster header and bitmap bytes:
+  - 4-image: `TX 8 bytes: 1D 76 30 00 30 00 0D 05`; `TX 62064 bytes ...`
+  - 5-image: `TX 8 bytes: 1D 76 30 00 30 00 15 06`; `TX 74736 bytes ...`
+  - 6-image: `TX 8 bytes: ...`; `TX 87360 bytes ...`
+
+### What I learned
+- The host/layout ZIP is not the same thing as streaming the printer bitmap.
+- Current pipeline:
+  - ZIP layout assets are read by the Go CLI and converted into browser-renderable layout JSON.
+  - Browser/Chrome renders a PNG.
+  - Go converts PNG to a 1-bit bitmap.
+  - Go sends one HTTP POST body to firmware `/api/print/bitmap`.
+  - Firmware reads the full HTTP body into RAM before UART printing.
+  - Firmware sends one complete `GS v 0` raster command to UART.
+- We are intentionally **not** streaming HTTP chunks directly to UART, because previous notes indicate network gaps inside a raster command can create stripes/corruption.
+- The current failure threshold appears to be somewhere between about `87 KB` and `100 KB` of bitmap POST body.
+
+### What was tricky to build
+- ZIP reduces source layout size and keeps image assets cleaner, but after rendering the printer still receives a raw 1-bit bitmap. Therefore ZIP does not reduce the final `/api/print/bitmap` body if the rendered paper height is the same.
+- The firmware failure occurs before `printer_drv_print_bitmap()` logs the raster header for failed large jobs, so this is probably HTTP receive/body handling, not UART print duration.
+
+### What warrants a second pair of eyes
+- Inspect `almanach/firmware/atoms3r/main/web_server.c` `read_body()` and `api_print_bitmap_post()` for large-body receive behavior.
+- Consider increasing `httpd_config_t.recv_wait_timeout` and improving `httpd_req_recv()` error handling/logging.
+- Consider whether ESP-IDF httpd or lwIP has a request-body or socket-buffer behavior causing closes around 100 KB.
+
+### What should be done in the future
+- Add detailed logging in `read_body()` for offset, expected length, `httpd_req_recv()` return values, and `errno`/timeout classification.
+- Consider splitting long Almanach bitmaps into multiple HTTP requests at safe page boundaries or raster bands, while keeping each individual raster body fully buffered before UART.
+- If streaming is implemented, stream from HTTP to RAM chunks/files first, not directly into the middle of a printer raster command.
+
+### Code review instructions
+- Host ZIP layout support:
+  - `almanach/internal/app/layout_bundle.go`
+  - `almanach/internal/app/cmd_print.go`
+- Host printer POST:
+  - `almanach/internal/app/printer.go`
+- Firmware HTTP endpoint:
+  - `almanach/firmware/atoms3r/main/web_server.c`, `api_print_bitmap_post()` and `read_body()`
+- Firmware UART raster send:
+  - `almanach/firmware/atoms3r/main/printer_drv.c`, `printer_drv_print_bitmap()`
+
+### Technical details
+- Successful response artifacts:
+  - `/tmp/foo-cat-4-bundle-print-response.json`
+  - `/tmp/foo-cat-5-bundle-print-response.json`
+  - `/tmp/foo-cat-6-bundle-print-response.json`
+- Failed response artifacts/commands:
+  - `/tmp/foo-cat-long-bundle-print-response.json` was attempted but command exited nonzero for 8 images.
+  - `/tmp/foo-cat-7-bundle-print-response.json` was attempted but command exited nonzero for 7 images.
+
+
+## Step 7: Add light thermal tone for image blocks and validate foo-cat print
+
+The user chose the simpler Option 2: keep one bitmap/raster pipeline, but make images lighter during host-side rendering so text can remain high contrast while photos avoid becoming too dark on thermal paper. I added a per-image `thermalTone` setting to Almanach Studio and used CSS filters during browser render to lighten image blocks before the PNG-to-1-bit conversion.
+
+This does not change printer density and does not reduce the final bitmap byte size. It changes the rendered pixels before thresholding, which means fewer image pixels cross the black threshold. The text stays crisp because the filter applies only to image block `<img>` elements.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, let's try option 2. Add tasks to the ticket and commit at appropriate intervals. keep a diary."
+
+**Assistant interpretation:** Implement the host-side lighter image rendering approach, track it in the UART ticket tasks/diary, validate with a foo-cat print, and commit the work.
+
+**Inferred user intent:** Improve image print quality without implementing segmented density switching yet.
+
+**Commit (code):** N/A at diary write time; code commit follows this validation step.
+
+### What I did
+- Added ticket tasks for the lighter image option and validation.
+- Updated `web/src/almanach-studio.jsx`:
+  - added default `thermalTone: "normal"` for image blocks,
+  - added `imageThermalFilter(data, preview)` helper,
+  - added `thermalTone === "light"` CSS filter,
+  - added editor buttons for `Normal` vs `Light image`.
+- Rebuilt frontend assets:
+  - `pnpm --prefix web run build`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+- Generated a 6-image foo-cat ZIP bundle using `thermalTone: "light"`:
+  - `/tmp/foo-cat-6-light-bundle.zip`
+- Printed it through the CLI/server path:
+  - `go run ./cmd/almanach-render-service print --layout /tmp/foo-cat-6-light-bundle.zip --printer-ip 192.168.1.242 --output json`
+- Ran:
+  - `go test ./...`
+- Checked tasks 2 and 3.
+
+### Why
+- Text and images have different thermal needs, but one full-page bitmap cannot carry density commands inside pixel data.
+- Applying a lighter CSS filter to images before bitmap thresholding is the lowest-risk first improvement: it requires no firmware protocol change and preserves the existing one-bitmap print path.
+
+### What worked
+- Frontend build succeeded.
+- Embedded web asset rebuild succeeded.
+- Go tests passed.
+- The light-tone foo-cat 6-image print succeeded:
+  - rendered bitmap `384x1748`
+  - sent bitmap `height=1820`
+  - sent bytes `87360`
+  - `printer_ok=true`
+  - `printer_response={"ok":true}`
+
+### What didn't work
+- This option does not address the ~100 KB firmware HTTP body threshold observed with 7+ images. The byte size of the light-tone 6-image bitmap is the same as the normal-tone 6-image bitmap because the dimensions did not change.
+- Visual darkness improvement still needs human assessment on the physical paper output.
+
+### What I learned
+- The render pipeline can support per-image thermal tuning entirely in the React layout layer.
+- ZIP bundles can carry the new `thermalTone` field normally because it is just image block data in `layout.json`.
+- Option 2 is complementary to, not a replacement for, segmented printing if we later need per-region printer density or long-page chunking.
+
+### What was tricky to build
+- The capture/export path had prior CSS that removes some filters for export, but the server-side capture CSS does not globally remove image filters. Keeping the filter inline on the `<img>` made it apply during Chrome screenshot capture.
+- The filter has to lighten images without making them disappear after thresholding. I used `brightness(1.28) contrast(0.82)` for print and slightly milder values for editor preview.
+
+### What warrants a second pair of eyes
+- The exact filter values are subjective and should be tuned against real paper output.
+- The editor naming (`Light image`) should be reviewed for clarity; maybe `Normal thermal` / `Lighter thermal` would be clearer.
+- If image quality remains too dark, consider adding a slider rather than a two-state toggle.
+
+### What should be done in the future
+- Compare normal vs light foo-cat prints side by side.
+- Add optional `thermalTone: "extraLight"` or numeric image thermal strength if needed.
+- Implement segmented printing later if text density and image density still need true printer-side differences.
+
+### Code review instructions
+- Review:
+  - `web/src/almanach-studio.jsx`, `imageThermalFilter`, `ImageBlock`, and `ImageEditor`.
+  - `internal/web/embed/public/almanach-bundle.js` regenerated by `cmd/build-web`.
+- Validate with:
+  - `pnpm --prefix web run build`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+  - `go test ./...`
+  - print `/tmp/foo-cat-6-light-bundle.zip`.
+
+### Technical details
+- Light image filter:
+  - preview: `grayscale(100%) brightness(1.22) contrast(0.88)`
+  - print/render: `grayscale(100%) brightness(1.28) contrast(0.82)`
+- Successful print artifact:
+  - `/tmp/foo-cat-6-light-bundle-print-response.json`

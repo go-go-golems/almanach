@@ -204,6 +204,7 @@ const DEFAULTS = {
     fit: "cover", // cover | contain
     border: true,
     grayscale: true,
+    thermalTone: "normal", // normal | light
   },
   divider: { style: "line" }, // line | dots | wave | leaves
 };
@@ -577,6 +578,16 @@ const DidBlock = ({ data, theme }) => (
   </div>
 );
 
+const imageThermalFilter = (data, preview = false) => {
+  if (data.grayscale === false) return "none";
+  if (data.thermalTone === "light") {
+    return preview
+      ? "grayscale(100%) brightness(1.22) contrast(0.88)"
+      : "grayscale(100%) brightness(1.28) contrast(0.82)";
+  }
+  return preview ? "grayscale(100%) contrast(1.2)" : "grayscale(100%) contrast(1.25)";
+};
+
 const ImageBlock = ({ data, theme }) => {
   const height = Math.max(48, Math.min(420, Number(data.height) || 160));
   const hasImage = typeof data.src === "string" && data.src.trim().length > 0;
@@ -600,7 +611,7 @@ const ImageBlock = ({ data, theme }) => {
               height,
               objectFit: data.fit === "contain" ? "contain" : "cover",
               background: theme.paper,
-              filter: data.grayscale === false ? "none" : "grayscale(100%) contrast(1.25)",
+              filter: imageThermalFilter(data),
             }}
           />
         ) : (
@@ -942,7 +953,7 @@ const ImageEditor = ({ data, set }) => {
       </button>
       {data.src && (
         <div style={{ marginBottom: 12, padding: 8, border: "1px solid var(--ui-border)", background: "rgba(0,0,0,0.18)" }}>
-          <img src={data.src} alt={data.alt || "Preview"} style={{ width: "100%", maxHeight: 120, objectFit: "cover", filter: data.grayscale === false ? "none" : "grayscale(100%) contrast(1.2)" }} />
+          <img src={data.src} alt={data.alt || "Preview"} style={{ width: "100%", maxHeight: 120, objectFit: "cover", filter: imageThermalFilter(data, true) }} />
         </div>
       )}
       <Field label="Caption"><TextInput value={data.caption || ""} onChange={(e) => set({ ...data, caption: e.target.value })} /></Field>
@@ -965,6 +976,16 @@ const ImageEditor = ({ data, set }) => {
         <input type="checkbox" checked={data.grayscale !== false} onChange={(e) => set({ ...data, grayscale: e.target.checked })} />
         Thermal grayscale preview
       </label>
+      <Field label="Thermal image tone">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {[
+            ["normal", "Normal"],
+            ["light", "Light image"],
+          ].map(([value, label]) => (
+            <button key={value} onClick={() => set({ ...data, thermalTone: value })} className={(data.thermalTone || "normal") === value ? "seg active" : "seg"}>{label}</button>
+          ))}
+        </div>
+      </Field>
       <div style={{ fontSize: 10.5, color: "var(--ui-muted)", lineHeight: 1.4, marginTop: 8 }}>
         Uploaded images are embedded as data URLs in saved layouts, so CLI/headless renders work without fetching external files.
       </div>
