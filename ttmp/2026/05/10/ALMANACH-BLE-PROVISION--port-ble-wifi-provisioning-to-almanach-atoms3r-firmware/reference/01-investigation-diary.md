@@ -720,3 +720,88 @@ Disconnecting...
 - Validate with:
   - `go test ./...`
   - `go run ./cmd/almanach-render-service ble-provision --action version --service-name ALM_0F2320 --pop alm-0f2320 --timeout 30 --output yaml`
+
+## Step 8: Storybook and css-visual-diff coverage for the setup UI
+
+This step focused only on the React web setup page. I added Storybook so the provisioning flow can be reviewed as deterministic UI states, then used `css-visual-diff compare` to capture screenshots for each state and a side-by-side comparison between the main Almanach editor and the new setup page.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Use Storybook to create stories, and use `css-visual-diff help --all` to learn how to capture screenshots of the different components, so the setup page can be visually verified against the main page."
+
+**Assistant interpretation:** Add Storybook infrastructure and stories for the provisioning UI states, learn the available css-visual-diff commands, and generate visual artifacts that make it easy to compare the setup page with the existing main app style.
+
+**Inferred user intent:** Make the new standalone localhost setup page reviewable without hardware and without needing to run through the full BLE flow manually.
+
+**Commit (code):** pending — these React/Storybook changes are not committed yet.
+
+### What I did
+
+- Added Storybook dependencies and scripts in `web/package.json`.
+- Added Storybook config:
+  - `web/.storybook/main.js`
+  - `web/.storybook/preview.js`
+- Added setup page stories in `web/src/provisioning/ProvisioningWizard.stories.jsx` for:
+  - ready/default browser support
+  - insecure/unsupported origin
+  - WiFi details entered
+  - provisioning in progress
+  - success
+  - error
+- Added a main editor story in `web/src/AlmanachStudio.stories.jsx` so visual comparison uses the existing Almanach UI as a reference.
+- Adjusted `ProvisioningWizard` to accept story-friendly props (`initialState`, `supportOverride`, `clientFactory`, and `storyMode`) while preserving the standalone page behavior.
+- Added `storybook-static/` to `web/.gitignore` so build output is not accidentally committed.
+- Used `css-visual-diff compare` to capture screenshots under:
+  - `ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/artifacts/storybook-visuals/`
+
+### Why
+
+- The setup page has multiple important visual states that are hard to inspect by just running the mock flow once.
+- Storybook keeps those states stable and URL-addressable for future screenshot capture.
+- `css-visual-diff compare` writes screenshots, diffs, and Markdown reports; comparing each story to itself gives deterministic screenshot artifacts, while comparing the editor story to the setup story gives a quick visual style reference.
+
+### What worked
+
+- `pnpm --prefix web run build-storybook` completed successfully.
+- `css-visual-diff compare` captured screenshots for all setup stories.
+- Self-comparisons for setup stories reported `Changed percent: 0.0000%`, which is expected because each story was compared to itself only to produce stable screenshot artifacts.
+- The main-editor-vs-setup comparison generated a report and screenshots at `artifacts/storybook-visuals/main-vs-setup-ready/`.
+- The normal web build and Go tests still pass:
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+  - `go test ./...`
+
+### What didn't work
+
+- The first static HTTP server attempt served `web/` instead of `web/storybook-static/`, so `/iframe.html` returned 404. I killed the server on port 6007 and restarted it from the correct directory.
+- Storybook initially warned that `.storybook/main.js` was reparsed as an ES module. I added `"type": "module"` to `web/package.json`, after which the warning disappeared.
+
+### What I learned
+
+- `css-visual-diff compare` is the useful verb for this workflow because it writes `url1_screenshot.png`, `url2_screenshot.png`, `diff_comparison.png`, `diff_only.png`, `compare.json`, and `compare.md`.
+- The setup page can be reviewed without hardware via Storybook state fixtures and the existing mock provisioning client.
+
+### What was tricky to build
+
+- The wizard originally owned all state internally, which made story variants awkward. The small prop seam keeps runtime behavior unchanged while allowing static story states.
+- The visual comparison against the main editor should be interpreted as a style/design reference, not as a low-diff regression target; the pages are intentionally different layouts.
+
+### What warrants a second pair of eyes
+
+- Review the captured screenshots in `artifacts/storybook-visuals/`, especially `ready/url1_screenshot.png`, `success/url1_screenshot.png`, and `main-vs-setup-ready/diff_comparison.png`.
+- Decide whether the setup page should move closer to the editor's dense toolbar/side-panel language or remain a simpler wizard card.
+
+### Technical details
+
+Commands run:
+
+```bash
+cd almanach
+css-visual-diff help --all
+css-visual-diff compare --help
+pnpm --prefix web add -D storybook @storybook/react-vite
+pnpm --prefix web run build-storybook
+cd web/storybook-static && python3 -m http.server 6007 --bind 127.0.0.1
+css-visual-diff compare --url1 http://127.0.0.1:6007/iframe.html?id=provisioning-setup-page--ready\&viewMode=story --url2 http://127.0.0.1:6007/iframe.html?id=provisioning-setup-page--ready\&viewMode=story --selector1 body --selector2 body --out .../artifacts/storybook-visuals/ready --viewport-w 1280 --viewport-h 820 --wait-ms1 700 --wait-ms2 700
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+go test ./...
+```

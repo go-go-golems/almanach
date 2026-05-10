@@ -103,3 +103,17 @@ Uploaded Linux CLI BLE provisioning guide to reMarkable at /ai/2026/05/10/ALMANA
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/design-doc/03-linux-go-cli-ble-provisioning-feedback-loop-design-and-implementation-guide.md — Uploaded as ALMANACH_BLE_Linux_CLI_Provisioning_Guide.pdf
 
+
+## 2026-05-10
+
+Added Storybook coverage for the localhost setup/provisioning UI and captured css-visual-diff artifacts for setup states plus a main-editor-vs-setup visual reference.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/.storybook/main.js — Storybook React/Vite configuration
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/.storybook/preview.js — Fullscreen layout and Almanach background defaults
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.jsx — Story-friendly state/support/client seams for visual fixtures
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.stories.jsx — Setup page stories for ready, unsupported, WiFi, progress, success, and error states
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/AlmanachStudio.stories.jsx — Main editor reference story
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/artifacts/storybook-visuals — css-visual-diff screenshot and report artifacts
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Storybook/css-visual-diff diary entry
