@@ -26,20 +26,21 @@ type BLEProvisionCommand struct {
 }
 
 type BLEProvisionSettings struct {
-	Action       string `glazed:"action"`
-	ServiceName  string `glazed:"service-name"`
-	SSID         string `glazed:"ssid"`
-	Passphrase   string `glazed:"passphrase"`
-	Pop          string `glazed:"pop"`
-	SecVer       int    `glazed:"sec-ver"`
-	ProtoVer     string `glazed:"proto-ver"`
-	IDFPath      string `glazed:"idf-path"`
-	Python       string `glazed:"python"`
-	EspProv      string `glazed:"esp-prov"`
-	Verbose      bool   `glazed:"verbose"`
-	DryRun       bool   `glazed:"dry-run"`
-	Timeout      int    `glazed:"timeout"`
-	InstallHints bool   `glazed:"install-hints"`
+	Action         string `glazed:"action"`
+	ServiceName    string `glazed:"service-name"`
+	SSID           string `glazed:"ssid"`
+	Passphrase     string `glazed:"passphrase"`
+	Pop            string `glazed:"pop"`
+	SecVer         int    `glazed:"sec-ver"`
+	ProtoVer       string `glazed:"proto-ver"`
+	IDFPath        string `glazed:"idf-path"`
+	Python         string `glazed:"python"`
+	EspProv        string `glazed:"esp-prov"`
+	Verbose        bool   `glazed:"verbose"`
+	DryRun         bool   `glazed:"dry-run"`
+	Timeout        int    `glazed:"timeout"`
+	InstallHints   bool   `glazed:"install-hints"`
+	Implementation string `glazed:"implementation"`
 }
 
 func newBLEProvisionCommand() (*BLEProvisionCommand, error) {
@@ -93,6 +94,7 @@ func bleProvisionFields() []*fields.Definition {
 		fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print the resolved command without executing it")),
 		fields.New("timeout", fields.TypeInteger, fields.WithDefault(120), fields.WithHelp("Timeout in seconds for the esp_prov.py subprocess")),
 		fields.New("install-hints", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print Linux/ESP-IDF dependency installation hints before running")),
+		fields.New("implementation", fields.TypeChoice, fields.WithDefault("python"), fields.WithChoices("python", "native"), fields.WithHelp("Provisioning implementation to use; native currently supports action=version")),
 	}
 }
 
@@ -109,6 +111,10 @@ func (c *BLEProvisionCommand) RunIntoGlazeProcessor(ctx context.Context, vals *v
 	}
 	if s.Timeout <= 0 {
 		return errors.New("--timeout must be greater than zero")
+	}
+
+	if s.Implementation == "native" {
+		return runNativeBLEProvision(ctx, s, gp)
 	}
 
 	passphrase := s.Passphrase
