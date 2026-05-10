@@ -178,6 +178,18 @@ esp_err_t printer_drv_swap_pins(bool swap);
 bool printer_drv_is_swapped(void);
 
 /**
+ * Enable or disable CTS hardware flow control at runtime.
+ * Disabling flow control also detaches the CTS pin, matching the older simple
+ * Atom Lite provisioning example for printer diagnostics.
+ */
+esp_err_t printer_drv_set_flow_control(bool enabled);
+
+/**
+ * Returns true when CTS hardware flow control is currently enabled.
+ */
+bool printer_drv_is_flow_control_enabled(void);
+
+/**
  * Change only the ESP32 UART baud rate at runtime. Default is 9600.
  * Use this as a recovery/diagnostic command when the host and printer are
  * already out of sync.

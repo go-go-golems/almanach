@@ -18,6 +18,7 @@
 
 static const char *TAG = "printer_drv";
 static bool s_pins_swapped = false;
+static bool s_flow_control_enabled = true;
 static int s_baud = PRINTER_BAUD;
 
 /* Bitmap pacing.
@@ -93,7 +94,7 @@ esp_err_t printer_drv_init(void)
                      UART_PIN_NO_CHANGE, PRINTER_CTS_GPIO),
         TAG, "uart_set_pin");
 
-    ESP_LOGI(TAG, "Printer UART%d ready: TX=%d RX=%d CTS=%d baud=%d",
+    ESP_LOGI(TAG, "Printer UART%d ready: TX=%d RX=%d CTS=%d flow=cts baud=%d",
              PRINTER_UART_NUM, PRINTER_TX_GPIO, PRINTER_RX_GPIO, PRINTER_CTS_GPIO, PRINTER_BAUD);
 
     /* Default: swap TX/RX so ESP TX connects to printer RX.
@@ -437,16 +438,25 @@ esp_err_t printer_drv_write_no_wait(const uint8_t *data, size_t len)
     return ESP_OK;
 }
 
-esp_err_t printer_drv_swap_pins(bool swap)
+static esp_err_t apply_uart_pins(bool swap)
 {
     int tx = swap ? PRINTER_RX_GPIO : PRINTER_TX_GPIO;
     int rx = swap ? PRINTER_TX_GPIO : PRINTER_RX_GPIO;
+    int cts = s_flow_control_enabled ? PRINTER_CTS_GPIO : UART_PIN_NO_CHANGE;
 
-    ESP_LOGI(TAG, "Swapping TX/RX pins: TX=GPIO%d RX=GPIO%d CTS=GPIO%d (%s) baud=%d",
-             tx, rx, PRINTER_CTS_GPIO, swap ? "SWAPPED" : "NORMAL", s_baud);
+    ESP_LOGI(TAG, "Applying printer UART pins: TX=GPIO%d RX=GPIO%d CTS=%s (%s) flow=%s baud=%d",
+             tx, rx,
+             s_flow_control_enabled ? "GPIO6" : "disabled",
+             swap ? "SWAPPED" : "NORMAL",
+             s_flow_control_enabled ? "cts" : "off",
+             s_baud);
 
-    esp_err_t err = uart_set_pin(PRINTER_UART_NUM, tx, rx,
-                                  UART_PIN_NO_CHANGE, PRINTER_CTS_GPIO);
+    return uart_set_pin(PRINTER_UART_NUM, tx, rx, UART_PIN_NO_CHANGE, cts);
+}
+
+esp_err_t printer_drv_swap_pins(bool swap)
+{
+    esp_err_t err = apply_uart_pins(swap);
     if (err == ESP_OK) {
         s_pins_swapped = swap;
     }
@@ -456,6 +466,20 @@ esp_err_t printer_drv_swap_pins(bool swap)
 bool printer_drv_is_swapped(void)
 {
     return s_pins_swapped;
+}
+
+esp_err_t printer_drv_set_flow_control(bool enabled)
+{
+    uart_hw_flowcontrol_t flow = enabled ? UART_HW_FLOWCTRL_CTS : UART_HW_FLOWCTRL_DISABLE;
+    ESP_LOGI(TAG, "Setting printer UART flow control: %s", enabled ? "cts" : "off");
+    ESP_RETURN_ON_ERROR(uart_set_hw_flow_ctrl(PRINTER_UART_NUM, flow, 0), TAG, "uart_set_hw_flow_ctrl");
+    s_flow_control_enabled = enabled;
+    return apply_uart_pins(s_pins_swapped);
+}
+
+bool printer_drv_is_flow_control_enabled(void)
+{
+    return s_flow_control_enabled;
 }
 
 esp_err_t printer_drv_set_baud(int baud)

@@ -12,6 +12,7 @@
  *   printer_qr <text>    — Print QR code
  *   printer_bitmap_test  — Print test pattern (alternating lines)
  *   printer_baud <rate>  — Change ESP32 UART baud only (recovery)
+ *   printer_flow <cts|off> — Toggle CTS hardware flow control
  *   set_baudrate <rate>  — Tell printer to change baud, then switch ESP32 UART
  *   printer_status       — Read 4-byte printer status
  *   printer_temp         — Read print-head temperature
@@ -467,10 +468,46 @@ static int do_printer_swap(int argc, char **argv)
         printf("Error: %s\n", esp_err_to_name(err));
         return 1;
     }
-    printf("Pins %s: TX=GPIO%d RX=GPIO%d\n",
+    printf("Pins %s: TX=GPIO%d RX=GPIO%d flow=%s\n",
            swap ? "SWAPPED" : "NORMAL",
            swap ? PRINTER_RX_GPIO : PRINTER_TX_GPIO,
-           swap ? PRINTER_TX_GPIO : PRINTER_RX_GPIO);
+           swap ? PRINTER_TX_GPIO : PRINTER_RX_GPIO,
+           printer_drv_is_flow_control_enabled() ? "cts" : "off");
+    return 0;
+}
+
+/* ========================================================================
+ * printer_flow <cts|off> — toggle CTS hardware flow control
+ * ======================================================================== */
+
+static struct {
+    struct arg_str *state;
+    struct arg_end *end;
+} flow_args;
+
+static int do_printer_flow(int argc, char **argv)
+{
+    int nerrors = arg_parse(argc, argv, (void **)&flow_args);
+    if (nerrors != 0) {
+        arg_print_errors(stderr, flow_args.end, argv[0]);
+        return 1;
+    }
+    const char *val = flow_args.state->sval[0];
+    bool enabled;
+    if (strcmp(val, "cts") == 0 || strcmp(val, "on") == 0) {
+        enabled = true;
+    } else if (strcmp(val, "off") == 0 || strcmp(val, "none") == 0) {
+        enabled = false;
+    } else {
+        printf("Usage: printer_flow <cts|off>\n");
+        return 1;
+    }
+    esp_err_t err = printer_drv_set_flow_control(enabled);
+    if (err != ESP_OK) {
+        printf("Error: %s\n", esp_err_to_name(err));
+        return 1;
+    }
+    printf("Printer UART flow control: %s\n", enabled ? "cts" : "off");
     return 0;
 }
 
@@ -857,6 +894,12 @@ void printer_cmd_register(void)
     swap_args.end   = arg_end(1);
     reg("printer_swap", "Swap TX/RX pins (try if printer_probe gets no response)",
         do_printer_swap, &swap_args);
+
+    /* ---- printer_flow <cts|off> ---- */
+    flow_args.state = arg_str1(NULL, NULL, "<cts|off>", "Enable CTS flow control or detach CTS");
+    flow_args.end   = arg_end(1);
+    reg("printer_flow", "Toggle CTS hardware flow control",
+        do_printer_flow, &flow_args);
 
     /* ---- printer_baud <rate> ---- */
     baud_args.rate = arg_int1(NULL, NULL, "<rate>", "ESP32 UART baud only: 9600..921600");

@@ -1,0 +1,442 @@
+---
+Title: Investigation Diary
+Ticket: ALMANACH-PRINTER-UART
+Status: active
+Topics:
+    - firmware
+    - printer
+    - uart
+    - hardware-diagnostics
+DocType: reference
+Intent: long-term
+Owners: []
+RelatedFiles:
+    - Path: ../../../../../../../../../2025-12-21/echo-base-documentation/esp32-s3-m5/stoms3r/main/printer_drv.c
+      Note: Old firmware comparison baseline
+    - Path: firmware/atoms3r/main/app_main.c
+      Note: Saved settings boot application evidence
+    - Path: firmware/atoms3r/main/printer_cmd.c
+      Note: Commands used during hardware validation
+    - Path: firmware/atoms3r/main/printer_drv.c
+      Note: Current UART driver validated at 460800
+ExternalSources: []
+Summary: Chronological investigation diary for the AtomS3R/K118 UART serial interface comparison between old working firmware and copied Almanach firmware.
+LastUpdated: 2026-05-10T22:04:00-04:00
+WhatFor: Use this diary to resume UART serial debugging, understand what was tested, and avoid mistaking TX/RX echo for printer protocol replies.
+WhenToUse: Use when comparing old stoms3r firmware, sdkconfig, ESP-IDF versions, printer UART pins, CTS flow control, or serial probe behavior.
+---
+
+
+# Diary
+
+## Goal
+
+Capture the investigation into the AtomS3R Lite to K118 printer UART serial interface, especially the difference between the old `esp32-s3-m5/stoms3r` firmware that appears to communicate and the copied Almanach firmware that currently times out on status probes.
+
+## Step 1: Create a dedicated UART ticket and verify the old flashed firmware behavior
+
+The user clarified that this work is specifically about the serial interface and asked for a new ticket with a detailed intern-oriented analysis/design/implementation guide, plus a detailed diary. I created `ALMANACH-PRINTER-UART` so this UART investigation is separate from the broader setup/provisioning and print-pipeline tickets.
+
+I then attached a monitor from the old firmware directory that the user identified as currently flashed/working. The old firmware does report `PRINTER RESPONDED` from `printer_probe`, but the raw byte evidence is suspicious: arbitrary raw bytes are echoed back exactly, which is more consistent with TX/RX echo or loopback than a real K118 protocol response.
+
+### Prompt Context
+
+**User prompt (verbatim):**
+
+```text
+NHo this is about the serial interface. In fact, create a new ticket for that, and Create  a detailed analysis / design / implementation guide that is for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file references. It should be very clear and technical. Store in the ticket and the nupload to remarkable.
+
+
+The firmware in the other esp32-s3-m5 works in that it can communicate iwht the printer (it's currently flashed, if you want to verify). 
+
+As you investigate, keep a detailed diary
+```
+
+**Assistant interpretation:** Start a new docmgr ticket focused on the printer UART serial interface, investigate the old working firmware versus the copied Almanach firmware, document the system deeply for a new intern, keep a diary, and upload the final guide to reMarkable.
+
+**Inferred user intent:** Build enough technical understanding and evidence to reliably fix the copied firmware's serial communication with the K118 printer instead of guessing from pinout or provisioning changes.
+
+**Commit (code):** N/A — investigation and documentation only.
+
+### What I did
+- Created docmgr ticket `ALMANACH-PRINTER-UART`.
+- Created this diary:
+  - `almanach/ttmp/2026/05/10/ALMANACH-PRINTER-UART--analyze-atoms3r-k118-printer-uart-serial-interface/reference/01-investigation-diary.md`
+- Created the design guide placeholder:
+  - `almanach/ttmp/2026/05/10/ALMANACH-PRINTER-UART--analyze-atoms3r-k118-printer-uart-serial-interface/design-doc/01-atoms3r-k118-printer-uart-serial-interface-analysis-design-and-implementation-guide.md`
+- Restarted the serial monitor from the old firmware directory:
+  - `cd /home/manuel/workspaces/2025-12-21/echo-base-documentation/esp32-s3-m5/stoms3r && ./build.sh /dev/ttyACM0 monitor`
+- Confirmed the booted firmware identifies as:
+  - project `stoms3r`
+  - app version `b1e12e3-dirty`
+  - ESP-IDF `v5.4.1`
+- Ran:
+  - `printer_probe`
+  - `printer_status`
+  - `printer_get_baud`
+  - `printer_raw A55A`
+  - `printer_raw 01020304`
+
+### Why
+- The old firmware is the baseline the user trusts for communication, so it must be treated as primary evidence.
+- Running direct raw probes helps distinguish real printer replies from local echo/loopback.
+- The design guide needs real observed evidence, not only source comparisons.
+
+### What worked
+- The old firmware monitor started and showed the expected old boot sequence.
+- `printer_probe` reported `=== Result: PRINTER RESPONDED ===`.
+- The old firmware received bytes on UART RX after UART TX.
+- The old boot uses the same apparent printer mapping:
+  - nominal `TX=8 RX=7 CTS=6`
+  - effective swapped pins `TX=GPIO7 RX=GPIO8 CTS=GPIO6`
+
+### What didn't work
+- `printer_status` did not return a valid 4-byte K118 status packet. It logged:
+  - `TX 3 bytes: 1D 61 00`
+  - `GS a status: got 3 bytes`
+  - `Error: ESP_ERR_TIMEOUT`
+- `printer_get_baud` returned:
+  - `esp32_baud=9600 printer_baud=7 raw=g7`
+  This looks like the command suffix `67 37` (`g7`) being echoed, not a structured baud-rate response.
+- `printer_raw A55A` received exactly `A5 5A`.
+- `printer_raw 01020304` received exactly `01 02 03 04`.
+- Those raw results strongly suggest the old firmware's "communication" may be TX/RX echo rather than a real printer response.
+
+### What I learned
+- The old firmware communicates with *something* on the UART RX line, but the data matches the transmitted bytes too exactly to trust as printer protocol replies.
+- The existing `printer_probe` can produce a false positive if the RX path echoes the transmitted command. It treats the first byte of `10 04 n` as a status response (`0x10`) and later drains the remaining echoed bytes (`04 n`).
+- The old firmware is still valuable because it exposes a behavioral difference: old flashed firmware sees echo/readback, while the copied Almanach firmware recently saw no bytes at all for equivalent probes.
+
+### What was tricky to build
+- The user-visible term "communication works" can mean either "the printer sent a meaningful protocol reply" or merely "UART RX received bytes after TX." The evidence shows the old firmware satisfies the second definition, but not yet the first.
+- K118 status commands are not self-framing in this driver. A single echoed TX byte can be mistaken for the expected one-byte status result unless the probe explicitly rejects echoes.
+- `printer_get_baud` parsing is particularly misleading because the raw echo contains ASCII-ish bytes (`g7`) that are easy to mistake for a printer response string.
+
+### What warrants a second pair of eyes
+- Confirm with physical observation whether the printer paper moves or prints during old-firmware `printer_text` / `printer_feed` commands.
+- Confirm with a logic analyzer whether GPIO7 TX activity appears on the K118 RX pin and whether GPIO8 receives any non-echo printer-originated data.
+- Review whether the K118 board electrically echoes TX onto RX under some power/cable states, e.g. unpowered carrier, shared connector, or loopback through the module.
+
+### What should be done in the future
+- Update `printer_probe` so echoed commands are classified as `UART_LOOPBACK_OR_ECHO`, not `PRINTER RESPONDED`.
+- Add raw diagnostics that report whether RX bytes equal the just-transmitted TX bytes.
+- Compare current copied firmware against old firmware under the same ESP-IDF version and with display/BLE disabled to isolate integration effects.
+
+### Code review instructions
+- Start with old firmware driver:
+  - `/home/manuel/workspaces/2025-12-21/echo-base-documentation/esp32-s3-m5/stoms3r/main/printer_drv.c`
+- Then current copied driver:
+  - `/home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/printer_drv.c`
+- Pay special attention to:
+  - `printer_drv_query_status`
+  - `printer_drv_drain_rx`
+  - `printer_drv_send_raw`
+  - `printer_drv_swap_pins`
+- Validate by running raw echo probes and checking whether arbitrary bytes echo back.
+
+### Technical details
+- Old observed boot:
+  - `ESP-IDF: v5.4.1`
+  - `Printer UART1 ready: TX=8 RX=7 CTS=6 baud=9600`
+  - `Swapping TX/RX pins: TX=GPIO7 RX=GPIO8 CTS=GPIO6 (SWAPPED) baud=9600`
+- Old observed echo evidence:
+  - `printer_raw A55A` -> RX `A5 5A`
+  - `printer_raw 01020304` -> RX `01 02 03 04`
+  - `printer_get_baud` -> raw `g7`, matching command bytes `1D 67 37` suffix.
+
+## Step 2: Compare sdkconfig and source-level differences relevant to UART
+
+I compared the old working firmware tree and the current copied Almanach firmware tree. The top-level sdkconfig defaults are similar for the serial console and printer-relevant baseline: both use USB Serial/JTAG console so UART1 is free for the printer, 8 MB flash, PSRAM, a custom partition table, and 240 MHz CPU.
+
+The main differences are not ordinary UART console settings. The current Almanach firmware adds BLE/NimBLE provisioning, display/backlight support, button handling, and it is being built with ESP-IDF 5.4.2, while the old currently-flashed baseline was built with ESP-IDF 5.4.1.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 1)
+
+**Assistant interpretation:** Compare old and copied firmware configuration and code to find serial-interface-relevant differences.
+
+**Inferred user intent:** Identify whether sdkconfig, ESP-IDF version, or integration changes explain why copied firmware sees no printer UART bytes while the old firmware sees echo/readback.
+
+**Commit (code):** N/A — investigation and documentation only.
+
+### What I did
+- Compared old and current `sdkconfig.defaults`.
+- Compared filtered `sdkconfig` symbols containing UART, console, USB, GPIO, PSRAM, WiFi, BT, and partition terms.
+- Compared old and current `build.sh`.
+- Compared old and current `printer_drv.c` / `printer_drv.h`.
+- Compared old and current `app_main.c` for init-order and integration differences.
+- Inspected current display/backlight code for GPIO7 conflicts.
+
+### Why
+- User specifically asked whether this could be `sdkconfig` related.
+- Serial interface failures often come from console stealing a UART, pin matrix changes, flow control settings, or another peripheral reconfiguring the same GPIOs.
+
+### What worked
+- The old and current `sdkconfig.defaults` both set:
+  - `CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y`
+  - `CONFIG_SPIRAM=y`
+  - `CONFIG_SPIRAM_MODE_OCT=y`
+  - custom partition table
+  - 240 MHz CPU
+- The old firmware build script sources:
+  - `/home/manuel/workspaces/2025-12-21/echo-base-documentation/esp32-s3-m5/.envrc`
+  - which sources `~/esp/esp-idf-5.4.1/export.sh`
+- The current firmware build script prefers:
+  - `~/esp/esp-idf-5.4.2/export.sh`
+- Current display/backlight code intentionally avoids GPIO7 backlight gate by default:
+  - `# CONFIG_ALMANACH_ATOMS3R_BACKLIGHT_GATE_ENABLE is not set`
+  - backlight I2C uses SCL GPIO0 and SDA GPIO45.
+
+### What didn't work
+- No smoking-gun `sdkconfig` option directly reassigns UART1 pins; the printer pins are hard-coded in `printer_drv.h` and applied by `uart_set_pin()`.
+- The current diagnostic changes add `printer_flow`, but the previous no-response behavior was seen even when effective pins matched old firmware.
+
+### What I learned
+- The likely sdkconfig/configuration suspects are indirect:
+  - ESP-IDF 5.4.1 vs 5.4.2 UART driver behavior or pin-matrix behavior.
+  - current firmware enables BLE/NimBLE, which changes memory/task/coexistence behavior but should not directly steal UART1 pins.
+  - current firmware initializes display before printer, but display pins are SPI pins 14/15/21/42/48 and backlight I2C pins 0/45, not GPIO7/8/6.
+- The old firmware's apparent communication is likely echo. The current firmware's no-response may mean it does not see the same echo under ESP-IDF 5.4.2 or after current integration init order.
+
+### What was tricky to build
+- `sdkconfig` contains Bluetooth HCI UART symbols such as `CONFIG_BT_NIMBLE_HCI_UART_CTS_PIN=23`, but current Bluetooth controller mode is VHCI, not UART H4. Those symbols are easy to misread as stealing UART pins, but they are not the active host-controller transport in this build.
+- Display folklore around AtomS3R GPIO7 backlight conflicts with the current code: current code disables the GPIO7 backlight gate by default specifically to avoid conflicting with printer UART.
+
+### What warrants a second pair of eyes
+- Verify with `idf.py size-components` or map files whether ESP-IDF 5.4.2 pulls in different UART driver code paths that could affect RX echo/loopback behavior.
+- Build the current copied firmware under ESP-IDF 5.4.1 as an isolation experiment.
+- Build old firmware under ESP-IDF 5.4.2 as the reciprocal isolation experiment if feasible.
+
+### What should be done in the future
+- Add a reproducible matrix:
+  - old source + IDF 5.4.1
+  - old source + IDF 5.4.2
+  - current source + IDF 5.4.1
+  - current source + IDF 5.4.2
+- For each, run:
+  - `printer_raw A55A`
+  - `printer_probe`
+  - `printer_status`
+  - `printer_text HELLO`
+  - `printer_feed 3`
+- Record whether each test shows echo, real structured status, and/or physical paper movement.
+
+### Code review instructions
+- Compare:
+  - `/home/manuel/workspaces/2025-12-21/echo-base-documentation/esp32-s3-m5/stoms3r/sdkconfig.defaults`
+  - `/home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/sdkconfig.defaults`
+  - `/home/manuel/workspaces/2025-12-21/echo-base-documentation/esp32-s3-m5/stoms3r/build.sh`
+  - `/home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/build.sh`
+  - both `main/app_main.c` files.
+
+### Technical details
+- Current integration adds:
+  - BLE provisioning: `CONFIG_BT_ENABLED=y`, `CONFIG_BT_NIMBLE_ENABLED=y`.
+  - display startup before printer init.
+  - button handler.
+  - provisioning manager and WiFi onboarding changes.
+- Current display pins:
+  - LCD CS 14, SCK 15, MOSI 21, DC 42, RST 48.
+  - Backlight I2C SCL 0, SDA 45.
+  - GPIO7 gate disabled by default.
+
+## Step 3: Incorporate printer settings page baud rate and test ESP32 at 460800
+
+The user reported that the printer's own settings page says its baud rate is `460800`. That is a major clue because both old and current firmware boot with the ESP32 UART at `9600` unless a saved startup baud is applied. If the K118 is truly configured to `460800`, then text/feed commands sent at `9600` would not be understood by the printer.
+
+I changed only the ESP32 UART side to `460800` in the old currently-flashed firmware and reran the probes. The result still looked like exact TX echo rather than a real K118 response, but this test was still useful: it shows that the old firmware's echo-like receive behavior survives the baud change and therefore cannot be treated as proof that the printer protocol is working.
+
+### Prompt Context
+
+**User prompt (verbatim):** "baudrate 460800 when I print out the settings page on the printer"
+
+**Assistant interpretation:** The physical printer reports that its serial baud rate is 460800, so the firmware's default 9600 baud is likely wrong for actual printer commands.
+
+**Inferred user intent:** Use the printer's self-reported settings to explain why text/feed do not work and adjust the UART investigation around the actual configured printer baud.
+
+**Commit (code):** N/A — investigation and documentation only.
+
+### What I did
+- On the old currently-flashed firmware, ran:
+  - `printer_baud 460800`
+  - `printer_probe`
+  - `printer_status`
+  - `printer_get_baud`
+  - `printer_text BAUD_460800_TEST`
+  - `printer_feed 3`
+- Captured the serial monitor output.
+
+### Why
+- `printer_baud 460800` changes only the ESP32 UART side and is the correct recovery/test command when the printer-side baud is already known to be 460800.
+- This avoids sending `set_baudrate`, which would command the printer to change settings. The user already has the printer-side setting from the printed settings page.
+
+### What worked
+- The ESP32 UART side changed successfully:
+  - `Changing ESP32 UART baud rate: 9600 -> 460800`
+  - `ESP32 UART baud rate set to 460800 (printer was NOT commanded)`
+- The old firmware continued to receive bytes after sending commands at 460800.
+- The command sequence executed without crashing the monitor or firmware.
+
+### What didn't work
+- The RX pattern at 460800 still matched echo-like behavior:
+  - `DLE EOT` commands still reported first byte `0x10`, then drained the remaining `04 n` bytes.
+  - `printer_status` still got exactly 3 bytes for the 3-byte command and timed out waiting for a 4-byte status packet.
+  - `printer_get_baud` still returned `raw=g7`, matching the suffix of the transmitted command `1D 67 37`.
+- I still cannot see whether `printer_text BAUD_460800_TEST` or `printer_feed 3` physically printed/fed paper from the terminal.
+
+### What I learned
+- The printer settings page baud of `460800` is likely why text/feed at the firmware's default 9600 do nothing on the physical printer.
+- However, simply seeing bytes on RX at either 9600 or 460800 is not enough to prove real printer communication, because the observed bytes still match transmitted bytes.
+- If paper moved after the 460800 test, then TX at 460800 is likely correct and the remaining issue is RX/status semantics. If paper still did not move, the echo is probably unrelated to actual printer input.
+
+### What was tricky to build
+- There are two baud states:
+  - ESP32 UART baud (`printer_baud` changes this only).
+  - Printer's persisted baud (`set_baudrate` changes printer then ESP32).
+- The old firmware boot log always starts at 9600 unless saved settings are present, so a printer persisted at 460800 will be out of sync immediately after boot.
+- Echo/loopback can happen at both baud rates, so baud alignment alone does not disambiguate real K118 replies.
+
+### What warrants a second pair of eyes
+- Confirm physically whether the printer reacted to `printer_text BAUD_460800_TEST` or `printer_feed 3` after `printer_baud 460800`.
+- Confirm whether the K118 settings page's `460800` refers to the TTL UART baud used by this connector and not another interface/profile.
+- Review whether saved printer settings should default the ESP32 side to 460800 in the Almanach firmware when this particular printer has been configured that way.
+
+### What should be done in the future
+- If 460800 physically works, run `printer_settings_save 460800 <density> <speed> <mode>` or equivalent once the desired density/speed/mode are known, so firmware boots at the printer's persisted baud.
+- Add documentation warning that `printer_baud` is recovery-only and must match the printer's persisted baud after power cycling.
+- Add an echo-aware probe before trusting `printer_get_baud` or `printer_status` outputs.
+
+### Code review instructions
+- Review old/current implementations of:
+  - `do_printer_baud`
+  - `printer_drv_set_baud`
+  - `do_set_baudrate`
+  - `printer_drv_set_printer_baudrate`
+  - `printer_settings_save` / `apply_saved_printer_settings`
+- Confirm boot-time saved settings apply the ESP32 UART baud before any printer commands that depend on the printer's persisted baud.
+
+### Technical details
+- Command used:
+  - `printer_baud 460800`
+- Important output:
+  - `Warning: rates above 115200 are experimental on K118.`
+  - `ESP32 UART baud rate set to 460800 (printer was NOT commanded)`
+- Follow-up output still echo-like:
+  - `printer_get_baud` -> `esp32_baud=460800 printer_baud=7 raw=g7`
+
+
+## Step 4: Validate copied Almanach firmware at 460800 and persist startup settings
+
+After confirming the old firmware worked physically once the ESP32 UART was switched to 460800, I flashed the copied Almanach firmware again and repeated the same test. This time the new firmware also communicated correctly with the printer once its ESP32 UART baud matched the printer settings page.
+
+The decisive fix was not changing the pinout or ESP-IDF SDK configuration. The printer was persisted at 460800 baud, while both firmware trees booted at 9600 without saved startup settings. After switching the new firmware to 460800, the K118 returned real status/baud responses, text/feed worked, and saved startup settings made the baud survive reboot.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, continue, keep a printer"
+
+**Assistant interpretation:** Continue the printer UART investigation on the copied/new firmware, keep tracking the work in the diary, and validate the 460800 baud finding.
+
+**Inferred user intent:** Confirm whether the new Almanach firmware can drive the printer the same way as the old firmware once configured correctly, then make the working state persistent.
+
+**Commit (code):** N/A — hardware validation and NVS configuration only.
+
+### What I did
+- Flashed the copied/new Almanach firmware from:
+  - `/home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r`
+- Confirmed boot identity:
+  - `App version: d3b5d2e-dirty`
+  - `ESP-IDF: v5.4.2`
+- Ran the successful manual sequence:
+  - `printer_baud 460800`
+  - `printer_flow off`
+  - `printer_probe`
+  - `printer_text NEW_FW_460800_NOCTS`
+  - `printer_feed 3`
+  - `printer_status`
+  - `printer_get_baud`
+  - `printer_flow cts`
+  - `printer_probe`
+- User confirmed the physical printer output worked.
+- Saved startup settings in NVS:
+  - `printer_settings_save 460800 20 80 31`
+- Restarted the copied/new firmware monitor and confirmed boot applied saved settings:
+  - `Applying saved printer settings: baud=460800 density=20 speed=80 graphics_mode=31`
+- Revalidated after restart:
+  - `printer_probe`
+  - `printer_get_baud`
+  - `printer_status`
+
+### Why
+- The printer settings page reported 460800 baud, so the ESP32 side needed to match that persisted printer-side speed.
+- Saving settings avoids requiring a manual `printer_baud 460800` after every reboot.
+- Testing both no-CTS and CTS modes checks whether CTS remains safe after the baud fix.
+
+### What worked
+- New firmware at 460800 returned real status bytes:
+  - `Status n=1 (printer): 0x16`
+  - `Status n=2 (offline): 0x12`
+  - `Status n=3 (error): 0x12`
+  - `Status n=4 (paper): 0x12`
+- `printer_status` returned a real 4-byte status packet:
+  - `raw: 14 00 00 0F`
+  - `buffer_full=no cover_open=no feed_key=no cutter_error=no auto_error=no overheated=no paper_near_end=no paper_out=no`
+- `printer_get_baud` returned a real K118 response:
+  - `esp32_baud=460800 printer_baud=460800 raw=uart baudrate: 460800`
+- User confirmed physical printing worked.
+- After saving startup settings and restarting, the new firmware booted, applied baud 460800, and all serial diagnostics still worked without manual baud setup.
+
+### What didn't work
+- Boot still sends an initial `ESC @` at 9600 before saved settings are applied because `printer_drv_init()` sends reset before `apply_saved_printer_settings()` changes baud. This did not block the later settings application, but it is a small ordering wart.
+
+### What I learned
+- The copied/new firmware is not fundamentally broken for printer UART.
+- The main issue was baud mismatch: printer persisted at 460800, firmware default at 9600.
+- The old firmware's earlier echo-like behavior at 9600 was a symptom of being at the wrong baud and should not be interpreted as valid communication.
+- Once baud matches, the same pins and current ESP-IDF 5.4.2 build produce valid K118 responses.
+
+### What was tricky to build
+- The old `printer_probe` false-positive problem made the first investigation confusing: at 9600 it could still print `PRINTER RESPONDED` based on echo-like bytes, while the printer did not physically act.
+- The real proof came from `printer_status` and `printer_get_baud` returning structured responses after switching to 460800, plus physical output confirmation.
+- Persisting settings required selecting density/speed/graphics-mode values too; I used `density=20`, `speed=80`, `graphics_mode=31 adaptive`, consistent with the existing safe diagnostic recommendations.
+
+### What warrants a second pair of eyes
+- Review whether `printer_drv_init()` should avoid sending `ESC @` until after saved baud is applied, or whether `apply_saved_printer_settings()` should be integrated into the driver initialization path.
+- Confirm `density=20 speed=80 graphics_mode=31` are the desired long-term defaults for this physical printer.
+- Decide whether the project should keep NVS-only baud persistence or add a documented default baud override for Almanach devices known to be configured at 460800.
+
+### What should be done in the future
+- Improve `printer_probe` to reject echo/loopback false positives.
+- Consider changing boot order so saved baud is applied before any printer command is sent.
+- Document the recovery sequence:
+  - `printer_baud 460800`
+  - `printer_get_baud`
+  - `printer_status`
+  - `printer_settings_save 460800 20 80 31`
+- Re-run a small HTTP print through the render path now that the firmware boots at the correct printer baud.
+
+### Code review instructions
+- Review boot ordering in:
+  - `almanach/firmware/atoms3r/main/app_main.c`
+  - `almanach/firmware/atoms3r/main/printer_drv.c`
+- Review saved settings in:
+  - `almanach/firmware/atoms3r/main/printer_cmd.c`
+  - `almanach/firmware/atoms3r/main/nvs_store.c`
+- Validate on hardware with:
+  - `printer_settings_show`
+  - `printer_probe`
+  - `printer_get_baud`
+  - `printer_status`
+
+### Technical details
+- Saved startup settings now present on the device:
+  - `baud=460800`
+  - `density=20`
+  - `speed=80`
+  - `graphics_mode=31 (adaptive)`
+- Confirmed restart log:
+  - `Applying saved printer settings: baud=460800 density=20 speed=80 graphics_mode=31`
+- Confirmed after restart:
+  - `printer_get_baud` -> `esp32_baud=460800 printer_baud=460800 raw=uart baudrate: 460800`
+  - `printer_status` -> `raw: 14 00 00 0F`
