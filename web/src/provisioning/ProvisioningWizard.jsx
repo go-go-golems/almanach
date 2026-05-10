@@ -82,6 +82,25 @@ export default function ProvisioningWizard({
     }
   }
 
+  async function runControlAction(action) {
+    if (state.clientMode !== "real" || !state.device) return;
+    const verb = action === "reset" ? "reset WiFi credentials" : "enter reprovisioning mode";
+    if (!window.confirm(`Really ${verb} on ${state.device.name}?`)) return;
+    setBusy(true);
+    try {
+      const selectedClient = realClient;
+      setState((s) => ({ ...s, logs: appendLog(s.logs, `Starting real ESP-IDF ${action} flow`) }));
+      const result = action === "reset"
+        ? await selectedClient.resetWiFi({ pop: state.pop })
+        : await selectedClient.reprovisionWiFi({ pop: state.pop });
+      setState((s) => ({ ...s, result, logs: appendLog(s.logs, result.message) }));
+    } catch (e) {
+      fail(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function runProvisioning() {
     const validation = validateWifiCredentials({ ssid: state.ssid, password: state.password });
     if (validation) {
@@ -160,7 +179,9 @@ export default function ProvisioningWizard({
                 <button style={{ ...buttonStyle, background: "#c9a36b", color: "#17130f" }} onClick={() => chooseDevice("real")} disabled={busy || !canUseRealBluetooth}>{busy ? <Loader2 size={14} /> : <Bluetooth size={14} />} Find BLE printer</button>
                 <button style={buttonStyle} onClick={() => chooseDevice("mock")} disabled={busy}>{busy ? <Loader2 size={14} /> : <Bluetooth size={14} />} Use mock printer</button>
                 <button style={buttonStyle} onClick={runProvisioning} disabled={busy || !state.device}>{busy ? <Loader2 size={14} /> : <Wifi size={14} />} {state.clientMode === "real" ? "Continue provisioning" : "Run mock provisioning"}</button>
-                <button style={buttonStyle} onClick={() => setState({ ...DEFAULT_SETUP_STATE, support: supportOverride || getBluetoothSupport() })} disabled={busy}>Reset</button>
+                {state.clientMode === "real" && state.device && <button style={buttonStyle} onClick={() => runControlAction("reprov")} disabled={busy}>Reprovision</button>}
+                {state.clientMode === "real" && state.device && <button style={{ ...buttonStyle, borderColor: "#8f5f4f", color: "#d8a08d" }} onClick={() => runControlAction("reset")} disabled={busy}>Reset printer WiFi</button>}
+                <button style={buttonStyle} onClick={() => setState({ ...DEFAULT_SETUP_STATE, support: supportOverride || getBluetoothSupport() })} disabled={busy}>Reset page</button>
               </div>
             </div>
 

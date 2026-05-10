@@ -1,4 +1,4 @@
-import { decodeWifiConfigPayload, encodeApplyConfig, encodeGetStatus, encodeSetConfig, Status, WifiMsg, WifiState, wifiFailReasonText, wifiStateText } from "./espidf-protobuf";
+import { decodeWifiConfigPayload, decodeWifiCtrlPayload, encodeApplyConfig, encodeCtrlReprov, encodeCtrlReset, encodeGetStatus, encodeSetConfig, Status, WifiCtrlMsg, WifiMsg, WifiState, wifiFailReasonText, wifiStateText } from "./espidf-protobuf";
 import { Security1Session } from "./security1";
 
 export const ESP_IDF_PROVISIONING_SERVICE_UUID = "021a9004-0382-4aea-bff4-6b3f1c5adfb4";
@@ -157,6 +157,20 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
     return decodeWifiConfigPayload(response);
   }
 
+  async function sendEncryptedControl(payload) {
+    if (!securitySession) throw new Error("Security 1 session is not established.");
+    const encrypted = await securitySession.encrypt(payload);
+    const encryptedResponse = await sendEndpointBytes(ESP_IDF_ENDPOINTS.PROV_CTRL, encrypted);
+    const response = await securitySession.decrypt(encryptedResponse);
+    return decodeWifiCtrlPayload(response);
+  }
+
+  async function ensureSecuritySession(pop) {
+    if (securitySession?.established) return;
+    securitySession = new Security1Session({ pop, log });
+    await securitySession.establish(sendEndpointBytes);
+  }
+
   return {
     async chooseDevice() {
       if (!navigator.bluetooth) throw bluetoothUnavailableError();
@@ -219,6 +233,32 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
     async establishSession({ pop = "" } = {}) {
       securitySession = new Security1Session({ pop, log });
       await securitySession.establish(sendEndpointBytes);
+    },
+
+    async resetWiFi({ pop = "" } = {}) {
+      await ensureSecuritySession(pop);
+      log("Sending encrypted WiFi reset command");
+      const response = await sendEncryptedControl(encodeCtrlReset());
+      if (response.msg !== WifiCtrlMsg.RESP_RESET) {
+        throw new Error(`Unexpected CtrlReset response ${response.msg}`);
+      }
+      if (response.status !== Status.SUCCESS) {
+        throw new Error(`CtrlReset failed with status ${response.status}`);
+      }
+      return { ok: true, message: "WiFi reset command accepted. The printer may reboot or return to setup mode." };
+    },
+
+    async reprovisionWiFi({ pop = "" } = {}) {
+      await ensureSecuritySession(pop);
+      log("Sending encrypted WiFi reprovision command");
+      const response = await sendEncryptedControl(encodeCtrlReprov());
+      if (response.msg !== WifiCtrlMsg.RESP_REPROV) {
+        throw new Error(`Unexpected CtrlReprov response ${response.msg}`);
+      }
+      if (response.status !== Status.SUCCESS) {
+        throw new Error(`CtrlReprov failed with status ${response.status}`);
+      }
+      return { ok: true, message: "WiFi reprovision command accepted. Continue with new credentials." };
     },
 
     async sendCredentials({ ssid, password }) {

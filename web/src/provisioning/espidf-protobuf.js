@@ -14,6 +14,12 @@ export const WifiMsg = Object.freeze({
 });
 export const WifiState = Object.freeze({ CONNECTED: 0, CONNECTING: 1, DISCONNECTED: 2, CONNECTION_FAILED: 3 });
 export const WifiFailReason = Object.freeze({ AUTH_ERROR: 0, NETWORK_NOT_FOUND: 1 });
+export const WifiCtrlMsg = Object.freeze({
+  CMD_RESET: 1,
+  RESP_RESET: 2,
+  CMD_REPROV: 3,
+  RESP_REPROV: 4,
+});
 
 export function wifiStateText(state) {
   switch (state) {
@@ -217,6 +223,24 @@ function encodeWifiPayload(msg, payloadField, payloadBytes) {
     fieldVarint(1, msg),
     fieldBytes(payloadField, payloadBytes),
   ]);
+}
+
+export function encodeCtrlReset() {
+  return fieldVarint(1, WifiCtrlMsg.CMD_RESET);
+}
+
+export function encodeCtrlReprov() {
+  return fieldVarint(1, WifiCtrlMsg.CMD_REPROV);
+}
+
+export function decodeWifiCtrlPayload(bytes) {
+  const out = { msg: 0, status: 0 };
+  eachField(bytes, (field, wire, r) => {
+    if (field === 1 && wire === WIRE_VARINT) out.msg = r.varint();
+    else if (field === 2 && wire === WIRE_VARINT) out.status = r.varint();
+    else r.skip(wire);
+  });
+  return out;
 }
 
 export function decodeWifiConfigPayload(bytes) {

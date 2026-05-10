@@ -49,16 +49,10 @@ func wifiCtrlPayload(action WiFiCtrlAction) (*espidf.WiFiCtrlPayload, espidf.WiF
 	case WiFiCtrlActionReset:
 		return &espidf.WiFiCtrlPayload{
 			Msg: espidf.WiFiCtrlMsgType_TypeCmdCtrlReset,
-			Payload: &espidf.WiFiCtrlPayload_CmdCtrlReset{
-				CmdCtrlReset: &espidf.CmdCtrlReset{},
-			},
 		}, espidf.WiFiCtrlMsgType_TypeRespCtrlReset, nil
 	case WiFiCtrlActionReprov:
 		return &espidf.WiFiCtrlPayload{
 			Msg: espidf.WiFiCtrlMsgType_TypeCmdCtrlReprov,
-			Payload: &espidf.WiFiCtrlPayload_CmdCtrlReprov{
-				CmdCtrlReprov: &espidf.CmdCtrlReprov{},
-			},
 		}, espidf.WiFiCtrlMsgType_TypeRespCtrlReprov, nil
 	default:
 		return nil, espidf.WiFiCtrlMsgType_TypeCtrlReserved, fmt.Errorf("unsupported WiFi control action %q", action)
