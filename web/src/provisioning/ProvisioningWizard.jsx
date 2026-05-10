@@ -90,7 +90,7 @@ export default function ProvisioningWizard({
     }
     setBusy(true);
     try {
-      setState((s) => ({ ...s, step: ProvisioningStep.PROVISIONING, logs: appendLog(s.logs, "Starting mock provisioning flow") }));
+      setState((s) => ({ ...s, step: ProvisioningStep.PROVISIONING, logs: appendLog(s.logs, state.clientMode === "real" ? "Starting real ESP-IDF provisioning flow" : "Starting mock provisioning flow") }));
       const selectedClient = state.clientMode === "real" ? realClient : mockClient;
       await selectedClient.establishSession({ pop: state.pop });
       await selectedClient.sendCredentials({ ssid: state.ssid, password: state.password });
@@ -135,7 +135,7 @@ export default function ProvisioningWizard({
                     {support.hint && <p style={{ color: "#c9b896" }}>{support.hint}</p>}
                   </div>
                 )}
-                <p style={{ color: "#c9b896", lineHeight: 1.5 }}>Chrome can now use the real BLE picker to connect to an Almanach printer and verify the ESP-IDF provisioning service. WiFi credential transfer still waits on the next Security 1/protobuf implementation step.</p>
+                <p style={{ color: "#c9b896", lineHeight: 1.5 }}>Chrome can now use the real BLE picker to connect to an Almanach printer, verify the ESP-IDF provisioning service, establish Security 1, and send encrypted WiFi credentials.</p>
               </div>
 
               <div style={{ padding: 16, border: "1px solid #3a3128", borderRadius: 8, background: "rgba(0,0,0,0.16)", marginBottom: 16 }}>
@@ -168,7 +168,7 @@ export default function ProvisioningWizard({
               <h3 style={{ marginTop: 0 }}>Progress</h3>
               <LogPanel logs={state.logs} />
               <div style={{ marginTop: 16, color: "#8a7c66", fontSize: 12, lineHeight: 1.45 }}>
-                <strong>Next implementation step:</strong> add ESP-IDF proto-ver, Security 1/protobuf, credential transfer, and status polling on top of the real BLE connection.
+                <strong>Real BLE mode:</strong> the browser now follows the ESP-IDF sequence through proto-ver, Security 1, encrypted WiFi config, and status polling.
               </div>
             </aside>
           </section>

@@ -1,3 +1,6 @@
+import { decodeWifiConfigPayload, encodeApplyConfig, encodeGetStatus, encodeSetConfig, Status, WifiMsg, WifiState, wifiFailReasonText, wifiStateText } from "./espidf-protobuf";
+import { Security1Session } from "./security1";
+
 export const ESP_IDF_PROVISIONING_SERVICE_UUID = "021a9004-0382-4aea-bff4-6b3f1c5adfb4";
 export const ESP_IDF_PROVISIONING_SERVICE_UUID_FIRMWARE_ORDER = "b4df5a1c-3f6b-f4bf-ea4a-820304901a02";
 export const ESP_IDF_PROVISIONING_SERVICE_UUIDS = Object.freeze([
@@ -40,13 +43,25 @@ function dataViewToText(value) {
   return textDecoder.decode(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
 }
 
-async function writeCharacteristic(characteristic, text) {
-  const data = textEncoder.encode(text);
+function dataViewToBytes(value) {
+  return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+}
+
+async function writeCharacteristicBytes(characteristic, data) {
   if (characteristic.writeValueWithResponse) {
     await characteristic.writeValueWithResponse(data);
     return;
   }
   await characteristic.writeValue(data);
+}
+
+async function readCharacteristicBytes(characteristic) {
+  const value = await characteristic.readValue();
+  return dataViewToBytes(value);
+}
+
+async function writeCharacteristic(characteristic, text) {
+  await writeCharacteristicBytes(characteristic, textEncoder.encode(text));
 }
 
 async function readCharacteristicText(characteristic) {
@@ -113,6 +128,17 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
   let gattServer = null;
   let provisioningService = null;
   let endpoints = new Map();
+  let securitySession = null;
+  let lastProvisioningStatus = null;
+
+  async function sendEndpointBytes(endpointName, data) {
+    const characteristic = endpoints.get(endpointName);
+    if (!characteristic) {
+      throw new Error(`ESP-IDF endpoint '${endpointName}' was not discovered.`);
+    }
+    await writeCharacteristicBytes(characteristic, data);
+    return readCharacteristicBytes(characteristic);
+  }
 
   async function sendEndpointText(endpointName, text) {
     const characteristic = endpoints.get(endpointName);
@@ -121,6 +147,14 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
     }
     await writeCharacteristic(characteristic, text);
     return readCharacteristicText(characteristic);
+  }
+
+  async function sendEncryptedConfig(payload) {
+    if (!securitySession) throw new Error("Security 1 session is not established.");
+    const encrypted = await securitySession.encrypt(payload);
+    const encryptedResponse = await sendEndpointBytes(ESP_IDF_ENDPOINTS.PROV_CONFIG, encrypted);
+    const response = await securitySession.decrypt(encryptedResponse);
+    return decodeWifiConfigPayload(response);
   }
 
   return {
@@ -182,16 +216,54 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
       }
     },
 
-    async establishSession() {
-      throw new Error("Real ESP-IDF Security 1 session is not implemented yet. Browser BLE transport is connected; next step is proto-ver and Security 1/protobuf support.");
+    async establishSession({ pop = "" } = {}) {
+      securitySession = new Security1Session({ pop, log });
+      await securitySession.establish(sendEndpointBytes);
     },
 
-    async sendCredentials() {
-      throw new Error("Real ESP-IDF WiFi credential transfer is not implemented yet.");
+    async sendCredentials({ ssid, password }) {
+      log(`Sending encrypted WiFi credentials for SSID ${ssid}`);
+      const setResponse = await sendEncryptedConfig(encodeSetConfig(ssid, password));
+      if (setResponse.msg !== WifiMsg.RESP_SET_CONFIG || !setResponse.respSetConfig) {
+        throw new Error(`Unexpected SetConfig response ${setResponse.msg}`);
+      }
+      if (setResponse.respSetConfig.status !== Status.SUCCESS) {
+        throw new Error(`SetConfig failed with status ${setResponse.respSetConfig.status}`);
+      }
+
+      log("Applying encrypted WiFi configuration");
+      const applyResponse = await sendEncryptedConfig(encodeApplyConfig());
+      if (applyResponse.msg !== WifiMsg.RESP_APPLY_CONFIG || !applyResponse.respApplyConfig) {
+        throw new Error(`Unexpected ApplyConfig response ${applyResponse.msg}`);
+      }
+      if (applyResponse.respApplyConfig.status !== Status.SUCCESS) {
+        throw new Error(`ApplyConfig failed with status ${applyResponse.respApplyConfig.status}`);
+      }
     },
 
     async waitForResult() {
-      throw new Error("Real ESP-IDF provisioning result polling is not implemented yet.");
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        const response = await sendEncryptedConfig(encodeGetStatus());
+        if (response.msg !== WifiMsg.RESP_GET_STATUS || !response.respGetStatus) {
+          throw new Error(`Unexpected GetStatus response ${response.msg}`);
+        }
+        const status = response.respGetStatus;
+        lastProvisioningStatus = status;
+        const stateText = wifiStateText(status.staState);
+        log(`WiFi provisioning status: ${stateText}`);
+        if (status.staState === WifiState.CONNECTED) {
+          return { ok: true, status, message: "Printer connected to WiFi successfully." };
+        }
+        if (status.staState === WifiState.CONNECTION_FAILED) {
+          const reason = status.hasFailReason ? ` (${wifiFailReasonText(status.failReason)})` : "";
+          throw new Error(`WiFi connection failed${reason}`);
+        }
+        if (status.staState === WifiState.DISCONNECTED) {
+          throw new Error("WiFi provisioning ended disconnected.");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      throw new Error(`Timed out waiting for WiFi provisioning result. Last status: ${wifiStateText(lastProvisioningStatus?.staState)}`);
     },
 
     async disconnect() {
