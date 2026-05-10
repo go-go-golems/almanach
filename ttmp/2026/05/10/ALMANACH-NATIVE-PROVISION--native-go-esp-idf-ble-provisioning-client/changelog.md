@@ -113,3 +113,14 @@ Phase 7 implementation: wired native provisioning into `ble-provision --implemen
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Implementation selector and native-compatible passphrase prompting
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision_native.go — Native version/provision command flow
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_config.go — Native provisioning API called by the CLI
+
+## 2026-05-10
+
+Phase 8 validation: native Go BLE provisioning succeeded against the AtomS3R using provided WiFi credentials. The CLI reached `wifi_state=connected`, and firmware logs confirmed Security 1, credential receipt, WiFi association, IP assignment, web server startup, and provisioning shutdown. Follow-up cleanup fixed misleading default fail-reason output for connected states.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_config.go — Adds fail-reason presence tracking for WiFi status
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision_native.go — Uses explicit fail-reason text in native CLI output
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_config_test.go — Verifies fail-reason presence for failed status
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 8 task completion

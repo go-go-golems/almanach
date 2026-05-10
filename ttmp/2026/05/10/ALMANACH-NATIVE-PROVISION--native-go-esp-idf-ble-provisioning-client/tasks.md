@@ -70,6 +70,6 @@
   - [x] Confirm firmware logs show Security 1 session, received SSID, STA got IP, web server start, and provisioning stop
   - [x] Fix misleading default fail-reason output for connected status
   - [x] Run `go test ./...`
-  - [ ] Update diary/changelog and commit Phase 8
+  - [x] Update diary/changelog and commit Phase 8
 - [ ] Phase 9: use native Go implementation as reference for future browser JavaScript port
 - [x] Upload native Go provisioning design package to reMarkable

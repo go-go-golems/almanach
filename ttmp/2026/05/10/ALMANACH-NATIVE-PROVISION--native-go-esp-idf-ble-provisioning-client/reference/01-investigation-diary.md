@@ -828,3 +828,121 @@ Validation command:
 ```bash
 go test ./...
 ```
+
+## Step 9: Phase 8 native provisioning hardware validation
+
+This step used the newly wired native Go provisioning path against the real AtomS3R. The native command completed the full BLE provisioning sequence: proto-ver verification, Security 1, encrypted WiFi config, ApplyConfig, and status polling until the device reported a connected state.
+
+The firmware monitor independently confirmed the same path. It logged Security 1 establishment, receipt of the configured SSID, successful WPA2 association, IP assignment, web server startup, provisioning stop, BLE disconnect, and provisioning manager deinitialization. During review of the CLI row, I noticed that the command printed a default `AuthError` fail reason even for a connected state; I fixed that output so fail reasons are only shown when the protobuf oneof actually includes a failure reason.
+
+### Prompt Context
+
+**User prompt (verbatim):** "[WiFi credentials provided for hardware validation; passphrase intentionally omitted from diary to avoid storing secrets]"
+
+**Assistant interpretation:** Use the provided WiFi credentials to run Phase 8 hardware validation of the native Go provisioning command.
+
+**Inferred user intent:** Prove that native Go provisioning works end-to-end on the real AtomS3R and record the result.
+
+**Commit (code):** 89cc5a34b25f621f41441923fd31c2ff8793079b — "Clean native WiFi status output"
+
+### What I did
+
+- Ran native provisioning against `ALM_0F2320` with the provided SSID and stdin-supplied passphrase.
+- Confirmed the CLI reported `wifi_state: connected` and `wifi_status: Success`.
+- Captured firmware monitor evidence from the `alm-button-test` tmux session.
+- Fixed misleading native CLI status output so `wifi_fail_reason` is blank unless `RespGetStatus` actually carries a fail-reason oneof.
+- Added `HasFailReason` and `FailReasonText()` to `WiFiStatus`.
+- Updated the failed-status unit test to assert explicit fail-reason presence.
+- Ran `go test ./...`.
+
+### Why
+
+- Phase 8 needed real hardware validation after the fake-transport tests for Security 1 and encrypted WiFi config.
+- The misleading `AuthError` output could confuse operators because enum value zero is also the default when no fail reason is present.
+
+### What worked
+
+The native command completed successfully and reported a connected state:
+
+```yaml
+action: provision
+capabilities:
+    - wifi_scan
+duration_ms: 10555
+endpoint_count: 5
+implementation: native
+proto_ver: v1.1
+read_passphrase_from_stdin: true
+sec_patch_ver: 0
+sec_ver: 1
+service_name: ALM_0F2320
+ssid: Verizon_9DNVB9
+wifi_attempts_remaining: 0
+wifi_state: connected
+wifi_status: Success
+```
+
+Firmware monitor evidence included:
+
+```text
+provisioning: Provisioning security session established
+provisioning: Received WiFi credentials for SSID 'Verizon_9DNVB9'
+wifi:connected with Verizon_9DNVB9
+esp_netif_handlers: sta ip: 192.168.1.242, mask: 255.255.255.0, gw: 192.168.1.1
+wifi_mgr: Got IP: 192.168.1.242
+provisioning: Provisioned WiFi credentials connected successfully
+stoms3r: WiFi connected — starting web server
+web_server: HTTP server started on port 80
+wifi_prov_mgr: Provisioning stopped
+provisioning: BLE WiFi provisioning ended
+wifi_prov_scheme_ble: BTDM memory released
+provisioning: WiFi provisioning manager deinitialized
+```
+
+`go test ./...` passed after the output cleanup.
+
+### What didn't work
+
+- The first successful hardware row printed `wifi_fail_reason: AuthError` even though `wifi_state: connected`. This happened because `WifiConnectFailedReason_AuthError` is enum value zero, and the code used `GetFailReason()` without checking whether the response's oneof was actually a fail reason.
+
+### What I learned
+
+- For generated proto3 oneof fields, the presence check matters. Getter defaults can look like real values, especially for enum zero.
+- The native Go implementation now reaches parity with the Python path for full initial provisioning on this device.
+
+### What was tricky to build
+
+- The hardware run changes device state: after successful provisioning, BLE provisioning stops and the device starts its HTTP server. That means repeated tests require reset/reprovision support or firmware-side credential clearing.
+- The status bug was subtle because the command succeeded while carrying contradictory diagnostic data. Checking the oneof discriminant fixed the ambiguity.
+
+### What warrants a second pair of eyes
+
+- Review `WiFiStatus.Terminal()` semantics. Treating `Disconnected` as terminal might be too aggressive after ApplyConfig on slower networks.
+- Review whether a connected provisioning status should include IP address in the CLI row if ESP-IDF returns connected-state metadata.
+
+### What should be done in the future
+
+- Implement native reset/reprov support so repeated hardware tests do not require external state clearing.
+- Use this Go implementation as the concrete reference for the browser JavaScript provisioning port.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/wifi_config.go`, especially `GetWiFiStatus()` and `FailReasonText()`.
+- Then inspect `internal/app/cmd_ble_provision_native.go` output fields.
+- Validate with `go test ./...`.
+- Hardware validation command shape:
+
+```bash
+printf '[passphrase]\n' | go run ./cmd/almanach-render-service ble-provision \
+  --implementation native \
+  --action provision \
+  --service-name ALM_0F2320 \
+  --pop alm-0f2320 \
+  --ssid Verizon_9DNVB9 \
+  --timeout 180 \
+  --output yaml
+```
+
+### Technical details
+
+The successful hardware validation was followed by a small output correctness fix. The code commit for this step is therefore the status-output cleanup commit; the actual provisioning success happened immediately before that fix.
