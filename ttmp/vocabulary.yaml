@@ -21,6 +21,12 @@ topics:
       description: M5Stack AtomS3R hardware and firmware topics
     - slug: display
       description: Embedded display, rendering, and screen status topics
+    - slug: cli
+      description: Command-line interfaces and CLI workflows
+    - slug: go
+      description: Go language implementation and libraries
+    - slug: protocomm
+      description: ESP-IDF protocomm protocol and endpoints
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes

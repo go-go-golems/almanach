@@ -1,0 +1,1192 @@
+--- go wrapper
+     1	package app
+     2	
+     3	import (
+     4		"bufio"
+     5		"context"
+     6		"errors"
+     7		"fmt"
+     8		"os"
+     9		"os/exec"
+    10		"path/filepath"
+    11		"strings"
+    12		"time"
+    13	
+    14		"github.com/go-go-golems/glazed/pkg/cli"
+    15		"github.com/go-go-golems/glazed/pkg/cmds"
+    16		"github.com/go-go-golems/glazed/pkg/cmds/fields"
+    17		"github.com/go-go-golems/glazed/pkg/cmds/schema"
+    18		"github.com/go-go-golems/glazed/pkg/cmds/values"
+    19		"github.com/go-go-golems/glazed/pkg/middlewares"
+    20		"github.com/go-go-golems/glazed/pkg/settings"
+    21		"github.com/go-go-golems/glazed/pkg/types"
+    22	)
+    23	
+    24	type BLEProvisionCommand struct {
+    25		*cmds.CommandDescription
+    26	}
+    27	
+    28	type BLEProvisionSettings struct {
+    29		Action       string `glazed:"action"`
+    30		ServiceName  string `glazed:"service-name"`
+    31		SSID         string `glazed:"ssid"`
+    32		Passphrase   string `glazed:"passphrase"`
+    33		Pop          string `glazed:"pop"`
+    34		SecVer       int    `glazed:"sec-ver"`
+    35		ProtoVer     string `glazed:"proto-ver"`
+    36		IDFPath      string `glazed:"idf-path"`
+    37		Python       string `glazed:"python"`
+    38		EspProv      string `glazed:"esp-prov"`
+    39		Verbose      bool   `glazed:"verbose"`
+    40		DryRun       bool   `glazed:"dry-run"`
+    41		Timeout      int    `glazed:"timeout"`
+    42		InstallHints bool   `glazed:"install-hints"`
+    43	}
+    44	
+    45	func newBLEProvisionCommand() (*BLEProvisionCommand, error) {
+    46		glazedSection, err := settings.NewGlazedSchema()
+    47		if err != nil {
+    48			return nil, err
+    49		}
+    50		commandSettingsSection, err := cli.NewCommandSettingsSection()
+    51		if err != nil {
+    52			return nil, err
+    53		}
+    54	
+    55		desc := cmds.NewCommandDescription(
+    56			"ble-provision",
+    57			cmds.WithShort("Provision an Almanach AtomS3R over ESP-IDF BLE provisioning"),
+    58			cmds.WithLong(`Provision or reset an Almanach AtomS3R using ESP-IDF's BLE protocomm provisioning client.
+    59	
+    60	This command is a Linux-friendly Go/Glazed wrapper around ESP-IDF's esp_prov.py. It keeps the
+    61	workflow inside the Almanach binary while reusing Espressif's maintained BLE, protobuf, and
+    62	Security 1 implementation.
+    63	
+    64	Examples:
+    65	  almanach-render-service ble-provision --action provision --service-name ALM_0F2320 --pop alm-0f2320 --ssid MyWifi --passphrase secret
+    66	  almanach-render-service ble-provision --action reset --service-name ALM_0F2320 --pop alm-0f2320
+    67	  almanach-render-service ble-provision --action version --service-name ALM_0F2320 --pop alm-0f2320 --dry-run
+    68	
+    69	Notes:
+    70	  - Linux BLE access normally requires BlueZ and permissions for the active user.
+    71	  - The ESP-IDF Python environment must include bleak, protobuf, and cryptography.
+    72	  - Use --install-hints if dependency import errors appear.
+    73	`),
+    74			cmds.WithFlags(bleProvisionFields()...),
+    75			cmds.WithSections(glazedSection, commandSettingsSection),
+    76		)
+    77		return &BLEProvisionCommand{CommandDescription: desc}, nil
+    78	}
+    79	
+    80	func bleProvisionFields() []*fields.Definition {
+    81		return []*fields.Definition{
+    82			fields.New("action", fields.TypeChoice, fields.WithDefault("provision"), fields.WithChoices("provision", "reset", "reprov", "version"), fields.WithHelp("Provisioning operation to run")),
+    83			fields.New("service-name", fields.TypeString, fields.WithDefault(""), fields.WithHelp("BLE device/provisioning service name, e.g. ALM_0F2320")),
+    84			fields.New("ssid", fields.TypeString, fields.WithDefault(""), fields.WithHelp("WiFi SSID to configure; required for action=provision")),
+    85			fields.New("passphrase", fields.TypeString, fields.WithDefault(""), fields.WithHelp("WiFi passphrase; if omitted for action=provision, read one line from stdin")),
+    86			fields.New("pop", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Security 1 proof-of-possession, e.g. alm-0f2320")),
+    87			fields.New("sec-ver", fields.TypeInteger, fields.WithDefault(1), fields.WithHelp("ESP protocomm security version; Almanach firmware uses Security 1")),
+    88			fields.New("proto-ver", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Optional protocol version string to verify via proto-ver before provisioning")),
+    89			fields.New("idf-path", fields.TypeString, fields.WithDefault(defaultIDFPath()), fields.WithHelp("ESP-IDF root; used to locate tools/esp_prov/esp_prov.py and set IDF_PATH")),
+    90			fields.New("python", fields.TypeString, fields.WithDefault(defaultIDFPython()), fields.WithHelp("Python interpreter for esp_prov.py; defaults to the ESP-IDF 5.4 Python env when present")),
+    91			fields.New("esp-prov", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Explicit esp_prov.py path; defaults to $IDF_PATH/tools/esp_prov/esp_prov.py")),
+    92			fields.New("verbose", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Pass --verbose to esp_prov.py")),
+    93			fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print the resolved command without executing it")),
+    94			fields.New("timeout", fields.TypeInteger, fields.WithDefault(120), fields.WithHelp("Timeout in seconds for the esp_prov.py subprocess")),
+    95			fields.New("install-hints", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print Linux/ESP-IDF dependency installation hints before running")),
+    96		}
+    97	}
+    98	
+    99	func (c *BLEProvisionCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.Values, gp middlewares.Processor) error {
+   100		s := &BLEProvisionSettings{}
+   101		if err := vals.DecodeSectionInto(schema.DefaultSlug, s); err != nil {
+   102			return err
+   103		}
+   104		if s.Action == "provision" && s.SSID == "" {
+   105			return errors.New("--ssid is required for action=provision")
+   106		}
+   107		if s.ServiceName == "" {
+   108			return errors.New("--service-name is required; use the value printed by firmware prov_status, e.g. ALM_0F2320")
+   109		}
+   110		if s.Timeout <= 0 {
+   111			return errors.New("--timeout must be greater than zero")
+   112		}
+   113	
+   114		passphrase := s.Passphrase
+   115		readPassphrase := false
+   116		if s.Action == "provision" && passphrase == "" {
+   117			var err error
+   118			passphrase, err = readLineFromStdin("WiFi passphrase: ")
+   119			if err != nil {
+   120				return err
+   121			}
+   122			readPassphrase = true
+   123		}
+   124	
+   125		pythonPath := s.Python
+   126		if pythonPath == "" {
+   127			pythonPath = "python3"
+   128		}
+   129		espProvPath := s.EspProv
+   130		if espProvPath == "" {
+   131			espProvPath = filepath.Join(s.IDFPath, "tools", "esp_prov", "esp_prov.py")
+   132		}
+   133	
+   134		args, displayArgs, err := buildBLEProvisionPythonArgs(s, espProvPath, passphrase)
+   135		if err != nil {
+   136			return err
+   137		}
+   138	
+   139		if s.InstallHints {
+   140			fmt.Fprintln(os.Stderr, bleProvisionInstallHints(s.IDFPath))
+   141		}
+   142	
+   143		if s.DryRun {
+   144			fmt.Fprintf(os.Stderr, "IDF_PATH=%s %s %s\n", s.IDFPath, pythonPath, strings.Join(displayArgs, " "))
+   145			return gp.AddRow(ctx, types.NewRow(
+   146				types.MRP("action", s.Action),
+   147				types.MRP("service_name", s.ServiceName),
+   148				types.MRP("ssid", s.SSID),
+   149				types.MRP("pop", s.Pop),
+   150				types.MRP("idf_path", s.IDFPath),
+   151				types.MRP("python", pythonPath),
+   152				types.MRP("esp_prov", espProvPath),
+   153				types.MRP("command", pythonPath+" "+strings.Join(displayArgs, " ")),
+   154				types.MRP("dry_run", true),
+   155				types.MRP("read_passphrase_from_stdin", readPassphrase),
+   156			))
+   157		}
+   158	
+   159		runCtx, cancel := context.WithTimeout(ctx, time.Duration(s.Timeout)*time.Second)
+   160		defer cancel()
+   161		cmd := exec.CommandContext(runCtx, pythonPath, args...)
+   162		cmd.Env = append(os.Environ(), "IDF_PATH="+s.IDFPath)
+   163		cmd.Stdout = os.Stdout
+   164		cmd.Stderr = os.Stderr
+   165		cmd.Stdin = os.Stdin
+   166	
+   167		started := time.Now()
+   168		err = cmd.Run()
+   169		duration := time.Since(started)
+   170		exitCode := 0
+   171		if err != nil {
+   172			var exitErr *exec.ExitError
+   173			if errors.As(err, &exitErr) {
+   174				exitCode = exitErr.ExitCode()
+   175			} else if runCtx.Err() != nil {
+   176				exitCode = -1
+   177			} else {
+   178				return err
+   179			}
+   180		}
+   181	
+   182		if addErr := gp.AddRow(ctx, types.NewRow(
+   183			types.MRP("action", s.Action),
+   184			types.MRP("service_name", s.ServiceName),
+   185			types.MRP("ssid", s.SSID),
+   186			types.MRP("pop", s.Pop),
+   187			types.MRP("idf_path", s.IDFPath),
+   188			types.MRP("python", pythonPath),
+   189			types.MRP("esp_prov", espProvPath),
+   190			types.MRP("command", pythonPath+" "+strings.Join(displayArgs, " ")),
+   191			types.MRP("exit_code", exitCode),
+   192			types.MRP("duration_ms", duration.Milliseconds()),
+   193			types.MRP("read_passphrase_from_stdin", readPassphrase),
+   194		)); addErr != nil {
+   195			return addErr
+   196		}
+   197	
+   198		if err != nil {
+   199			if runCtx.Err() != nil {
+   200				return fmt.Errorf("esp_prov.py timed out after %s", duration.Round(time.Second))
+   201			}
+   202			return fmt.Errorf("esp_prov.py failed with exit code %d", exitCode)
+   203		}
+   204		return nil
+   205	}
+   206	
+   207	func buildBLEProvisionPythonArgs(s *BLEProvisionSettings, espProvPath string, passphrase string) ([]string, []string, error) {
+   208		if s.Action == "version" {
+   209			protoVer := s.ProtoVer
+   210			if protoVer == "" {
+   211				protoVer = "v1.1"
+   212			}
+   213			code := `import asyncio, os, sys
+   214	idf = os.environ['IDF_PATH']
+   215	sys.path.insert(0, idf + '/components/protocomm/python')
+   216	sys.path.insert(1, idf + '/tools/esp_prov')
+   217	import esp_prov
+   218	async def main():
+   219	    tp = await esp_prov.get_transport('ble', sys.argv[1])
+   220	    try:
+   221	        ok = await esp_prov.version_match(tp, sys.argv[2], True)
+   222	        print('==== Verified protocol version successfully ====' if ok else '==== Protocol version mismatch ====')
+   223	        raise SystemExit(0 if ok else 1)
+   224	    finally:
+   225	        await tp.disconnect()
+   226	asyncio.run(main())`
+   227			args := []string{"-c", code, s.ServiceName, protoVer}
+   228			displayArgs := []string{"-c", "<almanach-esp-prov-version-check>", s.ServiceName, protoVer}
+   229			return args, displayArgs, nil
+   230		}
+   231	
+   232		args := []string{espProvPath, "--transport", "ble", "--service_name", s.ServiceName, "--sec_ver", fmt.Sprint(s.SecVer)}
+   233		if s.Pop != "" {
+   234			args = append(args, "--pop", s.Pop)
+   235		}
+   236		if s.ProtoVer != "" {
+   237			args = append(args, "--proto_ver", s.ProtoVer)
+   238		}
+   239		if s.Verbose {
+   240			args = append(args, "--verbose")
+   241		}
+   242	
+   243		switch s.Action {
+   244		case "provision":
+   245			args = append(args, "--ssid", s.SSID, "--passphrase", passphrase)
+   246		case "reset":
+   247			args = append(args, "--reset")
+   248		case "reprov":
+   249			args = append(args, "--reprov")
+   250		default:
+   251			return nil, nil, fmt.Errorf("unsupported action %q", s.Action)
+   252		}
+   253	
+   254		return args, redactEspProvArgs(args), nil
+   255	}
+   256	
+   257	func defaultIDFPath() string {
+   258		if v := os.Getenv("IDF_PATH"); v != "" {
+   259			return v
+   260		}
+--- firmware prov mgr uuid/start
+     1	#include "provisioning_mgr.h"
+     2	
+     3	#include <stdio.h>
+     4	#include <string.h>
+     5	
+     6	#include "esp_check.h"
+     7	#include "esp_event.h"
+     8	#include "esp_log.h"
+     9	#include "esp_mac.h"
+    10	#include "esp_wifi.h"
+    11	#include "protocomm_security.h"
+    12	#include "protocomm_ble.h"
+    13	#include "wifi_provisioning/manager.h"
+    14	#include "wifi_provisioning/scheme_ble.h"
+    15	
+    16	static const char *TAG = "provisioning";
+    17	
+    18	static bool s_initialized = false;
+    19	static bool s_running = false;
+    20	static bool s_client_connected = false;
+    21	static bool s_security_ok = false;
+    22	static bool s_handlers_registered = false;
+    23	static char s_service_name[32] = {0};
+    24	static char s_pop[32] = {0};
+    25	
+    26	// ESP-IDF stores the pointer passed to wifi_prov_scheme_ble_set_service_uuid()
+    27	// and copies it later when provisioning starts. Keep this UUID in static
+    28	// storage; a stack array can be invalid by the time the BLE GATT service is
+    29	// created.
+    30	static uint8_t s_custom_service_uuid[] = {
+    31	    0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b, 0xf4, 0xbf,
+    32	    0xea, 0x4a, 0x82, 0x03, 0x04, 0x90, 0x1a, 0x02,
+    33	};
+    34	
+    35	static void make_service_identity(void)
+    36	{
+    37	    uint8_t mac[6] = {0};
+    38	    esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    39	    if (err != ESP_OK) {
+    40	        ESP_LOGW(TAG, "esp_read_mac failed: %s; using fallback identity", esp_err_to_name(err));
+    41	        strlcpy(s_service_name, "ALM_SETUP", sizeof(s_service_name));
+    42	        strlcpy(s_pop, "alm-setup", sizeof(s_pop));
+    43	        return;
+    44	    }
+    45	
+    46	    snprintf(s_service_name, sizeof(s_service_name),
+    47	             "ALM_%02X%02X%02X", mac[3], mac[4], mac[5]);
+    48	    snprintf(s_pop, sizeof(s_pop),
+    49	             "alm-%02x%02x%02x", mac[3], mac[4], mac[5]);
+    50	}
+    51	
+    52	static void log_provisioning_payload(void)
+    53	{
+    54	    ESP_LOGI(TAG, "Provision with Espressif's ESP BLE Provisioning app or compatible client:");
+    55	    ESP_LOGI(TAG, "  Transport : BLE");
+    56	    ESP_LOGI(TAG, "  Device    : %s", s_service_name);
+    57	    ESP_LOGI(TAG, "  Security  : Security 1");
+    58	    ESP_LOGI(TAG, "  PoP       : %s", s_pop);
+    59	    ESP_LOGI(TAG, "  QR data   : {\"ver\":\"v1\",\"name\":\"%s\",\"pop\":\"%s\",\"transport\":\"ble\"}",
+    60	             s_service_name, s_pop);
+    61	}
+    62	
+    63	static void provisioning_event_handler(void *arg, esp_event_base_t event_base,
+    64	                                       int32_t event_id, void *event_data)
+    65	{
+    66	    (void)arg;
+    67	
+    68	    if (event_base == WIFI_PROV_EVENT) {
+    69	        switch (event_id) {
+    70	        case WIFI_PROV_INIT:
+    71	            ESP_LOGI(TAG, "WiFi provisioning manager initialized");
+    72	            break;
+    73	        case WIFI_PROV_START:
+    74	            s_running = true;
+    75	            ESP_LOGI(TAG, "BLE WiFi provisioning started");
+    76	            break;
+    77	        case WIFI_PROV_CRED_RECV: {
+    78	            const wifi_sta_config_t *cfg = (const wifi_sta_config_t *)event_data;
+    79	            ESP_LOGI(TAG, "Received WiFi credentials for SSID '%s'", (const char *)cfg->ssid);
+    80	            break;
+    81	        }
+    82	        case WIFI_PROV_CRED_FAIL: {
+    83	            const wifi_prov_sta_fail_reason_t *reason =
+    84	                (const wifi_prov_sta_fail_reason_t *)event_data;
+    85	            ESP_LOGE(TAG, "Provisioned WiFi connection failed: %s",
+    86	                     (*reason == WIFI_PROV_STA_AUTH_ERROR) ? "authentication failed" : "AP not found");
+    87	            break;
+    88	        }
+    89	        case WIFI_PROV_CRED_SUCCESS:
+    90	            ESP_LOGI(TAG, "Provisioned WiFi credentials connected successfully");
+    91	            break;
+    92	        case WIFI_PROV_END:
+    93	            s_running = false;
+    94	            ESP_LOGI(TAG, "BLE WiFi provisioning ended");
+    95	            wifi_prov_mgr_deinit();
+    96	            s_initialized = false;
+    97	            break;
+    98	        case WIFI_PROV_DEINIT:
+    99	            s_running = false;
+   100	            s_initialized = false;
+   101	            ESP_LOGI(TAG, "WiFi provisioning manager deinitialized");
+   102	            break;
+   103	        default:
+   104	            break;
+   105	        }
+   106	        return;
+   107	    }
+   108	
+   109	    if (event_base == PROTOCOMM_TRANSPORT_BLE_EVENT) {
+   110	        switch (event_id) {
+   111	        case PROTOCOMM_TRANSPORT_BLE_CONNECTED:
+   112	            s_client_connected = true;
+   113	            ESP_LOGI(TAG, "BLE provisioning client connected");
+   114	            break;
+   115	        case PROTOCOMM_TRANSPORT_BLE_DISCONNECTED:
+   116	            s_client_connected = false;
+   117	            ESP_LOGI(TAG, "BLE provisioning client disconnected");
+   118	            break;
+   119	        default:
+   120	            break;
+   121	        }
+   122	        return;
+   123	    }
+   124	
+   125	    if (event_base == PROTOCOMM_SECURITY_SESSION_EVENT) {
+   126	        switch (event_id) {
+   127	        case PROTOCOMM_SECURITY_SESSION_SETUP_OK:
+   128	            s_security_ok = true;
+   129	            ESP_LOGI(TAG, "Provisioning security session established");
+   130	            break;
+   131	        case PROTOCOMM_SECURITY_SESSION_CREDENTIALS_MISMATCH:
+   132	            s_security_ok = false;
+   133	            ESP_LOGE(TAG, "Provisioning PoP mismatch");
+   134	            break;
+   135	        case PROTOCOMM_SECURITY_SESSION_INVALID_SECURITY_PARAMS:
+   136	            s_security_ok = false;
+   137	            ESP_LOGE(TAG, "Provisioning security parameters invalid");
+   138	            break;
+   139	        default:
+   140	            break;
+   141	        }
+   142	    }
+   143	}
+   144	
+   145	static esp_err_t register_event_handlers(void)
+   146	{
+   147	    if (s_handlers_registered) {
+   148	        return ESP_OK;
+   149	    }
+   150	
+   151	    ESP_RETURN_ON_ERROR(
+   152	        esp_event_handler_register(WIFI_PROV_EVENT, ESP_EVENT_ANY_ID,
+   153	                                   provisioning_event_handler, NULL),
+   154	        TAG, "register WIFI_PROV_EVENT handler");
+   155	    ESP_RETURN_ON_ERROR(
+   156	        esp_event_handler_register(PROTOCOMM_TRANSPORT_BLE_EVENT, ESP_EVENT_ANY_ID,
+   157	                                   provisioning_event_handler, NULL),
+   158	        TAG, "register PROTOCOMM_TRANSPORT_BLE_EVENT handler");
+   159	    ESP_RETURN_ON_ERROR(
+   160	        esp_event_handler_register(PROTOCOMM_SECURITY_SESSION_EVENT, ESP_EVENT_ANY_ID,
+   161	                                   provisioning_event_handler, NULL),
+   162	        TAG, "register PROTOCOMM_SECURITY_SESSION_EVENT handler");
+   163	    s_handlers_registered = true;
+   164	    return ESP_OK;
+   165	}
+   166	
+   167	esp_err_t provisioning_mgr_init(void)
+   168	{
+   169	    if (s_initialized) {
+   170	        return ESP_OK;
+   171	    }
+   172	
+   173	    make_service_identity();
+   174	
+   175	    wifi_prov_mgr_config_t config = {
+   176	        .scheme = wifi_prov_scheme_ble,
+   177	        .scheme_event_handler = WIFI_PROV_SCHEME_BLE_EVENT_HANDLER_FREE_BTDM,
+   178	        .app_event_handler = WIFI_PROV_EVENT_HANDLER_NONE,
+   179	    };
+   180	
+   181	    ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config), TAG, "wifi_prov_mgr_init");
+   182	
+   183	    wifi_prov_scheme_ble_set_service_uuid(s_custom_service_uuid);
+   184	
+   185	    ESP_RETURN_ON_ERROR(register_event_handlers(), TAG, "register provisioning handlers");
+   186	
+   187	    s_initialized = true;
+   188	    s_running = false;
+   189	    s_client_connected = false;
+   190	    s_security_ok = false;
+   191	    return ESP_OK;
+   192	}
+   193	
+   194	esp_err_t provisioning_mgr_is_provisioned(bool *out_provisioned)
+   195	{
+   196	    if (out_provisioned == NULL) {
+   197	        return ESP_ERR_INVALID_ARG;
+   198	    }
+   199	    ESP_RETURN_ON_ERROR(provisioning_mgr_init(), TAG, "ensure provisioning manager initialized");
+   200	    return wifi_prov_mgr_is_provisioned(out_provisioned);
+   201	}
+   202	
+   203	esp_err_t provisioning_mgr_start_if_needed(bool *out_started)
+   204	{
+   205	    if (out_started != NULL) {
+   206	        *out_started = false;
+   207	    }
+   208	
+   209	    ESP_RETURN_ON_ERROR(provisioning_mgr_init(), TAG, "ensure provisioning manager initialized");
+   210	
+   211	    if (s_running) {
+   212	        ESP_LOGI(TAG, "BLE provisioning already running");
+   213	        return ESP_OK;
+   214	    }
+   215	
+   216	    bool provisioned = false;
+   217	    ESP_RETURN_ON_ERROR(wifi_prov_mgr_is_provisioned(&provisioned), TAG, "check provisioned state");
+   218	    if (provisioned) {
+   219	        ESP_LOGI(TAG, "Device already provisioned; BLE provisioning not started");
+   220	        return ESP_OK;
+   221	    }
+   222	
+   223	    ESP_RETURN_ON_ERROR(provisioning_mgr_start_force(), TAG, "start provisioning");
+   224	    if (out_started != NULL) {
+   225	        *out_started = true;
+   226	    }
+   227	    return ESP_OK;
+   228	}
+   229	
+   230	esp_err_t provisioning_mgr_start_force(void)
+--- browser client
+     1	export const ESP_IDF_PROVISIONING_SERVICE_UUID = "021a9004-0382-4aea-bff4-6b3f1c5adfb4";
+     2	export const ESP_IDF_PROVISIONING_SERVICE_UUID_FIRMWARE_ORDER = "b4df5a1c-3f6b-f4bf-ea4a-820304901a02";
+     3	export const ESP_IDF_PROVISIONING_SERVICE_UUIDS = Object.freeze([
+     4	  ESP_IDF_PROVISIONING_SERVICE_UUID,
+     5	  ESP_IDF_PROVISIONING_SERVICE_UUID_FIRMWARE_ORDER,
+     6	]);
+     7	export const ALMANACH_DEVICE_NAME_PREFIX = "ALM_";
+     8	export const ESP_IDF_ENDPOINTS = Object.freeze({
+     9	  PROV_CTRL: "prov-ctrl",
+    10	  PROV_SCAN: "prov-scan",
+    11	  PROV_SESSION: "prov-session",
+    12	  PROV_CONFIG: "prov-config",
+    13	  PROTO_VER: "proto-ver",
+    14	});
+    15	export const FALLBACK_ENDPOINT_UUIDS = Object.freeze({
+    16	  [ESP_IDF_ENDPOINTS.PROV_CTRL]: "021aff4f-0382-4aea-bff4-6b3f1c5adfb4",
+    17	  [ESP_IDF_ENDPOINTS.PROV_SCAN]: "021aff50-0382-4aea-bff4-6b3f1c5adfb4",
+    18	  [ESP_IDF_ENDPOINTS.PROV_SESSION]: "021aff51-0382-4aea-bff4-6b3f1c5adfb4",
+    19	  [ESP_IDF_ENDPOINTS.PROV_CONFIG]: "021aff52-0382-4aea-bff4-6b3f1c5adfb4",
+    20	  [ESP_IDF_ENDPOINTS.PROTO_VER]: "021aff53-0382-4aea-bff4-6b3f1c5adfb4",
+    21	});
+    22	
+    23	const textEncoder = new TextEncoder();
+    24	const textDecoder = new TextDecoder("utf-8");
+    25	
+    26	function bluetoothUnavailableError() {
+    27	  return new Error("Web Bluetooth is not available. Open this page in Chrome or Edge from http://localhost.");
+    28	}
+    29	
+    30	function formatBluetoothError(error, context = "bluetooth") {
+    31	  if (!error) return `Unknown ${context} error`;
+    32	  if (error.name === "NotFoundError" && context === "chooser") return "No printer selected. Choose an ALM_ device from Chrome's Bluetooth picker.";
+    33	  if (error.name === "NotFoundError" && context === "service") return `Connected to the printer, but none of the expected ESP-IDF provisioning services were found (${ESP_IDF_PROVISIONING_SERVICE_UUIDS.join(", ")}). Check the firmware service UUID or inspect the device in chrome://bluetooth-internals.`;
+    34	  if (error.name === "NotAllowedError") return "Bluetooth permission was denied. Retry and allow Chrome to access the printer.";
+    35	  if (error.name === "NetworkError") return "Bluetooth connection failed. Make sure the printer is still in pairing/provisioning mode.";
+    36	  return error.message || String(error);
+    37	}
+    38	
+    39	function dataViewToText(value) {
+    40	  return textDecoder.decode(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+    41	}
+    42	
+    43	async function writeCharacteristic(characteristic, text) {
+    44	  const data = textEncoder.encode(text);
+    45	  if (characteristic.writeValueWithResponse) {
+    46	    await characteristic.writeValueWithResponse(data);
+    47	    return;
+    48	  }
+    49	  await characteristic.writeValue(data);
+    50	}
+    51	
+    52	async function readCharacteristicText(characteristic) {
+    53	  const value = await characteristic.readValue();
+    54	  return dataViewToText(value);
+    55	}
+    56	
+    57	async function findProvisioningService(gattServer, log) {
+    58	  let lastError = null;
+    59	  for (const uuid of ESP_IDF_PROVISIONING_SERVICE_UUIDS) {
+    60	    try {
+    61	      log(`Looking for ESP-IDF provisioning service ${uuid}`);
+    62	      const service = await gattServer.getPrimaryService(uuid);
+    63	      return { service, uuid };
+    64	    } catch (error) {
+    65	      lastError = error;
+    66	      log(`Service ${uuid} not found`);
+    67	    }
+    68	  }
+    69	  const error = new Error(formatBluetoothError(lastError, "service"));
+    70	  error.cause = lastError;
+    71	  throw error;
+    72	}
+    73	
+    74	async function discoverEndpointCharacteristics(provisioningService, log) {
+    75	  const characteristics = await provisioningService.getCharacteristics();
+    76	  const endpoints = new Map();
+    77	  log(`Discovered ${characteristics.length} provisioning characteristic(s)`);
+    78	
+    79	  for (const characteristic of characteristics) {
+    80	    let endpointName = null;
+    81	    try {
+    82	      const descriptors = await characteristic.getDescriptors();
+    83	      for (const descriptor of descriptors) {
+    84	        if (!descriptor.uuid.toLowerCase().includes("2901")) continue;
+    85	        const value = await descriptor.readValue();
+    86	        endpointName = dataViewToText(value).trim().toLowerCase();
+    87	        break;
+    88	      }
+    89	    } catch (error) {
+    90	      log(`Could not read descriptor for ${characteristic.uuid}: ${error.message || error}`);
+    91	    }
+    92	
+    93	    if (endpointName) {
+    94	      endpoints.set(endpointName, characteristic);
+    95	      log(`Mapped endpoint ${endpointName} -> ${characteristic.uuid}`);
+    96	    }
+    97	  }
+    98	
+    99	  for (const [name, uuid] of Object.entries(FALLBACK_ENDPOINT_UUIDS)) {
+   100	    if (endpoints.has(name)) continue;
+   101	    const characteristic = characteristics.find((candidate) => candidate.uuid.toLowerCase() === uuid);
+   102	    if (characteristic) {
+   103	      endpoints.set(name, characteristic);
+   104	      log(`Mapped endpoint ${name} by fallback UUID ${uuid}`);
+   105	    }
+   106	  }
+   107	
+   108	  return endpoints;
+   109	}
+   110	
+   111	export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
+   112	  let bluetoothDevice = null;
+   113	  let gattServer = null;
+   114	  let provisioningService = null;
+   115	  let endpoints = new Map();
+   116	
+   117	  async function sendEndpointText(endpointName, text) {
+   118	    const characteristic = endpoints.get(endpointName);
+   119	    if (!characteristic) {
+   120	      throw new Error(`ESP-IDF endpoint '${endpointName}' was not discovered.`);
+   121	    }
+   122	    await writeCharacteristic(characteristic, text);
+   123	    return readCharacteristicText(characteristic);
+   124	  }
+   125	
+   126	  return {
+   127	    async chooseDevice() {
+   128	      if (!navigator.bluetooth) throw bluetoothUnavailableError();
+   129	
+   130	      log(`Opening Chrome Bluetooth picker for ${ALMANACH_DEVICE_NAME_PREFIX} printers`);
+   131	      try {
+   132	        bluetoothDevice = await navigator.bluetooth.requestDevice({
+   133	          filters: [{ namePrefix: ALMANACH_DEVICE_NAME_PREFIX }],
+   134	          optionalServices: ESP_IDF_PROVISIONING_SERVICE_UUIDS,
+   135	        });
+   136	      } catch (error) {
+   137	        throw new Error(formatBluetoothError(error, "chooser"));
+   138	      }
+   139	
+   140	      const name = bluetoothDevice.name || "Unnamed Almanach printer";
+   141	      log(`Selected ${name}`);
+   142	      bluetoothDevice.addEventListener("gattserverdisconnected", () => {
+   143	        log(`Disconnected from ${name}`);
+   144	      });
+   145	      return {
+   146	        id: bluetoothDevice.id,
+   147	        name,
+   148	        mode: "real",
+   149	        serviceUuid: ESP_IDF_PROVISIONING_SERVICE_UUID,
+   150	        bluetoothDevice,
+   151	      };
+   152	    },
+   153	
+   154	    async connect(device) {
+   155	      if (!bluetoothDevice) {
+   156	        bluetoothDevice = device && device.bluetoothDevice;
+   157	      }
+   158	      if (!bluetoothDevice || !bluetoothDevice.gatt) {
+   159	        throw new Error("No Bluetooth device is selected.");
+   160	      }
+   161	
+   162	      const name = bluetoothDevice.name || device?.name || "Almanach printer";
+   163	      log(`Connecting to ${name} over GATT`);
+   164	      try {
+   165	        gattServer = await bluetoothDevice.gatt.connect();
+   166	        log("GATT connection established");
+   167	        const found = await findProvisioningService(gattServer, log);
+   168	        provisioningService = found.service;
+   169	        log(`Found ESP-IDF provisioning service ${found.uuid}`);
+   170	
+   171	        endpoints = await discoverEndpointCharacteristics(provisioningService, log);
+   172	        const endpointNames = Array.from(endpoints.keys()).sort();
+   173	        log(`Available ESP-IDF endpoints: ${endpointNames.join(", ") || "none"}`);
+   174	        const protoVersion = await sendEndpointText(ESP_IDF_ENDPOINTS.PROTO_VER, "v1.1");
+   175	        log(`proto-ver response: ${protoVersion}`);
+   176	        if (!protoVersion.includes("v1.1")) {
+   177	          throw new Error(`Unexpected proto-ver response: ${protoVersion}`);
+   178	        }
+   179	        log("Verified ESP-IDF provisioning protocol v1.1");
+   180	      } catch (error) {
+   181	        throw new Error(formatBluetoothError(error, "connect"));
+   182	      }
+   183	    },
+   184	
+   185	    async establishSession() {
+   186	      throw new Error("Real ESP-IDF Security 1 session is not implemented yet. Browser BLE transport is connected; next step is proto-ver and Security 1/protobuf support.");
+   187	    },
+   188	
+   189	    async sendCredentials() {
+   190	      throw new Error("Real ESP-IDF WiFi credential transfer is not implemented yet.");
+   191	    },
+   192	
+   193	    async waitForResult() {
+   194	      throw new Error("Real ESP-IDF provisioning result polling is not implemented yet.");
+   195	    },
+   196	
+   197	    async disconnect() {
+   198	      if (bluetoothDevice?.gatt?.connected) {
+   199	        bluetoothDevice.gatt.disconnect();
+   200	      }
+   201	    },
+   202	  };
+   203	}
+--- esp_prov get_transport/main funcs
+    50	async def get_transport(sel_transport, service_name):
+    51	    try:
+    52	        tp = None
+    53	        if (sel_transport in ['softap', 'httpd']):
+    54	            if service_name is None:
+    55	                service_name = '192.168.4.1:80'
+    56	            tp = transport.Transport_HTTP(service_name)
+    57	        elif (sel_transport == 'ble'):
+    58	            # BLE client is now capable of automatically figuring out
+    59	            # the primary service from the advertisement data and the
+    60	            # characteristics corresponding to each endpoint.
+    61	            # Below, the service_uuid field and 16bit UUIDs in the nu_lookup
+    62	            # table are provided only to support devices running older firmware,
+    63	            # in which case, the automated discovery will fail and the client
+    64	            # will fallback to using the provided UUIDs instead
+    65	            nu_lookup = {'prov-session': 'ff51', 'prov-config': 'ff52', 'proto-ver': 'ff53'}
+    66	            tp = transport.Transport_BLE(service_uuid='021a9004-0382-4aea-bff4-6b3f1c5adfb4',
+    67	                                         nu_lookup=nu_lookup)
+    68	            await tp.connect(devname=service_name)
+    69	        elif (sel_transport == 'console'):
+    70	            tp = transport.Transport_Console()
+    71	        return tp
+    72	    except RuntimeError as e:
+    73	        on_except(e)
+    74	        return None
+    75	
+    76	
+    77	async def version_match(tp, protover, verbose=False):
+    78	    try:
+    79	        response = await tp.send_data('proto-ver', protover)
+    80	
+    81	        if verbose:
+    82	            print('proto-ver response : ', response)
+    83	
+    84	        # First assume this to be a simple version string
+    85	        if response.lower() == protover.lower():
+    86	            return True
+    87	
+    88	        try:
+    89	            # Else interpret this as JSON structure containing
+    90	            # information with versions and capabilities of both
+    91	            # provisioning service and application
+    92	            info = json.loads(response)
+    93	            if info['prov']['ver'].lower() == protover.lower():
+    94	                return True
+    95	
+    96	        except ValueError:
+    97	            # If decoding as JSON fails, it means that capabilities
+    98	            # are not supported
+    99	            return False
+   100	
+   101	    except Exception as e:
+   102	        on_except(e)
+   103	        return None
+   104	
+   105	
+   106	async def has_capability(tp, capability='none', verbose=False):
+   107	    # Note : default value of `capability` argument cannot be empty string
+   108	    # because protocomm_httpd expects non zero content lengths
+   109	    try:
+   110	        response = await tp.send_data('proto-ver', capability)
+   111	
+   112	        if verbose:
+   113	            print('proto-ver response : ', response)
+   114	
+   115	        try:
+   116	            # Interpret this as JSON structure containing
+   117	            # information with versions and capabilities of both
+   118	            # provisioning service and application
+   119	            info = json.loads(response)
+   120	            supported_capabilities = info['prov']['cap']
+   121	            if capability.lower() == 'none':
+   122	                # No specific capability to check, but capabilities
+   123	                # feature is present so return True
+   124	                return True
+   125	            elif capability in supported_capabilities:
+   126	                return True
+   127	            return False
+   128	
+   129	        except ValueError:
+   130	            # If decoding as JSON fails, it means that capabilities
+   131	            # are not supported
+   132	            return False
+   133	
+   134	    except RuntimeError as e:
+   135	        on_except(e)
+   136	
+   137	    return False
+   138	
+   139	
+   140	async def get_version(tp):
+   141	    response = None
+   142	    try:
+   143	        response = await tp.send_data('proto-ver', '---')
+   144	    except RuntimeError as e:
+   145	        on_except(e)
+   146	        response = ''
+   147	    return response
+   148	
+   149	
+   150	async def get_sec_patch_ver(tp, verbose=False):
+   151	    response = await get_version(tp)
+   152	
+   153	    if verbose:
+   154	        print('proto-ver response : ', response)
+   155	
+   156	    try:
+   157	        # Interpret this as JSON structure containing
+   158	        # information with security version information
+   159	        info = json.loads(response)
+   160	        try:
+   161	            sec_patch_ver = info['prov']['sec_patch_ver']
+   162	        except KeyError:
+   163	            sec_patch_ver = 0
+   164	        return sec_patch_ver
+   165	
+   166	    except ValueError:
+   167	        # If decoding as JSON fails, we assume default patch level
+   168	        return 0
+   169	
+   170	
+   171	async def establish_session(tp, sec):
+   172	    try:
+   173	        response = None
+   174	        while True:
+   175	            request = sec.security_session(response)
+   176	            if request is None:
+   177	                break
+   178	            response = await tp.send_data('prov-session', request)
+   179	            if (response is None):
+   180	                return False
+   181	        return True
+   182	    except RuntimeError as e:
+   183	        on_except(e)
+   184	        return None
+   185	
+   186	
+   187	async def custom_config(tp, sec, custom_info, custom_ver):
+   188	    try:
+   189	        message = prov.custom_config_request(sec, custom_info, custom_ver)
+   190	        response = await tp.send_data('custom-config', message)
+   191	        return (prov.custom_config_response(sec, response) == 0)
+   192	    except RuntimeError as e:
+   193	        on_except(e)
+   194	        return None
+   195	
+   196	
+   197	async def custom_data(tp, sec, custom_data):
+   198	    try:
+   199	        message = prov.custom_data_request(sec, custom_data)
+   200	        response = await tp.send_data('custom-data', message)
+   201	        return (prov.custom_data_response(sec, response) == 0)
+   202	    except RuntimeError as e:
+   203	        on_except(e)
+   204	        return None
+   205	
+   206	
+   207	async def scan_wifi_APs(sel_transport, tp, sec):
+   208	    APs = []
+   209	    group_channels = 0
+   210	    readlen = 100
+   211	    if sel_transport in ['softap', 'httpd']:
+   212	        # In case of softAP/httpd we must perform the scan on individual channels, one by one,
+   213	        # so that the Wi-Fi controller gets ample time to send out beacons (necessary to
+   214	        # maintain connectivity with authenticated stations. As scanning one channel at a
+   215	        # time will be slow, we can group more than one channels to be scanned in quick
+   216	        # succession, hence speeding up the scan process. Though if too many channels are
+   217	        # present in a group, the controller may again miss out on sending beacons. Hence,
+   218	        # the application must should use an optimum value. The following value usually
+   219	        # works out in most cases
+   220	        group_channels = 5
+   221	    elif sel_transport == 'ble':
+   222	        # Read at most 4 entries at a time. This is because if we are using BLE transport
+   223	        # then the response packet size should not exceed the present limit of 256 bytes of
+   224	        # characteristic value imposed by protocomm_ble. This limit may be removed in the
+   225	        # future
+   226	        readlen = 4
+   227	    try:
+   228	        message = prov.scan_start_request(sec, blocking=True, group_channels=group_channels)
+   229	        start_time = time.time()
+   230	        response = await tp.send_data('prov-scan', message)
+   231	        stop_time = time.time()
+   232	        print('++++ Scan process executed in ' + str(stop_time - start_time) + ' sec')
+   233	        prov.scan_start_response(sec, response)
+   234	
+   235	        message = prov.scan_status_request(sec)
+   236	        response = await tp.send_data('prov-scan', message)
+   237	        result = prov.scan_status_response(sec, response)
+   238	        print('++++ Scan results : ' + str(result['count']))
+   239	        if result['count'] != 0:
+   240	            index = 0
+   241	            remaining = result['count']
+   242	            while remaining:
+   243	                count = [remaining, readlen][remaining > readlen]
+   244	                message = prov.scan_result_request(sec, index, count)
+   245	                response = await tp.send_data('prov-scan', message)
+   246	                APs += prov.scan_result_response(sec, response)
+   247	                remaining -= count
+   248	                index += count
+   249	
+   250	    except RuntimeError as e:
+   251	        on_except(e)
+   252	        return None
+   253	
+   254	    return APs
+   255	
+   256	
+   257	async def send_wifi_config(tp, sec, ssid, passphrase):
+   258	    try:
+   259	        message = prov.config_set_config_request(sec, ssid, passphrase)
+   260	        response = await tp.send_data('prov-config', message)
+   261	        return (prov.config_set_config_response(sec, response) == 0)
+   262	    except RuntimeError as e:
+   263	        on_except(e)
+   264	        return None
+   265	
+   266	
+   267	async def apply_wifi_config(tp, sec):
+   268	    try:
+   269	        message = prov.config_apply_config_request(sec)
+   270	        response = await tp.send_data('prov-config', message)
+   271	        return (prov.config_apply_config_response(sec, response) == 0)
+   272	    except RuntimeError as e:
+   273	        on_except(e)
+   274	        return None
+   275	
+   276	
+   277	async def get_wifi_config(tp, sec):
+   278	    try:
+   279	        message = prov.config_get_status_request(sec)
+   280	        response = await tp.send_data('prov-config', message)
+   281	        return prov.config_get_status_response(sec, response)
+   282	    except RuntimeError as e:
+   283	        on_except(e)
+   284	        return None
+   285	
+   286	
+   287	async def wait_wifi_connected(tp, sec):
+   288	    """
+   289	    Wait for provisioning to report Wi-Fi is connected
+   290	
+   291	    Returns True if Wi-Fi connection succeeded, False if connection consistently failed
+   292	    """
+   293	    TIME_PER_POLL = 5
+   294	    retry = 3
+   295	
+   296	    while True:
+   297	        time.sleep(TIME_PER_POLL)
+   298	        print('\n==== Wi-Fi connection state  ====')
+   299	        ret = await get_wifi_config(tp, sec)
+   300	        if ret == 'connecting':
+   301	            continue
+   302	        elif ret == 'connected':
+   303	            print('==== Provisioning was successful ====')
+   304	            return True
+   305	        elif retry > 0:
+   306	            retry -= 1
+   307	            print('Waiting to poll status again (status %s, %d tries left)...' % (ret, retry))
+   308	        else:
+   309	            print('---- Provisioning failed! ----')
+   310	            return False
+--- security1
+     1	# SPDX-FileCopyrightText: 2018-2022 Espressif Systems (Shanghai) CO LTD
+     2	# SPDX-License-Identifier: Apache-2.0
+     3	#
+     4	
+     5	# APIs for interpreting and creating protobuf packets for
+     6	# protocomm endpoint with security type protocomm_security1
+     7	
+     8	import proto
+     9	from cryptography.hazmat.backends import default_backend
+    10	from cryptography.hazmat.primitives import hashes, serialization
+    11	from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+    12	from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    13	from utils import long_to_bytes, str_to_bytes
+    14	
+    15	from .security import Security
+    16	
+    17	
+    18	def a_xor_b(a: bytes, b: bytes) -> bytes:
+    19	    return b''.join(long_to_bytes(a[i] ^ b[i]) for i in range(0, len(b)))
+    20	
+    21	
+    22	# Enum for state of protocomm_security1 FSM
+    23	class security_state:
+    24	    REQUEST1 = 0
+    25	    RESPONSE1_REQUEST2 = 1
+    26	    RESPONSE2 = 2
+    27	    FINISHED = 3
+    28	
+    29	
+    30	class Security1(Security):
+    31	    def __init__(self, pop, verbose):
+    32	        # Initialize state of the security1 FSM
+    33	        self.session_state = security_state.REQUEST1
+    34	        self.pop = str_to_bytes(pop)
+    35	        self.verbose = verbose
+    36	        Security.__init__(self, self.security1_session)
+    37	
+    38	    def security1_session(self, response_data):
+    39	        # protocomm security1 FSM which interprets/forms
+    40	        # protobuf packets according to present state of session
+    41	        if (self.session_state == security_state.REQUEST1):
+    42	            self.session_state = security_state.RESPONSE1_REQUEST2
+    43	            return self.setup0_request()
+    44	        elif (self.session_state == security_state.RESPONSE1_REQUEST2):
+    45	            self.session_state = security_state.RESPONSE2
+    46	            self.setup0_response(response_data)
+    47	            return self.setup1_request()
+    48	        elif (self.session_state == security_state.RESPONSE2):
+    49	            self.session_state = security_state.FINISHED
+    50	            self.setup1_response(response_data)
+    51	            return None
+    52	
+    53	        print('Unexpected state')
+    54	        return None
+    55	
+    56	    def __generate_key(self):
+    57	        # Generate private and public key pair for client
+    58	        self.client_private_key = X25519PrivateKey.generate()
+    59	        self.client_public_key = self.client_private_key.public_key().public_bytes(
+    60	            encoding=serialization.Encoding.Raw,
+    61	            format=serialization.PublicFormat.Raw)
+    62	
+    63	    def _print_verbose(self, data):
+    64	        if (self.verbose):
+    65	            print(f'\x1b[32;20m++++ {data} ++++\x1b[0m')
+    66	
+    67	    def setup0_request(self):
+    68	        # Form SessionCmd0 request packet using client public key
+    69	        setup_req = proto.session_pb2.SessionData()
+    70	        setup_req.sec_ver = proto.session_pb2.SecScheme1
+    71	        self.__generate_key()
+    72	        setup_req.sec1.sc0.client_pubkey = self.client_public_key
+    73	        self._print_verbose(f'Client Public Key:\t0x{self.client_public_key.hex()}')
+    74	        return setup_req.SerializeToString().decode('latin-1')
+    75	
+    76	    def setup0_response(self, response_data):
+    77	        # Interpret SessionResp0 response packet
+    78	        setup_resp = proto.session_pb2.SessionData()
+    79	        setup_resp.ParseFromString(str_to_bytes(response_data))
+    80	        self._print_verbose('Security version:\t' + str(setup_resp.sec_ver))
+    81	        if setup_resp.sec_ver != proto.session_pb2.SecScheme1:
+    82	            raise RuntimeError('Incorrect security scheme')
+    83	
+    84	        self.device_public_key = setup_resp.sec1.sr0.device_pubkey
+    85	        # Device random is the initialization vector
+    86	        device_random = setup_resp.sec1.sr0.device_random
+    87	        self._print_verbose(f'Device Public Key:\t0x{self.device_public_key.hex()}')
+    88	        self._print_verbose(f'Device Random:\t0x{device_random.hex()}')
+    89	
+    90	        # Calculate Curve25519 shared key using Client private key and Device public key
+    91	        sharedK = self.client_private_key.exchange(X25519PublicKey.from_public_bytes(self.device_public_key))
+    92	        self._print_verbose(f'Shared Key:\t0x{sharedK.hex()}')
+    93	
+    94	        # If PoP is provided, XOR SHA256 of PoP with the previously
+    95	        # calculated Shared Key to form the actual Shared Key
+    96	        if len(self.pop) > 0:
+    97	            # Calculate SHA256 of PoP
+    98	            h = hashes.Hash(hashes.SHA256(), backend=default_backend())
+    99	            h.update(self.pop)
+   100	            digest = h.finalize()
+   101	            # XOR with and update Shared Key
+   102	            sharedK = a_xor_b(sharedK, digest)
+   103	            self._print_verbose(f'Updated Shared Key (Shared key XORed with PoP):\t0x{sharedK.hex()}')
+   104	        # Initialize the encryption engine with Shared Key and initialization vector
+   105	        cipher = Cipher(algorithms.AES(sharedK), modes.CTR(device_random), backend=default_backend())
+   106	        self.cipher = cipher.encryptor()
+   107	
+   108	    def setup1_request(self):
+   109	        # Form SessionCmd1 request packet using encrypted device public key
+   110	        setup_req = proto.session_pb2.SessionData()
+   111	        setup_req.sec_ver = proto.session_pb2.SecScheme1
+   112	        setup_req.sec1.msg = proto.sec1_pb2.Session_Command1
+   113	        # Encrypt device public key and attach to the request packet
+   114	        client_verify = self.cipher.update(self.device_public_key)
+   115	        self._print_verbose(f'Client Proof:\t0x{client_verify.hex()}')
+   116	        setup_req.sec1.sc1.client_verify_data = client_verify
+   117	        return setup_req.SerializeToString().decode('latin-1')
+   118	
+   119	    def setup1_response(self, response_data):
+   120	        # Interpret SessionResp1 response packet
+   121	        setup_resp = proto.session_pb2.SessionData()
+   122	        setup_resp.ParseFromString(str_to_bytes(response_data))
+   123	        # Ensure security scheme matches
+   124	        if setup_resp.sec_ver == proto.session_pb2.SecScheme1:
+   125	            # Read encrypyed device verify string
+   126	            device_verify = setup_resp.sec1.sr1.device_verify_data
+   127	            self._print_verbose(f'Device Proof:\t0x{device_verify.hex()}')
+   128	            # Decrypt the device verify string
+   129	            enc_client_pubkey = self.cipher.update(setup_resp.sec1.sr1.device_verify_data)
+   130	            # Match decryped string with client public key
+   131	            if enc_client_pubkey != self.client_public_key:
+   132	                raise RuntimeError('Failed to verify device!')
+   133	        else:
+   134	            raise RuntimeError('Unsupported security protocol')
+   135	
+   136	    def encrypt_data(self, data):
+   137	        return self.cipher.update(data)
+   138	
+   139	    def decrypt_data(self, data):
+   140	        return self.cipher.update(data)
+--- wifi_prov python
+     1	# SPDX-FileCopyrightText: 2018-2024 Espressif Systems (Shanghai) CO LTD
+     2	# SPDX-License-Identifier: Apache-2.0
+     3	#
+     4	# APIs for interpreting and creating protobuf packets for Wi-Fi provisioning
+     5	import proto
+     6	from utils import str_to_bytes
+     7	
+     8	
+     9	def print_verbose(security_ctx, data):
+    10	    if (security_ctx.verbose):
+    11	        print(f'++++ {data} ++++')
+    12	
+    13	
+    14	def config_get_status_request(security_ctx):
+    15	    # Form protobuf request packet for GetStatus command
+    16	    cfg1 = proto.wifi_config_pb2.WiFiConfigPayload()
+    17	    cfg1.msg = proto.wifi_config_pb2.TypeCmdGetStatus
+    18	    cmd_get_status = proto.wifi_config_pb2.CmdGetStatus()
+    19	    cfg1.cmd_get_status.MergeFrom(cmd_get_status)
+    20	    encrypted_cfg = security_ctx.encrypt_data(cfg1.SerializeToString())
+    21	    print_verbose(security_ctx, f'Client -> Device (Encrypted CmdGetStatus): 0x{encrypted_cfg.hex()}')
+    22	    return encrypted_cfg.decode('latin-1')
+    23	
+    24	
+    25	def config_get_status_response(security_ctx, response_data):
+    26	    # Interpret protobuf response packet from GetStatus command
+    27	    decrypted_message = security_ctx.decrypt_data(str_to_bytes(response_data))
+    28	    cmd_resp1 = proto.wifi_config_pb2.WiFiConfigPayload()
+    29	    cmd_resp1.ParseFromString(decrypted_message)
+    30	    print_verbose(security_ctx, f'CmdGetStatus type: {str(cmd_resp1.msg)}')
+    31	    print_verbose(security_ctx, f'CmdGetStatus status: {str(cmd_resp1.resp_get_status.status)}')
+    32	
+    33	    if cmd_resp1.resp_get_status.sta_state == 0:
+    34	        print('==== WiFi state: Connected ====')
+    35	        return 'connected'
+    36	    elif cmd_resp1.resp_get_status.sta_state == 1:
+    37	        print('++++ WiFi state: Connecting... ++++')
+    38	        if cmd_resp1.resp_get_status.HasField('attempt_failed'):
+    39	            if cmd_resp1.resp_get_status.attempt_failed.attempts_remaining:
+    40	                print(cmd_resp1.resp_get_status)
+    41	            else:
+    42	                print('attempt_failed {\n  attempts_remaining: 0\n}')
+    43	        return 'connecting'
+    44	    elif cmd_resp1.resp_get_status.sta_state == 2:
+    45	        print('---- WiFi state: Disconnected ----')
+    46	        return 'disconnected'
+    47	    elif cmd_resp1.resp_get_status.sta_state == 3:
+    48	        print('---- WiFi state: Connection Failed ----')
+    49	        if cmd_resp1.resp_get_status.fail_reason == 0:
+    50	            print('---- Failure reason: Incorrect Password ----')
+    51	        elif cmd_resp1.resp_get_status.fail_reason == 1:
+    52	            print('---- Failure reason: Incorrect SSID ----')
+    53	        return 'failed'
+    54	    return 'unknown'
+    55	
+    56	
+    57	def config_set_config_request(security_ctx, ssid, passphrase):
+    58	    # Form protobuf request packet for SetConfig command
+    59	    cmd = proto.wifi_config_pb2.WiFiConfigPayload()
+    60	    cmd.msg = proto.wifi_config_pb2.TypeCmdSetConfig
+    61	    cmd.cmd_set_config.ssid = str_to_bytes(ssid)
+    62	    cmd.cmd_set_config.passphrase = str_to_bytes(passphrase)
+    63	    enc_cmd = security_ctx.encrypt_data(cmd.SerializeToString())
+    64	    print_verbose(security_ctx, f'Client -> Device (SetConfig cmd): 0x{enc_cmd.hex()}')
+    65	    return enc_cmd.decode('latin-1')
+    66	
+    67	
+    68	def config_set_config_response(security_ctx, response_data):
+    69	    # Interpret protobuf response packet from SetConfig command
+    70	    decrypt = security_ctx.decrypt_data(str_to_bytes(response_data))
+    71	    cmd_resp4 = proto.wifi_config_pb2.WiFiConfigPayload()
+    72	    cmd_resp4.ParseFromString(decrypt)
+    73	    print_verbose(security_ctx, f'SetConfig status: 0x{str(cmd_resp4.resp_set_config.status)}')
+    74	    return cmd_resp4.resp_set_config.status
+    75	
+    76	
+    77	def config_apply_config_request(security_ctx):
+    78	    # Form protobuf request packet for ApplyConfig command
+    79	    cmd = proto.wifi_config_pb2.WiFiConfigPayload()
+    80	    cmd.msg = proto.wifi_config_pb2.TypeCmdApplyConfig
+    81	    enc_cmd = security_ctx.encrypt_data(cmd.SerializeToString())
+    82	    print_verbose(security_ctx, f'Client -> Device (ApplyConfig cmd): 0x{enc_cmd.hex()}')
+    83	    return enc_cmd.decode('latin-1')
+    84	
+    85	
+    86	def config_apply_config_response(security_ctx, response_data):
+    87	    # Interpret protobuf response packet from ApplyConfig command
+    88	    decrypt = security_ctx.decrypt_data(str_to_bytes(response_data))
+    89	    cmd_resp5 = proto.wifi_config_pb2.WiFiConfigPayload()
+    90	    cmd_resp5.ParseFromString(decrypt)
+    91	    print_verbose(security_ctx, f'ApplyConfig status: 0x{str(cmd_resp5.resp_apply_config.status)}')
+    92	    return cmd_resp5.resp_apply_config.status
