@@ -185,3 +185,12 @@ Improved Browser BLE service-discovery diagnostics after the first Chrome hardwa
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.stories.jsx — Updated real BLE connected log fixture
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt setup bundle
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records Chrome hardware attempt and fix
+
+## 2026-05-10
+
+Fixed the firmware BLE provisioning service UUID lifetime bug exposed by Chrome service discovery: the custom UUID now lives in static storage before being passed to ESP-IDF's provisioning scheme.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Keeps custom BLE service UUID in static storage for ESP-IDF pointer lifetime
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records Chrome service-discovery debugging and firmware fix

@@ -1367,3 +1367,88 @@ pnpm --prefix web run build-storybook
 BUILD_WEB_LOCAL=1 go run ./cmd/build-web
 go test ./...
 ```
+
+## Step 12: Firmware BLE service UUID lifetime fix for Chrome service discovery
+
+The second Chrome hardware attempt still connected to `ALM_0F2320` but could not find either expected provisioning service UUID. The `chrome://bluetooth-internals` device list also did not show the Almanach service UUID in the scanned services list. After checking ESP-IDF's `wifi_prov_scheme_ble_set_service_uuid()` implementation, I found the likely root cause in the firmware: the custom service UUID was passed as a stack array.
+
+ESP-IDF stores the pointer passed to `wifi_prov_scheme_ble_set_service_uuid()` and copies it later when provisioning starts. A stack array can be invalid by then, which can produce a corrupted/unstable advertised and GATT primary service UUID. This explains why Linux tooling could still connect by device name and endpoint behavior, while Chrome, which requires exact optional service UUID access, could not find the expected primary service.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Connected to the printer, but none of the expected ESP-IDF provisioning services were found (021a9004-0382-4aea-bff4-6b3f1c5adfb4, b4df5a1c-3f6b-f4bf-ea4a-820304901a02). Check the firmware service UUID or inspect the device in chrome://bluetooth-internals.
+
+Here's the bluetooth-internals/#devices 
+Name    Address    Latest RSSI    Services    Manufacturer Data    GATT Connection State    
+Unknown or Unsupported Device (5D:83:89:9E:09:52)    5D:83:89:9E:09:52    Unknown        0x004c 0x1006361eed5ac994    Not Connected    InspectForget
+..."
+
+**Assistant interpretation:** Chrome can connect, but service discovery still fails. Use the bluetooth-internals evidence and firmware source to find why the advertised/GATT service UUID does not match the expected UUIDs.
+
+**Inferred user intent:** Diagnose and unblock browser service discovery so the Web Bluetooth client can progress beyond GATT connection.
+
+**Commit (code):** d2775d3650f550000b027d1a731c7100108625fd — "Keep BLE provisioning service UUID stable"
+
+### What I did
+
+- Inspected ESP-IDF 5.4.2 source for `wifi_prov_scheme_ble_set_service_uuid()` and `protocomm_nimble.c`.
+- Confirmed `wifi_prov_scheme_ble_set_service_uuid()` stores the UUID pointer rather than copying the bytes immediately.
+- Changed `firmware/atoms3r/main/provisioning_mgr.c` so the custom UUID lives in static storage (`s_custom_service_uuid`) instead of a stack local inside `provisioning_mgr_init()`.
+- Added a comment documenting the pointer-lifetime requirement.
+- Validated the Go tests and firmware build.
+
+### Why
+
+- Web Bluetooth requires the service UUID to be declared in `optionalServices` at device selection time. If the firmware's GATT primary service UUID is corrupted or unstable, Chrome will connect to the device but deny/fail service access.
+- The firmware bug is invisible if a client discovers services/endpoints more flexibly, but it is fatal for browser access.
+
+### What worked
+
+- `go test ./...` passed.
+- `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build` passed.
+- Firmware image built successfully with app binary size `0x17c390`, leaving `0x283c70` bytes free in the smallest app partition.
+
+### What didn't work
+
+- Browser service discovery still needs to be retested after flashing this firmware fix. The current device is still running the pre-fix firmware until flashed.
+
+### What I learned
+
+- `wifi_prov_scheme_ble_set_service_uuid()` does not copy the UUID immediately. It assigns `custom_service_uuid = uuid128` and later copies that pointer into the BLE config when provisioning starts.
+- The ESP-IDF NimBLE transport copies `config->service_uuid` into both the GATT primary service and advertisement data, so stable storage should make Chrome's optional service lookup deterministic.
+
+### What was tricky to build
+
+- This failure appeared in the browser, but the root cause was firmware pointer lifetime. The misleading symptom was that Chrome could connect to the device, making the transport look healthy, while exact service lookup failed.
+- The previous browser workaround of trying both UUID byte-order candidates was useful diagnostically but could not fix a corrupted UUID source.
+
+### What warrants a second pair of eyes
+
+- After flashing, verify the service UUID in `chrome://bluetooth-internals` and confirm which of the two UUID string candidates Chrome exposes.
+- Review any other ESP-IDF provisioning API calls that store pointers rather than copying input data.
+
+### What should be done in the future
+
+- Flash the fixed firmware to the AtomS3R.
+- Reset provisioning state or enter pairing mode.
+- Retry the browser **Find BLE printer** flow.
+- If service discovery succeeds, remove the fallback UUID if it proves unnecessary, or leave both during bring-up with a comment.
+
+### Code review instructions
+
+- Inspect `firmware/atoms3r/main/provisioning_mgr.c` near `s_custom_service_uuid` and `wifi_prov_scheme_ble_set_service_uuid(s_custom_service_uuid)`.
+- Validate with:
+  - `go test ./...`
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+- Hardware validation requires flashing the new firmware and retrying Chrome service discovery.
+
+### Technical details
+
+Commands run:
+
+```bash
+grep -R "wifi_prov_scheme_ble_set_service_uuid" -n /home/manuel/esp/esp-idf-5.4.2/components
+# Read wifi_provisioning/src/scheme_ble.c and protocomm/src/transports/protocomm_nimble.c
+go test ./...
+cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build
+```
