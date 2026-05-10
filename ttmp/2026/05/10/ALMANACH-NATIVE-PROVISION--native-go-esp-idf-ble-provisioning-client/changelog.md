@@ -42,3 +42,17 @@ Phase 1 implementation: added the native Go provisioning package skeleton with e
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/protover_test.go — Unit tests for proto-ver behavior
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 1 task completion
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 1 diary entry
+
+## 2026-05-10
+
+Phase 2 implementation: added Buf-based generation for vendored ESP-IDF protocomm and WiFi provisioning protobuf schemas, generated Go bindings, and added round-trip tests for session and WiFi config payloads.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/proto/buf.yaml — Buf module and lint configuration for ESP-IDF schemas
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/proto/buf.gen.yaml — Local protoc-gen-go generation config
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/proto/generate.go — go:generate hook for Buf generation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/proto/espidf — Vendored ESP-IDF protobuf schemas and generated Go bindings
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/proto_roundtrip_test.go — Generated protobuf round-trip tests
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 2 task completion
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 2 diary entry

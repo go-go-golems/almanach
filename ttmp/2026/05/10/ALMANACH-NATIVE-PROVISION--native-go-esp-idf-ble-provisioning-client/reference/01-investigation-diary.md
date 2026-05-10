@@ -249,3 +249,104 @@ gofmt -w internal/provisioning/native
 go test ./...
 git commit -m "Add native provisioning proto-ver skeleton"
 ```
+
+## Step 3: Phase 2 Buf-generated ESP-IDF protobuf bindings
+
+This step added the protobuf schema layer needed before implementing Security 1 and WiFi config messages. The native Go client now vendors the relevant ESP-IDF protocomm and WiFi provisioning `.proto` files, adds Go package options, and generates Go bindings using Buf with the local `protoc-gen-go` plugin.
+
+The first attempt used `protoc` directly. The user corrected the workflow to use Buf, which is the preferred project convention for protobuf generation. I replaced the direct invocation with `buf.yaml`, `buf.gen.yaml`, and a `go:generate` hook so future regeneration is repeatable with `go generate ./internal/provisioning/native/proto`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "use buf btw"
+
+**Assistant interpretation:** Switch protobuf generation for the native provisioning package from ad hoc `protoc` commands to a Buf-based workflow.
+
+**Inferred user intent:** Keep protobuf generation aligned with the repository's preferred schema/codegen practice and make future regeneration reproducible.
+
+**Commit (code):** eb1161cdcd7fe34f9e8d3c21dec1097a76304430 — "Add ESP-IDF provisioning protobuf bindings"
+
+### What I did
+
+- Added Buf configuration under `internal/provisioning/native/proto/`:
+  - `buf.yaml`
+  - `buf.gen.yaml`
+  - `generate.go` with `//go:generate buf generate`
+- Vendored ESP-IDF protocomm schemas into `internal/provisioning/native/proto/espidf/`:
+  - `constants.proto`
+  - `sec0.proto`
+  - `sec1.proto`
+  - `sec2.proto`
+  - `session.proto`
+- Vendored ESP-IDF WiFi provisioning schemas into the same module:
+  - `wifi_constants.proto`
+  - `wifi_config.proto`
+  - `wifi_scan.proto`
+  - `wifi_ctrl.proto`
+- Added `option go_package = "github.com/go-go-golems/almanach/internal/provisioning/native/proto/espidf;espidf";` to the vendored schemas.
+- Generated Go bindings with Buf and local `protoc-gen-go`.
+- Added `internal/provisioning/native/proto_roundtrip_test.go` to verify generated types compile and round-trip:
+  - `SessionData` containing Security 1 `SessionCmd0`
+  - `WiFiConfigPayload` containing `CmdSetConfig`
+- Ran:
+  - `go generate ./internal/provisioning/native/proto`
+  - `go test ./...`
+
+### Why
+
+- Security 1 and WiFi config messages are protobuf messages. Implementing those phases without generated bindings would either duplicate schema logic manually or increase the chance of field-number mistakes.
+- Buf makes the code generation path explicit and repeatable.
+- Round-trip tests prove that the generated bindings can represent the exact message shapes needed in the next implementation phases.
+
+### What worked
+
+- `buf generate` generated nine Go protobuf files.
+- `go generate ./internal/provisioning/native/proto` completed successfully.
+- `go test ./...` passed, including the new protobuf round-trip tests.
+
+### What didn't work
+
+- The initial direct `protoc` generation attempt put output in the wrong location when run from the repository root.
+- A second root-level `protoc` attempt hit duplicate/import confusion because ESP-IDF imports like `constants.proto` expect the schema working directory layout. Running generation through Buf from `internal/provisioning/native/proto` avoided the ad hoc command issues.
+
+### What I learned
+
+- ESP-IDF's protobuf schemas can be vendored with minimal edits: adding `go_package` is enough for Go generation.
+- Keeping all ESP-IDF provisioning schemas in one generated Go package avoids import/package friction between protocomm and WiFi provisioning messages.
+
+### What was tricky to build
+
+- ESP-IDF schemas import files by basename, for example `import "constants.proto"`. That means the generation module needs to present the schema directory as the import root.
+- Buf lint needed exceptions because the upstream ESP-IDF schemas do not define packages and use enum names that do not follow Buf's default style rules. The project should preserve upstream schema shape rather than rewriting it aggressively.
+
+### What warrants a second pair of eyes
+
+- Review whether the vendored `.proto` files should stay as edited copies with `go_package` or whether a future script should copy them from `IDF_PATH` and patch package options.
+- Review whether all generated schemas are needed immediately. `wifi_scan` and `wifi_ctrl` are included for parity, but Phase 3/4 can initially use only session/sec1/wifi_config.
+
+### What should be done in the future
+
+- Phase 3 should implement Security 1 using the generated `SessionData` and `Sec1Payload` types.
+- Add golden tests for serialized protobuf bytes once native Security 1 fixtures are available.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/proto/buf.yaml` and `buf.gen.yaml`.
+- Then inspect `internal/provisioning/native/proto/espidf/session.proto`, `sec1.proto`, and `wifi_config.proto`.
+- Finally inspect `internal/provisioning/native/proto_roundtrip_test.go`.
+- Validate with:
+  - `go generate ./internal/provisioning/native/proto`
+  - `go test ./...`
+
+### Technical details
+
+Commands run:
+
+```bash
+cd almanach/internal/provisioning/native/proto
+buf generate
+cd /home/manuel/workspaces/2026-05-08/extract-almanach/almanach
+go generate ./internal/provisioning/native/proto
+go test ./...
+git commit -m "Add ESP-IDF provisioning protobuf bindings"
+```

@@ -22,7 +22,7 @@
   - [x] Generate Go protobuf bindings with `buf generate` / `protoc-gen-go`
   - [x] Add compile/round-trip tests for SessionData and WiFiConfigPayload
   - [x] Run `go test ./...`
-  - [ ] Update diary/changelog and commit Phase 2
+  - [x] Update diary/changelog and commit Phase 2
 - [ ] Phase 3: implement BLE transport using a Linux BlueZ-capable Go BLE library
 - [ ] Phase 4: implement proto-ver and endpoint discovery parity with browser/Linux Python client
 - [ ] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
