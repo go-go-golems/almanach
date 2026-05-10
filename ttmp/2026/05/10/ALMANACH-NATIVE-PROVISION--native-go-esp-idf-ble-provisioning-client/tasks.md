@@ -38,7 +38,16 @@
   - [x] Run `go test ./...`
   - [x] Hardware test native version against `ALM_0F2320`
   - [x] Update diary/changelog and commit Phase 4
-- [ ] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
+- [x] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
+  - [x] Add Security1Session state machine for setup0/setup1 over prov-session
+  - [x] Implement X25519 shared secret derivation
+  - [x] Implement optional SHA-256(PoP) XOR shared-key adjustment
+  - [x] Implement AES-256-CTR stream continuity for handshake and later payloads
+  - [x] Add fake Security 1 device tests for successful PoP handshake and encrypted round-trip
+  - [x] Add wrong-PoP and pre-establish error tests
+  - [x] Add Client.EstablishSecurity1 wrapper
+  - [x] Run `go test ./...`
+  - [ ] Update diary/changelog and commit Phase 5
 - [ ] Phase 6: implement encrypted WiFi config set/apply/status polling
 - [ ] Phase 7: add native mode to ble-provision behind a flag while keeping Python fallback
 - [ ] Phase 8: hardware validate native Go provisioning against AtomS3R
