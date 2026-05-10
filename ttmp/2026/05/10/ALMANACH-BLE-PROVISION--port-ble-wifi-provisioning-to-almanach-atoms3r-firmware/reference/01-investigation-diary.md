@@ -132,3 +132,86 @@ docmgr doc add --ticket ALMANACH-BLE-PROVISION --doc-type reference --title "Inv
 ```
 
 Key evidence commands used `nl -ba` on current firmware and donor prototype files to capture line-referenced behavior for the design guide.
+
+## Step 2: Phase 1 BLE provisioning build dependencies
+
+This step added the firmware build-time dependencies required before writing any provisioning code. I enabled BLE-only NimBLE and protocomm security 1 in `sdkconfig.defaults`, then declared `protocomm`, `wifi_provisioning`, and `bt` as private component requirements for the firmware main component.
+
+The goal was deliberately narrow: prove the AtomS3R firmware still clean-builds with the Bluetooth/provisioning stack linked in before adding new application code. This gives the next implementation phases a known-good base and catches ESP-IDF component/Kconfig mistakes early.
+
+### Prompt Context
+
+**User prompt (verbatim):** "add detailed tasks to the ticket, then work on them one by one, commit at aprpopriate intervals, keep a detailed diary. flash when needed, you can also run idf.py monitor in a tmux and use that."
+
+**Assistant interpretation:** Add concrete ticket tasks, implement the BLE provisioning plan incrementally, commit logical steps, and keep this diary current with commands and validation.
+
+**Inferred user intent:** Move from design into implementation while preserving reviewability and hardware validation discipline.
+
+**Commit (code):** pending — this step will be committed after the diary/changelog update.
+
+### What I did
+
+- Added detailed implementation tasks to `tasks.md` for phases 1 through 6.
+- Added BLE provisioning Kconfig defaults to `firmware/atoms3r/sdkconfig.defaults`:
+  - `CONFIG_BT_ENABLED=y`
+  - `CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y`
+  - `CONFIG_BT_NIMBLE_ENABLED=y`
+  - `CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y`
+- Added `protocomm`, `wifi_provisioning`, and `bt` to `firmware/atoms3r/main/CMakeLists.txt` `PRIV_REQUIRES`.
+- Ran a clean firmware build:
+  - `cd almanach/firmware/atoms3r && rm -rf build sdkconfig && ./build.sh /dev/ttyACM0 build`
+
+### Why
+
+- The provisioning manager code will require ESP-IDF BLE provisioning components, so the build graph must include them first.
+- A clean build after only dependency changes proves the toolchain and Kconfig baseline are valid before application behavior changes.
+
+### What worked
+
+- The clean firmware build completed successfully.
+- ESP-IDF built the Bluetooth, protocomm, and wifi_provisioning components.
+- Output image was generated:
+  - `build/stoms3r.bin`
+  - Size: `0x116a30`
+  - Smallest app partition: `0x400000`
+  - Free space: `0x2e95d0 bytes (73%)`
+
+### What didn't work
+
+- No failures in this phase.
+
+### What I learned
+
+- Enabling BLE/NimBLE and provisioning components only increased the binary modestly relative to the previous moved-firmware build.
+- The existing partition table has ample room for the provisioning stack.
+
+### What was tricky to build
+
+- The important invariant is using ESP-IDF 5.4.x and target `esp32s3`. That was already fixed in `build.sh` during the earlier firmware migration, so this phase could focus on Kconfig/component dependencies.
+
+### What warrants a second pair of eyes
+
+- Review whether `bt` should remain an explicit `PRIV_REQUIRES` or can be transitively pulled through `wifi_provisioning`. I left it explicit for clarity.
+- Review whether additional NimBLE memory tuning is needed after runtime testing.
+
+### What should be done in the future
+
+- Implement `provisioning_mgr.c/.h` and validate another build.
+- Later flash and monitor runtime logs after provisioning code exists.
+
+### Code review instructions
+
+- Review `firmware/atoms3r/sdkconfig.defaults` for the new BLE/protocomm settings.
+- Review `firmware/atoms3r/main/CMakeLists.txt` for the new component dependencies.
+- Validate with:
+  - `cd firmware/atoms3r && rm -rf build sdkconfig && ./build.sh /dev/ttyACM0 build`
+
+### Technical details
+
+The successful build reported:
+
+```text
+Successfully created esp32s3 image.
+Generated .../firmware/atoms3r/build/stoms3r.bin
+stoms3r.bin binary size 0x116a30 bytes. Smallest app partition is 0x400000 bytes. 0x2e95d0 bytes (73%) free.
+```

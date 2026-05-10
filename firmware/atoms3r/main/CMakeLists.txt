@@ -16,6 +16,9 @@ idf_component_register(
         esp_netif
         esp_event
         esp_http_server
+        protocomm
+        wifi_provisioning
+        bt
     EMBED_TXTFILES
         "index.html"
         "assets/almanach/almanach.html"

@@ -25,3 +25,15 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
 
 # Console history
 CONFIG_ESP_CONSOLE_HISTORY_LEN=50
+
+# BLE WiFi provisioning transport. Keep Classic BT disabled and use NimBLE for
+# the ESP-IDF wifi_prov_mgr BLE scheme.
+CONFIG_BT_ENABLED=y
+CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
+CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=n
+CONFIG_BTDM_CTRL_MODE_BTDM=n
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# WiFi provisioning security 1 provides Proof-of-Possession protected
+# protocomm sessions for the standard Espressif provisioning clients.
+CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y
