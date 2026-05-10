@@ -17,6 +17,10 @@ topics:
       description: thermal-printer topic
     - slug: wifi-provisioning
       description: wifi-provisioning topic
+    - slug: atoms3r
+      description: M5Stack AtomS3R hardware and firmware topics
+    - slug: display
+      description: Embedded display, rendering, and screen status topics
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
