@@ -228,3 +228,17 @@ Browser provisioning port: created a textbook-style Obsidian deep dive on the na
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Web Bluetooth client with encrypted provisioning flow
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.jsx — Real-flow UI text and logging updates
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt embedded setup bundle
+
+## 2026-05-10
+
+Reset/reprovision lifecycle: accepted the user's successful Chrome provisioning trace as browser hardware validation, added native Go encrypted `prov-ctrl` reset/reprov actions, added browser reset/reprov helpers and guarded setup-page buttons, and confirmed the firmware physical long-hold reset path already clears WiFi/provisioning state and reboots.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_ctrl.go — Native encrypted WiFi control reset/reprov implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_ctrl_test.go — Fake encrypted transport tests for reset/reprov
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision_native.go — Native CLI reset/reprov routing
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-protobuf.js — Browser WiFi control protobuf helpers
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Browser reset/reprov methods
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.jsx — Guarded setup-page reset/reprov buttons
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Existing physical long-hold reset path

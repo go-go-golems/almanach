@@ -13,18 +13,27 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - Path: /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c
-      Note: Current boot and console integration studied for provisioning design.
-    - Path: /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/wifi_cmd.c
-      Note: Existing esp_console WiFi save/status/forget behavior studied.
-    - Path: /home/manuel/workspaces/2026-05-08/extract-almanach/esp32-s3-m5/0092-m5-printer-esp-idf-provision/source/atomlite-printer-prov/main/main.c
+    - Path: ../../../../../../../esp32-s3-m5/0092-m5-printer-esp-idf-provision/source/atomlite-printer-prov/main/main.c
       Note: Donor BLE provisioning implementation studied.
+    - Path: firmware/atoms3r/main/app_main.c
+      Note: Current boot and console integration studied for provisioning design.
+    - Path: firmware/atoms3r/main/button_input.c
+      Note: Physical long-hold reset path for clearing provisioning state
+    - Path: firmware/atoms3r/main/wifi_cmd.c
+      Note: Existing esp_console WiFi save/status/forget behavior studied.
+    - Path: internal/provisioning/native/wifi_ctrl.go
+      Note: Native encrypted prov-ctrl reset/reprov implementation
+    - Path: web/src/provisioning/espidf-client.js
+      Note: Browser reset/reprov methods over prov-ctrl
+    - Path: web/src/provisioning/espidf-protobuf.js
+      Note: Browser WiFi control protobuf helpers
 ExternalSources: []
 Summary: Chronological investigation diary for the ALMANACH-BLE-PROVISION ticket.
 LastUpdated: 2026-05-10T13:20:00-04:00
 WhatFor: Use this to understand what was inspected and why the BLE provisioning design recommends a staged port.
 WhenToUse: Read before resuming implementation work on BLE provisioning or console WiFi behavior.
 ---
+
 
 # Diary
 
@@ -1674,4 +1683,147 @@ Go Security1Session
 
 Go WiFiConfigPayload helpers
   -> browser espidf-protobuf.js minimal encoders/decoders
+```
+
+## Step 15: Browser hardware success and reset/reprovision lifecycle paths
+
+The user hardware-validated the browser provisioning flow after clearing WiFi settings on the device. The Chrome setup page completed the full path through Web Bluetooth selection, GATT connection, ESP-IDF service discovery, endpoint mapping, `proto-ver`, Security 1, encrypted WiFi credentials, ApplyConfig, status polling to `connected`, and the expected BLE disconnect after success.
+
+This step then filled in the lifecycle gap that success exposes: once provisioning succeeds, BLE provisioning stops, so repeat testing and field recovery need explicit reset/reprovision paths. I added native Go and browser `prov-ctrl` reset/reprovision support and confirmed that the firmware already has a physical long-hold reset path that clears WiFi/provisioning state and reboots.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Nice, I reset the wifi settingson the device, then I provisioned in the web UI:
+
+Progress
+20:55:59 Using real Web Bluetooth ESP-IDF client
+20:55:59 Opening Chrome Bluetooth picker for ALM_ printers
+20:56:02 Selected ALM_0F2320
+20:56:02 Connecting to ALM_0F2320 over GATT
+20:56:02 GATT connection established
+20:56:02 Looking for ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4
+20:56:03 Found ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4
+20:56:03 Discovered 5 provisioning characteristic(s)
+20:56:03 Mapped endpoint prov-ctrl -> 021aff4f-0382-4aea-bff4-6b3f1c5adfb4
+20:56:04 Mapped endpoint prov-scan -> 021aff50-0382-4aea-bff4-6b3f1c5adfb4
+20:56:04 Mapped endpoint prov-session -> 021aff51-0382-4aea-bff4-6b3f1c5adfb4
+20:56:04 Mapped endpoint prov-config -> 021aff52-0382-4aea-bff4-6b3f1c5adfb4
+20:56:04 Mapped endpoint proto-ver -> 021aff53-0382-4aea-bff4-6b3f1c5adfb4
+20:56:04 Available ESP-IDF endpoints: proto-ver, prov-config, prov-ctrl, prov-scan, prov-session
+20:56:04 proto-ver response: { "prov": { "ver": "v1.1", "sec_ver": 1, "sec_patch_ver": 0, "cap": ["wifi_scan"] } }
+20:56:04 Verified ESP-IDF provisioning protocol v1.1
+20:56:10 Starting real ESP-IDF provisioning flow
+20:56:10 Security 1 setup0: sending client X25519 public key
+20:56:10 Security 1 setup1: sending encrypted device public-key proof
+20:56:10 Security 1 session established
+20:56:10 Sending encrypted WiFi credentials for SSID Verizon_9DNVB9
+20:56:11 Applying encrypted WiFi configuration
+20:56:11 WiFi provisioning status: connecting
+20:56:12 WiFi provisioning status: connecting
+20:56:14 WiFi provisioning status: connecting
+20:56:15 WiFi provisioning status: connecting
+20:56:16 WiFi provisioning status: connecting
+20:56:17 WiFi provisioning status: connecting
+20:56:18 WiFi provisioning status: connected
+20:56:18 Printer connected to WiFi successfully.
+20:56:19 Disconnected from ALM_0F2320
+
+What's the Add/reset / clear path?"
+
+**Assistant interpretation:** Explain and then implement the reset/reprovision lifecycle work: native Go `prov-ctrl`, browser `prov-ctrl`, and the physical reset path.
+
+**Inferred user intent:** Make successful provisioning repeatable and support field recovery without needing ad hoc manual cleanup.
+
+**Commit (code):** d488f844a996c4fbd3b7bca95e3c51cda0d84472 — "Add native WiFi control actions"
+
+**Commit (code):** 600fd537dd23e903d6af98fa208fe4acea88eeb8 — "Add browser WiFi control actions"
+
+### What I did
+
+- Treated the user's Chrome log as successful browser hardware validation and marked Browser BLE Phase 5 complete.
+- Added native Go `prov-ctrl` support:
+  - `Client.ResetWiFi(ctx)`
+  - `Client.ReprovisionWiFi(ctx)`
+  - encrypted `WiFiCtrlPayload` reset/reprov requests over `prov-ctrl`
+  - `ble-provision --implementation native --action reset|reprov`
+- Added fake encrypted transport tests for native reset/reprov.
+- Added browser `prov-ctrl` helpers:
+  - `encodeCtrlReset()`
+  - `encodeCtrlReprov()`
+  - `decodeWifiCtrlPayload()`
+- Added browser client methods:
+  - `resetWiFi({ pop })`
+  - `reprovisionWiFi({ pop })`
+- Added guarded setup-page buttons for real BLE mode:
+  - `Reprovision`
+  - `Reset printer WiFi`
+- Confirmed firmware physical long-hold reset is already implemented in `button_input.c` through `reset_provisioning_and_reboot()`.
+- Ran:
+  - `go test ./...`
+  - `pnpm --prefix web run build`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+
+### Why
+
+- Successful provisioning intentionally stops BLE. Without reset/reprovision paths, repeated browser testing requires manual state clearing through serial console or firmware reset.
+- ESP-IDF already defines `prov-ctrl` for reset/reprovision, so native and browser clients should use the standard encrypted endpoint rather than inventing a separate protocol.
+- A physical long-hold reset path is still necessary because remote BLE reset only works while the provisioning service is reachable.
+
+### What worked
+
+- Native Go reset/reprov compiled and passed fake encrypted transport tests.
+- Browser setup bundle compiled with reset/reprov support.
+- Firmware already has the physical path:
+  - long pairing hold starts pairing
+  - long reset hold calls `reset_provisioning_and_reboot()`
+  - reset disconnects WiFi, erases explicit WiFi credentials, resets provisioning manager state, waits briefly, and reboots
+
+### What didn't work
+
+- I did not hardware-test native or browser reset/reprov in this step. The implementations are built and unit-tested, but live behavior still needs validation against firmware state transitions.
+
+### What I learned
+
+- Espressif's Python `wifi_ctrl.py` sends reset/reprov as a `WiFiCtrlPayload` with only the `msg` field set. I adjusted the native Go request construction to match that shape rather than forcing an empty oneof payload.
+- The physical reset path was already stronger than expected: it clears both explicit NVS WiFi credentials and provisioning manager state, then reboots into the normal first-boot decision path.
+
+### What was tricky to build
+
+- Reset/reprov must be encrypted with the same Security 1 stream rules as WiFi config. It is not a plaintext control endpoint even though it is operationally a lifecycle command.
+- The browser UI needs to avoid making reset too easy. The added buttons are visible only after a real BLE device is connected and use `window.confirm()` before sending the command.
+
+### What warrants a second pair of eyes
+
+- Review whether reset/reprov buttons should be hidden behind an advanced section rather than appearing beside provisioning actions.
+- Review whether `TypeCmdCtrlReset` and `TypeCmdCtrlReprov` have distinct firmware semantics in the current ESP-IDF version that warrant more specific UI text.
+
+### What should be done in the future
+
+- Hardware-test native reset and reprov while the device is still exposing BLE provisioning.
+- Hardware-test browser reset/reprov buttons.
+- Consider adding an HTTP reset endpoint for the already-provisioned, WiFi-connected case.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/wifi_ctrl.go` and `wifi_ctrl_test.go`.
+- Then inspect `internal/app/cmd_ble_provision_native.go` for CLI action routing.
+- Then inspect `web/src/provisioning/espidf-protobuf.js`, `espidf-client.js`, and `ProvisioningWizard.jsx` for browser reset/reprov.
+- For firmware physical reset, inspect `firmware/atoms3r/main/button_input.c`, especially `reset_provisioning_and_reboot()`.
+- Validate with:
+
+```bash
+go test ./...
+pnpm --prefix web run build
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+```
+
+### Technical details
+
+The lifecycle model is now:
+
+```text
+Serial console: prov_reset
+Physical device: long-hold reset path in button_input.c
+Native BLE: ble-provision --implementation native --action reset|reprov
+Browser BLE: Reprovision / Reset printer WiFi buttons while connected to provisioning service
 ```

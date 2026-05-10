@@ -52,4 +52,17 @@
   - [x] Implement encrypted SetConfig/ApplyConfig/GetStatus
   - [x] Wire real setup wizard flow through Security 1 and status polling
   - [x] Build setup bundle and embedded assets
-- [ ] Browser BLE Phase 5: browser hardware validation against AtomS3R and diary/changelog update
+- [x] Browser BLE Phase 5: browser hardware validation against AtomS3R and diary/changelog update
+  - [x] User validated Chrome provisioning flow through connected status and BLE disconnect after success
+- [x] Reset/reprovision Step 1: add native Go `prov-ctrl` reset/reprov actions
+  - [x] Add encrypted `WiFiCtrlPayload` reset/reprov helpers against `prov-ctrl`
+  - [x] Wire `ble-provision --implementation native --action reset|reprov`
+  - [x] Add fake encrypted transport tests
+  - [x] Run `go test ./...`
+- [x] Reset/reprovision Step 2: add browser `prov-ctrl` reset/reprov actions
+  - [x] Add minimal browser WiFi control protobuf helpers
+  - [x] Add Web Bluetooth client `resetWiFi` and `reprovisionWiFi`
+  - [x] Add guarded setup-page buttons
+  - [x] Rebuild setup bundle and embedded assets
+- [x] Reset/reprovision Step 3: confirm physical reset path
+  - [x] Confirm button long-hold already clears WiFi/provisioning state and reboots via `reset_provisioning_and_reboot()`
