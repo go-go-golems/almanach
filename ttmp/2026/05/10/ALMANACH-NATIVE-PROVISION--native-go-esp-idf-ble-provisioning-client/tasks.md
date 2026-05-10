@@ -47,8 +47,15 @@
   - [x] Add wrong-PoP and pre-establish error tests
   - [x] Add Client.EstablishSecurity1 wrapper
   - [x] Run `go test ./...`
-  - [ ] Update diary/changelog and commit Phase 5
-- [ ] Phase 6: implement encrypted WiFi config set/apply/status polling
+  - [x] Update diary/changelog and commit Phase 5
+- [x] Phase 6: implement encrypted WiFi config set/apply/status polling
+  - [x] Add encrypted SetWiFiConfig request/response handling
+  - [x] Add encrypted ApplyWiFiConfig request/response handling
+  - [x] Add encrypted GetWiFiStatus request/response handling
+  - [x] Add ProvisionWiFi helper with polling until terminal state
+  - [x] Add fake encrypted WiFi config tests for success and failed status
+  - [x] Run `go test ./...`
+  - [ ] Update diary/changelog and commit Phase 6
 - [ ] Phase 7: add native mode to ble-provision behind a flag while keeping Python fallback
 - [ ] Phase 8: hardware validate native Go provisioning against AtomS3R
 - [ ] Phase 9: use native Go implementation as reference for future browser JavaScript port

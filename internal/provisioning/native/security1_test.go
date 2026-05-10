@@ -87,6 +87,11 @@ type fakeSecurity1Transport struct {
 	clientPubkey []byte
 	setup0Count  int
 	setup1Count  int
+
+	setSSID       string
+	setPassphrase string
+	applyCount    int
+	statusQueue   []*espidf.RespGetStatus
 }
 
 func newFakeSecurity1Transport(t *testing.T, pop string) *fakeSecurity1Transport {
@@ -113,24 +118,28 @@ func (t *fakeSecurity1Transport) Disconnect(ctx context.Context) error          
 func (t *fakeSecurity1Transport) Endpoints() map[string]EndpointInfo                    { return nil }
 
 func (t *fakeSecurity1Transport) Send(ctx context.Context, endpoint string, request []byte) ([]byte, error) {
-	if endpoint != EndpointProvSession {
-		return nil, fmt.Errorf("unexpected endpoint %s", endpoint)
-	}
-	var msg espidf.SessionData
-	if err := proto.Unmarshal(request, &msg); err != nil {
-		return nil, err
-	}
-	sec1 := msg.GetSec1()
-	if msg.GetSecVer() != espidf.SecSchemeVersion_SecScheme1 || sec1 == nil {
-		return nil, fmt.Errorf("unexpected session message: sec_ver=%s sec1=%v", msg.GetSecVer(), sec1)
-	}
-	switch sec1.GetMsg() {
-	case espidf.Sec1MsgType_Session_Command0:
-		return t.handleSetup0(sec1.GetSc0())
-	case espidf.Sec1MsgType_Session_Command1:
-		return t.handleSetup1(sec1.GetSc1())
+	switch endpoint {
+	case EndpointProvSession:
+		var msg espidf.SessionData
+		if err := proto.Unmarshal(request, &msg); err != nil {
+			return nil, err
+		}
+		sec1 := msg.GetSec1()
+		if msg.GetSecVer() != espidf.SecSchemeVersion_SecScheme1 || sec1 == nil {
+			return nil, fmt.Errorf("unexpected session message: sec_ver=%s sec1=%v", msg.GetSecVer(), sec1)
+		}
+		switch sec1.GetMsg() {
+		case espidf.Sec1MsgType_Session_Command0:
+			return t.handleSetup0(sec1.GetSc0())
+		case espidf.Sec1MsgType_Session_Command1:
+			return t.handleSetup1(sec1.GetSc1())
+		default:
+			return nil, fmt.Errorf("unexpected security1 message type %s", sec1.GetMsg())
+		}
+	case EndpointProvConfig:
+		return t.handleConfig(request)
 	default:
-		return nil, fmt.Errorf("unexpected security1 message type %s", sec1.GetMsg())
+		return nil, fmt.Errorf("unexpected endpoint %s", endpoint)
 	}
 }
 
@@ -192,6 +201,51 @@ func (t *fakeSecurity1Transport) handleSetup1(cmd *espidf.SessionCmd1) ([]byte, 
 			}},
 		}},
 	})
+}
+
+func (t *fakeSecurity1Transport) handleConfig(request []byte) ([]byte, error) {
+	plain := t.crypt(request)
+	var msg espidf.WiFiConfigPayload
+	if err := proto.Unmarshal(plain, &msg); err != nil {
+		return nil, err
+	}
+	var resp *espidf.WiFiConfigPayload
+	switch msg.GetMsg() {
+	case espidf.WiFiConfigMsgType_TypeCmdSetConfig:
+		cmd := msg.GetCmdSetConfig()
+		if cmd == nil {
+			return nil, fmt.Errorf("missing set-config command")
+		}
+		t.setSSID = string(cmd.GetSsid())
+		t.setPassphrase = string(cmd.GetPassphrase())
+		resp = &espidf.WiFiConfigPayload{
+			Msg:     espidf.WiFiConfigMsgType_TypeRespSetConfig,
+			Payload: &espidf.WiFiConfigPayload_RespSetConfig{RespSetConfig: &espidf.RespSetConfig{Status: espidf.Status_Success}},
+		}
+	case espidf.WiFiConfigMsgType_TypeCmdApplyConfig:
+		t.applyCount++
+		resp = &espidf.WiFiConfigPayload{
+			Msg:     espidf.WiFiConfigMsgType_TypeRespApplyConfig,
+			Payload: &espidf.WiFiConfigPayload_RespApplyConfig{RespApplyConfig: &espidf.RespApplyConfig{Status: espidf.Status_Success}},
+		}
+	case espidf.WiFiConfigMsgType_TypeCmdGetStatus:
+		status := &espidf.RespGetStatus{Status: espidf.Status_Success, StaState: espidf.WifiStationState_Connected}
+		if len(t.statusQueue) > 0 {
+			status = t.statusQueue[0]
+			t.statusQueue = t.statusQueue[1:]
+		}
+		resp = &espidf.WiFiConfigPayload{
+			Msg:     espidf.WiFiConfigMsgType_TypeRespGetStatus,
+			Payload: &espidf.WiFiConfigPayload_RespGetStatus{RespGetStatus: status},
+		}
+	default:
+		return nil, fmt.Errorf("unexpected config message type %s", msg.GetMsg())
+	}
+	respPlain, err := proto.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	return t.crypt(respPlain), nil
 }
 
 func (t *fakeSecurity1Transport) crypt(data []byte) []byte {
