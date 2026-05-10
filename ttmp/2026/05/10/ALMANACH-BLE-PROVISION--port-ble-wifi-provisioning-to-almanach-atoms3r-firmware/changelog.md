@@ -151,3 +151,12 @@ Completed real hardware BLE WiFi provisioning validation with `idf.py flash moni
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Contains the current one-time WiFi wait before web server startup.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — BLE provisioning events and successful credential connection path validated on hardware.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Go/Glazed wrapper used for the successful real WiFi provisioning run.
+
+
+## 2026-05-10
+
+Fixed the first-time provisioning HTTP startup gap by keeping the web-server wait task alive after the initial 30-second warning. Hardware validation confirmed that, after `prov_reset` and BLE provisioning, the firmware starts port 80 without reboot and `/api/status` returns WiFi/printer status.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — `web_server_task()` now keeps waiting until WiFi connects and starts the HTTP server after delayed provisioning.

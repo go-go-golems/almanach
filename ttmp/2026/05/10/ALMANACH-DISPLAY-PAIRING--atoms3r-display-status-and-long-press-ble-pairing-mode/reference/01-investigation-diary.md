@@ -579,3 +579,106 @@ Artifacts during this run:
 - First wrong-SSID Go log: `/tmp/almanach-go-prov.log`
 - Clean successful Go log: `/tmp/almanach-go-prov-verizon-clean.log`
 - Tmux session: `alm-real-test`
+
+
+## Step 7: Keep waiting for WiFi before starting HTTP server
+
+This step fixed the post-provisioning HTTP startup gap found during real hardware validation. The firmware previously waited only 30 seconds after boot for WiFi, then deleted the web-server wait task. First-time BLE provisioning can legitimately take longer than that, so WiFi could connect successfully while port 80 stayed closed until a reboot.
+
+The fix keeps the background task alive after the 30-second mark. It logs that it is still waiting, then starts the idempotent HTTP server as soon as `wifi_mgr_is_connected()` becomes true. A clean reset/provisioning retest confirmed `/api/status` is available immediately after first-time provisioning, without reboot.
+
+### Prompt Context
+
+**User prompt (verbatim):** "what's the display resolutoin on the atoms3r
+
+Then, fix web server startup after provisioning"
+
+**Assistant interpretation:** Answer the display resolution question first, then patch and validate firmware so HTTP starts after provisioning succeeds.
+
+**Inferred user intent:** Remove the remaining reboot requirement from the BLE provisioning happy path.
+
+**Follow-up prompt (verbatim):** "ok continue"
+
+**Commit (code):** a183a90 — "Start web server after delayed provisioning"
+
+### What I did
+
+- Updated `firmware/atoms3r/main/app_main.c` so `web_server_task()` no longer exits after 30 seconds.
+- Kept the warning log at 30 seconds, but changed it to:
+  - `WiFi not connected after 30s — still waiting to start web server`
+- Preserved the existing `web_server_start()` idempotency and added error logging if the HTTP server start fails.
+- Built firmware with:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+- Flashed and monitored with tmux:
+  - `idf.py -D IDF_TARGET=esp32s3 -p /dev/ttyACM0 flash monitor`
+- Ran `prov_reset`, provisioned again with the Go/Glazed `ble-provision` command, and tested HTTP without reboot.
+
+### What worked
+
+Build passed:
+
+```text
+stoms3r.bin binary size 0x17bf00 bytes. Smallest app partition is 0x400000 bytes. 0x284100 bytes (63%) free.
+Project build complete.
+```
+
+The first-time provisioning path now logs the expected delayed wait and then starts HTTP after WiFi obtains an IP:
+
+```text
+W stoms3r: WiFi not connected after 30s — still waiting to start web server
+I provisioning: Received WiFi credentials for SSID 'Verizon_9DNVB9'
+I wifi_mgr: Got IP: 192.168.1.242
+I wifi_prov_mgr: STA Got IP
+I provisioning: Provisioned WiFi credentials connected successfully
+I stoms3r: WiFi connected — starting web server
+I web_server: HTTP server started on port 80
+```
+
+HTTP validation succeeded without reboot:
+
+```json
+{"ok":true,"wifi":{"connected":true,"ip":"192.168.1.242"},"printer":{"baud":9600,"swapped":true}}
+```
+
+### What didn't work
+
+- No new firmware failure was observed during this fix.
+- The tmux/log workflow still produces noisy WiFi BA add/delete logs, so validation excerpts should focus on the `Got IP`, web-server, and `/api/status` lines.
+
+### What I learned
+
+- The original 30-second wait was too strict for the first provisioning path because BLE provisioning and AP association can happen after `app_main()` has already moved on.
+- A small polling task is sufficient for this firmware because `web_server_start()` is already idempotent and WiFi status is exposed through `wifi_mgr_is_connected()`.
+
+### What was tricky to build
+
+- The task needed to keep waiting only until the first successful HTTP startup. It should not start multiple HTTP server instances, and it should not spam warnings forever while the device is waiting for provisioning.
+- The validation had to clear existing provisioned credentials first; otherwise reboot autoconnect would test the already-provisioned path rather than the fixed first-time provisioning path.
+
+### What warrants a second pair of eyes
+
+- Review whether a pure event-driven `IP_EVENT_STA_GOT_IP` hook should replace polling in a future cleanup.
+- Review whether HTTP should stop on WiFi disconnect or remain running while disconnected. This patch preserves the previous behavior: start once, then leave the server running.
+
+### What should be done in the future
+
+- Physically validate GPIO41 long-press pairing/reset behavior.
+- Consider reducing WiFi reconnect log noise if it makes field diagnostics hard.
+
+### Code review instructions
+
+- Start in `firmware/atoms3r/main/app_main.c`, function `web_server_task()`.
+- Validate with a clean provisioning cycle:
+  - flash/monitor firmware
+  - `prov_reset`
+  - run `ble-provision --action provision`
+  - confirm `HTTP server started on port 80` before reboot
+  - `curl http://<device-ip>/api/status`
+
+### Technical details
+
+Validation artifacts:
+
+- Monitor log: `/tmp/almanach-webwait-monitor.log`
+- Go provisioning log: `/tmp/almanach-webwait-go.log`
+- Tmux session: `alm-webwait-test`

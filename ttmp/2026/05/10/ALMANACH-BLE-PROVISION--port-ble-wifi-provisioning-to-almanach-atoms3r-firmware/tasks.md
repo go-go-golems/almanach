@@ -35,4 +35,4 @@
 
 - [x] Validate Linux Go/Glazed provisioning with real WiFi credentials
 - [x] Validate reboot autoconnect and /api/status after provisioning
-- [ ] Fix or document web server startup gap when first provisioning gets IP after app_main initial wait
+- [x] Fix web server startup gap when first provisioning gets IP after app_main initial wait
