@@ -56,3 +56,15 @@ Phase 2 implementation: added Buf-based generation for vendored ESP-IDF protocom
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/proto_roundtrip_test.go — Generated protobuf round-trip tests
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 2 task completion
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 2 diary entry
+
+## 2026-05-10
+
+Phase 3 implementation: added a Linux BLE transport skeleton using `tinygo.org/x/bluetooth`, including scan-by-name, GATT connect, provisioning service discovery, endpoint characteristic mapping, and byte-oriented endpoint write/read.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/go.mod — Adds tinygo.org/x/bluetooth dependency
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/uuid.go — Service and endpoint UUID constants
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/tinygo_transport.go — Linux BLE transport implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 3 task completion
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 3 diary entry

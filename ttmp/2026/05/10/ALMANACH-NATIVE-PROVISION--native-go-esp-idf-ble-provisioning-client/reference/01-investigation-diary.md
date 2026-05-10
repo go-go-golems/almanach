@@ -350,3 +350,95 @@ go generate ./internal/provisioning/native/proto
 go test ./...
 git commit -m "Add ESP-IDF provisioning protobuf bindings"
 ```
+
+## Step 4: Phase 3 Linux BLE transport skeleton
+
+This step added the first native BLE transport implementation behind the existing `Transport` interface. The transport uses `tinygo.org/x/bluetooth` because it provides Linux BLE central support through a Go API that can scan, connect, discover services, discover characteristics, write bytes, and read bytes.
+
+The implementation is still a skeleton in the sense that it has not yet been hardware-tested through the CLI, but it is real transport code rather than a fake. It scans for the advertised service name, connects to the device, discovers the Almanach ESP-IDF provisioning service UUID, maps the five provisioning endpoint UUIDs, and implements byte-oriented endpoint write/read. This prepares Phase 4, where the existing native `proto-ver` verifier can be exercised against the real AtomS3R instead of the fake transport.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Continue executing the ticket implementation phases with focused commits and diary updates.
+
+**Inferred user intent:** Progress from fake protocol tests toward a real native Go BLE client that can be validated automatically from the CLI.
+
+**Commit (code):** 5b13f0871788fbbfda00582ba9c3bf65e76f7ee5 — "Add native BLE transport skeleton"
+
+### What I did
+
+- Added `tinygo.org/x/bluetooth v0.15.0` as the BLE dependency.
+- Added `internal/provisioning/native/uuid.go` with:
+  - provisioning service UUID `021a9004-0382-4aea-bff4-6b3f1c5adfb4`
+  - fallback endpoint characteristic UUIDs for `prov-ctrl`, `prov-scan`, `prov-session`, `prov-config`, and `proto-ver`
+- Added `internal/provisioning/native/tinygo_transport.go` behind `//go:build linux`.
+- Implemented `NewTinyGoTransport()`.
+- Implemented `Connect()` to:
+  - enable the Bluetooth adapter
+  - scan for the exact service name such as `ALM_0F2320`
+  - connect to the device
+  - discover the provisioning service
+  - discover known endpoint characteristics
+- Implemented `Send()` as write request bytes then read response bytes from the endpoint characteristic.
+- Ran `go test ./...`.
+
+### Why
+
+- The protocol code should not depend on BlueZ details. The `Transport` interface lets the native provisioning protocol call `Send(endpoint, bytes)` while the BLE transport owns scanning and GATT details.
+- `tinygo.org/x/bluetooth` compiles in the repo and exposes the operations needed for the first native hardware test.
+- This transport uses fallback endpoint UUIDs because the TinyGo central API does not expose user-description descriptor reads in the same way Chrome and Bleak do. The fallback UUIDs are already validated by the browser trace.
+
+### What worked
+
+- `go get tinygo.org/x/bluetooth@v0.15.0` succeeded.
+- `go doc` confirmed the needed API surface: `Adapter.Scan`, `Adapter.Connect`, `Device.DiscoverServices`, `DeviceService.DiscoverCharacteristics`, `DeviceCharacteristic.Write`, and `DeviceCharacteristic.Read`.
+- `go test ./...` passed.
+
+### What didn't work
+
+- Descriptor-based endpoint discovery is not implemented in this transport because the chosen TinyGo API does not expose descriptor reads through the documented `DeviceCharacteristic` API.
+- No hardware test was run in this step. Phase 4 should wire the transport into a native version action and test it against `ALM_0F2320`.
+
+### What I learned
+
+- The browser's fallback endpoint UUID map is directly useful for native Go. ESP-IDF derives endpoint characteristics by replacing the service UUID's 16-bit component with `0xFF4F` through `0xFF53`.
+- The transport can be byte-oriented from the beginning, which is compatible with future Security 1 and protobuf payloads.
+
+### What was tricky to build
+
+- BLE scanning is callback-driven. The transport wraps scanning with context cancellation and calls `StopScan()` once the requested local name is found.
+- There is a short-term tradeoff between descriptor discovery and implementation progress. Python and Chrome can read descriptor `0x2901`; TinyGo's documented central API does not show descriptor reads, so fallback UUIDs are the practical first implementation.
+
+### What warrants a second pair of eyes
+
+- Review whether `tinygo.org/x/bluetooth` is the right long-term BLE library for Linux provisioning, especially if descriptor reads or pairing control become necessary.
+- Review the scan timeout behavior. The code has a fixed 30-second fallback timeout in addition to caller context cancellation.
+
+### What should be done in the future
+
+- Phase 4 should add a native CLI path for `--action version` using `TinyGoTransport` and the existing `VerifyProtoVersion()` function.
+- Hardware-test the transport against the AtomS3R and compare output with Python and browser traces.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/tinygo_transport.go`.
+- Check that all BLE-specific behavior stays behind the `Transport` interface.
+- Validate with:
+  - `go test ./...`
+
+### Technical details
+
+Commands run:
+
+```bash
+go get tinygo.org/x/bluetooth@v0.15.0
+go doc tinygo.org/x/bluetooth.Adapter
+go doc tinygo.org/x/bluetooth.Device
+go doc tinygo.org/x/bluetooth.DeviceService
+go doc tinygo.org/x/bluetooth.DeviceCharacteristic
+gofmt -w internal/provisioning/native/tinygo_transport.go internal/provisioning/native/uuid.go
+go test ./...
+git commit -m "Add native BLE transport skeleton"
+```

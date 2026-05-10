@@ -29,7 +29,7 @@
   - [x] Add TinyGoTransport for scan/connect/service/characteristic discovery
   - [x] Implement byte-oriented endpoint write/read against discovered characteristics
   - [x] Run `go test ./...`
-  - [ ] Update diary/changelog and commit Phase 3
+  - [x] Update diary/changelog and commit Phase 3
 - [ ] Phase 4: implement proto-ver and endpoint discovery parity with browser/Linux Python client
 - [ ] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
 - [ ] Phase 6: implement encrypted WiFi config set/apply/status polling
