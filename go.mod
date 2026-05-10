@@ -50,11 +50,13 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/errors v0.22.0 // indirect
 	github.com/go-openapi/strfmt v0.23.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -98,9 +100,16 @@ require (
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
+	github.com/saltosystems/winrt-go v0.0.0-20260317170058-9c2fec580d96 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sosodev/duration v1.4.0 // indirect
+	github.com/soypat/cyw43439 v0.1.0 // indirect
+	github.com/soypat/lneto v0.1.0 // indirect
+	github.com/soypat/seqs v0.0.0-20250124201400-0d65bc7c1710 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tiendc/go-deepcopy v1.7.1 // indirect
+	github.com/tinygo-org/cbgo v0.0.4 // indirect
+	github.com/tinygo-org/pio v0.3.0 // indirect
 	github.com/tj/go-naturaldate v1.3.0 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.32 // indirect
@@ -117,6 +126,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.41.0 // indirect
 	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
@@ -125,4 +135,5 @@ require (
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	tinygo.org/x/bluetooth v0.15.0 // indirect
 )

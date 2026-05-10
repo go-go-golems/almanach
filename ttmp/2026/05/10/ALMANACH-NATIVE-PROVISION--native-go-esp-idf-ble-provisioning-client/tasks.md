@@ -23,7 +23,13 @@
   - [x] Add compile/round-trip tests for SessionData and WiFiConfigPayload
   - [x] Run `go test ./...`
   - [x] Update diary/changelog and commit Phase 2
-- [ ] Phase 3: implement BLE transport using a Linux BlueZ-capable Go BLE library
+- [x] Phase 3: implement BLE transport using a Linux BlueZ-capable Go BLE library
+  - [x] Add tinygo.org/x/bluetooth dependency for Linux BLE central support
+  - [x] Add provisioning service and endpoint UUID constants
+  - [x] Add TinyGoTransport for scan/connect/service/characteristic discovery
+  - [x] Implement byte-oriented endpoint write/read against discovered characteristics
+  - [x] Run `go test ./...`
+  - [ ] Update diary/changelog and commit Phase 3
 - [ ] Phase 4: implement proto-ver and endpoint discovery parity with browser/Linux Python client
 - [ ] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
 - [ ] Phase 6: implement encrypted WiFi config set/apply/status polling
