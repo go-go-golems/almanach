@@ -203,3 +203,15 @@ Flashed the AtomS3R with the static BLE service UUID firmware fix and restarted 
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Firmware fix included in flashed image
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Flash/monitor validation note
+
+## 2026-05-10
+
+Added browser-side ESP-IDF endpoint discovery and `proto-ver` probing after Chrome successfully found the provisioning GATT service.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Discovers endpoint descriptors and probes `proto-ver`
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.stories.jsx — Updates real BLE connected fixture with protocol verification logs
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt setup bundle
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/tasks.md — Marks Browser BLE Phase 2 complete
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records browser proto-ver implementation

@@ -1466,3 +1466,101 @@ tmux new-session -d -s alm-button-test './build.sh /dev/ttyACM0 monitor'
 ```
 
 The next validation step is to hard-refresh Chrome at `http://localhost:18299/setup`, forget the old `ALM_0F2320` entry if Chrome cached it, and retry **Find BLE printer** against the newly flashed firmware.
+
+## Step 13: Browser proto-ver endpoint probe
+
+After the firmware UUID lifetime fix, Chrome successfully selected `ALM_0F2320`, connected over GATT, found the ESP-IDF provisioning service, and discovered five provisioning characteristics. That completes the browser transport/service-discovery milestone and confirms the service UUID is now stable enough for Web Bluetooth.
+
+This step adds the next browser protocol probe: read endpoint descriptors, map ESP-IDF protocomm endpoint names to GATT characteristics, write `v1.1` to the `proto-ver` endpoint, read the response, and require that the response includes `v1.1`. This is the browser equivalent of the previously validated Linux CLI `ble-provision --action version` feedback loop.
+
+### Prompt Context
+
+**User prompt (verbatim):** "20:06:42 Using real Web Bluetooth ESP-IDF client
+20:06:42 Opening Chrome Bluetooth picker for ALM_ printers
+20:06:45 Selected ALM_0F2320
+20:06:45 Connecting to ALM_0F2320 over GATT
+20:06:45 GATT connection established
+20:06:45 Looking for ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4
+20:06:46 Found ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4
+20:06:47 Discovered 5 provisioning characteristic(s)
+
+---"
+
+**Assistant interpretation:** Browser service discovery is now working. Proceed to the next browser BLE phase: endpoint discovery and `proto-ver` verification.
+
+**Inferred user intent:** Continue advancing the browser client from BLE transport validation toward real ESP-IDF provisioning protocol support.
+
+**Commit (code):** eb70275480bb8679691841c206d0cd59d6784638 — "Probe ESP-IDF proto-ver from browser"
+
+### What I did
+
+- Added endpoint constants for ESP-IDF provisioning endpoints:
+  - `prov-ctrl`
+  - `prov-scan`
+  - `prov-session`
+  - `prov-config`
+  - `proto-ver`
+- Added fallback endpoint UUIDs derived from the firmware base UUID and ESP-IDF endpoint short IDs.
+- Added descriptor-based endpoint discovery by reading User Description descriptor `0x2901` from each characteristic.
+- Added fallback characteristic mapping by UUID if descriptor reads fail.
+- Added `proto-ver` probe after service discovery:
+  - write `v1.1` to the `proto-ver` characteristic
+  - read the response
+  - require `v1.1` to appear in the response
+- Updated the real BLE Storybook fixture to show endpoint/protocol verification logs.
+- Marked Browser BLE Phase 2 complete in the ticket tasks.
+- Rebuilt the setup bundle.
+
+### Why
+
+- `proto-ver` is the smallest ESP-IDF provisioning protocol check. It proves that browser code can write to and read from a protocomm endpoint before implementing Security 1 or credential protobufs.
+- Endpoint descriptors let the browser discover the actual endpoint-to-characteristic mapping the same way Espressif's Python/Bleak client does.
+
+### What worked
+
+- `pnpm --prefix web run build-storybook` passed.
+- `BUILD_WEB_LOCAL=1 go run ./cmd/build-web` passed.
+- `go test ./...` passed.
+
+### What didn't work
+
+- The browser hardware `proto-ver` probe still needs to be run interactively from Chrome after hard-refreshing `/setup`.
+
+### What I learned
+
+- The ESP-IDF NimBLE transport exposes endpoint names via characteristic User Description descriptors, matching the Python client strategy.
+- The endpoint UUIDs for this firmware base UUID follow the pattern `021affXX-0382-4aea-bff4-6b3f1c5adfb4`, for example `proto-ver` is `021aff53-0382-4aea-bff4-6b3f1c5adfb4`.
+
+### What was tricky to build
+
+- Web Bluetooth descriptor reads may fail depending on platform permissions/caching, so the implementation also includes UUID fallback mapping.
+- The current text encode/decode path is only suitable for ASCII protocol probes like `v1.1`. Security 1 and WiFi config payloads will need byte-oriented protobuf/encryption handling.
+
+### What warrants a second pair of eyes
+
+- Confirm the browser logs show all five endpoint descriptors with expected names.
+- Confirm `proto-ver response` matches the Linux CLI response shape before using it as a hard requirement for later phases.
+
+### What should be done in the future
+
+- Run the browser hardware retest and record whether `proto-ver` succeeds.
+- Start Browser BLE Phase 3: choose an ESP-IDF JS provisioning library or implement Security 1/protobuf in our client.
+
+### Code review instructions
+
+- Review `web/src/provisioning/espidf-client.js`, especially `discoverEndpointCharacteristics()` and `sendEndpointText()`.
+- Validate manually with Chrome:
+  - hard-refresh `http://localhost:18299/setup`
+  - click **Find BLE printer**
+  - select `ALM_0F2320`
+  - expect `Verified ESP-IDF provisioning protocol v1.1`
+
+### Technical details
+
+Commands run:
+
+```bash
+pnpm --prefix web run build-storybook
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+go test ./...
+```
