@@ -242,3 +242,17 @@ Reset/reprovision lifecycle: accepted the user's successful Chrome provisioning 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Browser reset/reprov methods
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.jsx — Guarded setup-page reset/reprov buttons
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Existing physical long-hold reset path
+
+## 2026-05-10
+
+Setup rendezvous: added a Glazed provisioning user guide, added a localhost setup API for reporting the provisioned printer IP, updated the render server to use that remembered IP when `ALMANACH_PRINTER_IP` is unset, and updated the browser provisioning client to decode connected-state IP/SSID and post the result back to the setup server.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/doc/provisioning-printer-user-guide.md — Embedded Glazed help page for printer provisioning
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/setup_device.go — Provisioned-device rendezvous API and in-memory store
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/setup_device_test.go — API and printer-IP selection tests
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/server.go — Registers setup API and uses effective printer IP
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-protobuf.js — Decodes connected IP/SSID from BLE status
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Reports provisioned printer IP to localhost setup server
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt embedded setup bundle

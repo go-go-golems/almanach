@@ -21,10 +21,18 @@ RelatedFiles:
       Note: Physical long-hold reset path for clearing provisioning state
     - Path: firmware/atoms3r/main/wifi_cmd.c
       Note: Existing esp_console WiFi save/status/forget behavior studied.
+    - Path: internal/app/doc/provisioning-printer-user-guide.md
+      Note: Glazed help guide for printer provisioning
+    - Path: internal/app/server.go
+      Note: Uses remembered setup printer IP for render-and-print when env printer IP is unset
+    - Path: internal/app/setup_device.go
+      Note: Localhost setup rendezvous API for provisioned printer IP
     - Path: internal/provisioning/native/wifi_ctrl.go
       Note: Native encrypted prov-ctrl reset/reprov implementation
     - Path: web/src/provisioning/espidf-client.js
-      Note: Browser reset/reprov methods over prov-ctrl
+      Note: |-
+        Browser reset/reprov methods over prov-ctrl
+        Browser posts provisioned printer IP to setup server after BLE provisioning
     - Path: web/src/provisioning/espidf-protobuf.js
       Note: Browser WiFi control protobuf helpers
 ExternalSources: []
@@ -33,6 +41,7 @@ LastUpdated: 2026-05-10T13:20:00-04:00
 WhatFor: Use this to understand what was inspected and why the BLE provisioning design recommends a staged port.
 WhenToUse: Read before resuming implementation work on BLE provisioning or console WiFi behavior.
 ---
+
 
 
 # Diary
@@ -1826,4 +1835,122 @@ Serial console: prov_reset
 Physical device: long-hold reset path in button_input.c
 Native BLE: ble-provision --implementation native --action reset|reprov
 Browser BLE: Reprovision / Reset printer WiFi buttons while connected to provisioning service
+```
+
+## Step 16: Provisioning help guide and localhost printer-IP rendezvous
+
+This step turned the setup server into the post-provisioning rendezvous point. The browser already sees the BLE provisioning result, and the Go server already serves the setup page and renders printer output. The missing bridge was a small localhost API where the browser can report the provisioned printer IP after WiFi connects.
+
+I also added a Glazed help page so operators have one durable guide for provisioning, reset/recovery, and verifying that the local render server learned the printer endpoint. The guide is embedded into the server binary through the existing `internal/app/doc` help system.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Write a user guide on provisioning the printer, in a glazed help writing format (see skill) and add to the server binary.
+
+Then, implement the above."
+
+**Assistant interpretation:** Add a Glazed help topic for printer provisioning, then implement the localhost rendezvous API where the browser reports the provisioned device IP back to the render/setup server.
+
+**Inferred user intent:** Make the provisioning workflow operator-friendly and close the handoff from BLE setup to normal render/print server operation.
+
+**Commit (code):** 805f82adaecf7ddef719eac2f5c49084b7a6d0aa — "Add printer provisioning help guide"
+
+**Commit (code):** 868d18e41c93e078ca4ecc0204217cee817c6bdf — "Report provisioned printer IP to setup server"
+
+### What I did
+
+- Read the Glazed help authoring skill.
+- Added `internal/app/doc/provisioning-printer-user-guide.md` with Glazed frontmatter and operator instructions.
+- Added `internal/app/setup_device.go` with:
+  - `ProvisionedDevice`
+  - in-memory `setupDeviceStore`
+  - `POST /api/setup/provisioned-device`
+  - `GET /api/setup/provisioned-device`
+  - `effectivePrinterIP()` fallback from explicit config to remembered setup device
+- Updated `Server.RegisterRoutes()` to register the setup rendezvous API.
+- Updated `/health` and `/api/render-and-print` to use `effectivePrinterIP()`.
+- Added `internal/app/setup_device_test.go` for storing, retrieving, validating, and config-override behavior.
+- Extended browser protobuf parsing to decode `RespGetStatus.connected.ip4_addr` and connected SSID.
+- Updated the browser Web Bluetooth client to `POST /api/setup/provisioned-device` after connected status.
+- Rebuilt embedded setup assets.
+- Verified help discoverability with `go run ./cmd/almanach-render-service help provisioning-printer-user-guide`.
+- Ran:
+  - `go test ./...`
+  - `pnpm --prefix web run build`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+
+### Why
+
+- The browser is the only actor that sees both sides of first-time setup: it talks to the printer over BLE and also has access to the localhost setup server.
+- The Go render server needs the printer IP after provisioning so it can render and print without requiring a separate manual `ALMANACH_PRINTER_IP` configuration step.
+- A help topic makes the lifecycle clear for future operators: setup, verify, reset, and recovery.
+
+### What worked
+
+- The help page renders through the existing Glazed help system.
+- The new setup API is covered by Go tests.
+- The browser setup bundle builds and is copied into embedded assets.
+- `go test ./...` passed.
+
+### What didn't work
+
+- I did not hardware-test the browser IP report because that requires another live provisioning run.
+- The setup rendezvous store is in-memory only. Restarting the render server loses the remembered IP unless `ALMANACH_PRINTER_IP` is configured or the printer is provisioned again.
+
+### What I learned
+
+- ESP-IDF's WiFi connected status can carry `WifiConnectedState`, including `ip4_addr`, `ssid`, `bssid`, `auth_mode`, and `channel`. The browser only needs IP and SSID for the rendezvous handoff.
+- The existing help integration was already present in `cmd_root.go`, so adding a new `*.md` file under `internal/app/doc` was enough to embed the guide.
+
+### What was tricky to build
+
+- The render server should respect explicit configuration. `ALMANACH_PRINTER_IP` still wins over the browser-reported setup IP; the remembered IP only fills the gap when no explicit printer IP is set.
+- The browser must treat reporting as best-effort. Provisioning has succeeded once the printer joins WiFi; if the localhost POST fails, the UI logs the issue but still returns a successful provisioning result with the IP it saw.
+
+### What warrants a second pair of eyes
+
+- Review whether the provisioned device store should persist to disk instead of memory.
+- Review whether `/api/render-and-print` should include the source of the selected printer IP in error/success responses.
+- Review whether `net.ParseIP` is sufficient validation for future mDNS names; currently the API intentionally requires a numeric IP.
+
+### What should be done in the future
+
+- Hardware-test a fresh browser provisioning run and confirm `/api/setup/provisioned-device` receives the IP.
+- Consider adding a small setup-server status panel that shows the remembered printer endpoint.
+- Consider persisting the device record in a local config file.
+
+### Code review instructions
+
+- Start with `internal/app/doc/provisioning-printer-user-guide.md` for user-facing docs.
+- Then inspect `internal/app/setup_device.go` and `server.go` for the rendezvous API and printer-IP selection.
+- Then inspect `web/src/provisioning/espidf-protobuf.js` and `espidf-client.js` for connected-state decoding and POST behavior.
+- Validate with:
+
+```bash
+go run ./cmd/almanach-render-service help provisioning-printer-user-guide
+go test ./...
+pnpm --prefix web run build
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+```
+
+### Technical details
+
+The setup rendezvous API shape is:
+
+```http
+POST /api/setup/provisioned-device
+Content-Type: application/json
+
+{
+  "serviceName": "ALM_0F2320",
+  "ip": "192.168.1.242",
+  "ssid": "Verizon_9DNVB9",
+  "source": "web-bluetooth"
+}
+```
+
+The server exposes the remembered record at:
+
+```http
+GET /api/setup/provisioned-device
 ```

@@ -66,3 +66,10 @@
   - [x] Rebuild setup bundle and embedded assets
 - [x] Reset/reprovision Step 3: confirm physical reset path
   - [x] Confirm button long-hold already clears WiFi/provisioning state and reboots via `reset_provisioning_and_reboot()`
+- [x] Setup rendezvous: report provisioned printer IP back to localhost render server
+  - [x] Add Glazed help page for provisioning the printer
+  - [x] Add `POST /api/setup/provisioned-device` and `GET /api/setup/provisioned-device`
+  - [x] Use remembered setup IP as render/print printer endpoint when `ALMANACH_PRINTER_IP` is unset
+  - [x] Decode connected IP/SSID from browser BLE provisioning status
+  - [x] Browser posts provisioned device to the localhost setup server after connected status
+  - [x] Validate help discoverability, web build, embedded assets, and Go tests
