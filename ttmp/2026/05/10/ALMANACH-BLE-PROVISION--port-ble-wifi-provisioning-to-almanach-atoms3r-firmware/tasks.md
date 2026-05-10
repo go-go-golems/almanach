@@ -41,7 +41,7 @@
   - [x] Wire setup page buttons for mock flow vs real BLE connection
   - [x] Add Storybook state for real BLE connected/discovery-ready UI
   - [x] Validate web build and Storybook build
-- [ ] Browser BLE Phase 2: implement browser proto-ver endpoint probe
+- [x] Browser BLE Phase 2: implement browser proto-ver endpoint probe
 - [ ] Browser BLE Phase 3: decide library vs native implementation for ESP-IDF Security 1/protobuf
 - [ ] Browser BLE Phase 4: send WiFi credentials and poll provisioning result from Chrome
 - [ ] Browser BLE Phase 5: browser hardware validation against AtomS3R and diary/changelog update

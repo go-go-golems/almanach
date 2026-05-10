@@ -73,6 +73,8 @@ export const RealBleConnected = {
         { at: "2026-05-10T17:00:03Z", message: "GATT connection established" },
         { at: "2026-05-10T17:00:04Z", message: "Looking for ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4" },
         { at: "2026-05-10T17:00:05Z", message: "Found ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4" },
+        { at: "2026-05-10T17:00:06Z", message: "Mapped endpoint proto-ver -> 021aff53-0382-4aea-bff4-6b3f1c5adfb4" },
+        { at: "2026-05-10T17:00:07Z", message: "Verified ESP-IDF provisioning protocol v1.1" },
       ],
     },
   },

@@ -5,6 +5,23 @@ export const ESP_IDF_PROVISIONING_SERVICE_UUIDS = Object.freeze([
   ESP_IDF_PROVISIONING_SERVICE_UUID_FIRMWARE_ORDER,
 ]);
 export const ALMANACH_DEVICE_NAME_PREFIX = "ALM_";
+export const ESP_IDF_ENDPOINTS = Object.freeze({
+  PROV_CTRL: "prov-ctrl",
+  PROV_SCAN: "prov-scan",
+  PROV_SESSION: "prov-session",
+  PROV_CONFIG: "prov-config",
+  PROTO_VER: "proto-ver",
+});
+export const FALLBACK_ENDPOINT_UUIDS = Object.freeze({
+  [ESP_IDF_ENDPOINTS.PROV_CTRL]: "021aff4f-0382-4aea-bff4-6b3f1c5adfb4",
+  [ESP_IDF_ENDPOINTS.PROV_SCAN]: "021aff50-0382-4aea-bff4-6b3f1c5adfb4",
+  [ESP_IDF_ENDPOINTS.PROV_SESSION]: "021aff51-0382-4aea-bff4-6b3f1c5adfb4",
+  [ESP_IDF_ENDPOINTS.PROV_CONFIG]: "021aff52-0382-4aea-bff4-6b3f1c5adfb4",
+  [ESP_IDF_ENDPOINTS.PROTO_VER]: "021aff53-0382-4aea-bff4-6b3f1c5adfb4",
+});
+
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder("utf-8");
 
 function bluetoothUnavailableError() {
   return new Error("Web Bluetooth is not available. Open this page in Chrome or Edge from http://localhost.");
@@ -17,6 +34,24 @@ function formatBluetoothError(error, context = "bluetooth") {
   if (error.name === "NotAllowedError") return "Bluetooth permission was denied. Retry and allow Chrome to access the printer.";
   if (error.name === "NetworkError") return "Bluetooth connection failed. Make sure the printer is still in pairing/provisioning mode.";
   return error.message || String(error);
+}
+
+function dataViewToText(value) {
+  return textDecoder.decode(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+}
+
+async function writeCharacteristic(characteristic, text) {
+  const data = textEncoder.encode(text);
+  if (characteristic.writeValueWithResponse) {
+    await characteristic.writeValueWithResponse(data);
+    return;
+  }
+  await characteristic.writeValue(data);
+}
+
+async function readCharacteristicText(characteristic) {
+  const value = await characteristic.readValue();
+  return dataViewToText(value);
 }
 
 async function findProvisioningService(gattServer, log) {
@@ -36,10 +71,57 @@ async function findProvisioningService(gattServer, log) {
   throw error;
 }
 
+async function discoverEndpointCharacteristics(provisioningService, log) {
+  const characteristics = await provisioningService.getCharacteristics();
+  const endpoints = new Map();
+  log(`Discovered ${characteristics.length} provisioning characteristic(s)`);
+
+  for (const characteristic of characteristics) {
+    let endpointName = null;
+    try {
+      const descriptors = await characteristic.getDescriptors();
+      for (const descriptor of descriptors) {
+        if (!descriptor.uuid.toLowerCase().includes("2901")) continue;
+        const value = await descriptor.readValue();
+        endpointName = dataViewToText(value).trim().toLowerCase();
+        break;
+      }
+    } catch (error) {
+      log(`Could not read descriptor for ${characteristic.uuid}: ${error.message || error}`);
+    }
+
+    if (endpointName) {
+      endpoints.set(endpointName, characteristic);
+      log(`Mapped endpoint ${endpointName} -> ${characteristic.uuid}`);
+    }
+  }
+
+  for (const [name, uuid] of Object.entries(FALLBACK_ENDPOINT_UUIDS)) {
+    if (endpoints.has(name)) continue;
+    const characteristic = characteristics.find((candidate) => candidate.uuid.toLowerCase() === uuid);
+    if (characteristic) {
+      endpoints.set(name, characteristic);
+      log(`Mapped endpoint ${name} by fallback UUID ${uuid}`);
+    }
+  }
+
+  return endpoints;
+}
+
 export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
   let bluetoothDevice = null;
   let gattServer = null;
   let provisioningService = null;
+  let endpoints = new Map();
+
+  async function sendEndpointText(endpointName, text) {
+    const characteristic = endpoints.get(endpointName);
+    if (!characteristic) {
+      throw new Error(`ESP-IDF endpoint '${endpointName}' was not discovered.`);
+    }
+    await writeCharacteristic(characteristic, text);
+    return readCharacteristicText(characteristic);
+  }
 
   return {
     async chooseDevice() {
@@ -86,8 +168,15 @@ export function createEspIdfProvisioningClient({ log = () => {} } = {}) {
         provisioningService = found.service;
         log(`Found ESP-IDF provisioning service ${found.uuid}`);
 
-        const characteristics = await provisioningService.getCharacteristics();
-        log(`Discovered ${characteristics.length} provisioning characteristic(s)`);
+        endpoints = await discoverEndpointCharacteristics(provisioningService, log);
+        const endpointNames = Array.from(endpoints.keys()).sort();
+        log(`Available ESP-IDF endpoints: ${endpointNames.join(", ") || "none"}`);
+        const protoVersion = await sendEndpointText(ESP_IDF_ENDPOINTS.PROTO_VER, "v1.1");
+        log(`proto-ver response: ${protoVersion}`);
+        if (!protoVersion.includes("v1.1")) {
+          throw new Error(`Unexpected proto-ver response: ${protoVersion}`);
+        }
+        log("Verified ESP-IDF provisioning protocol v1.1");
       } catch (error) {
         throw new Error(formatBluetoothError(error, "connect"));
       }
