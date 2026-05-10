@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -83,7 +84,11 @@ func NewServeCommand() *cobra.Command {
 }
 
 func RunServe(ctx context.Context, cfg Config) error {
-	log.Printf("Almanach Render Service %s starting on :%d", Version, cfg.Port)
+	return runHTTPServer(ctx, cfg, fmt.Sprintf(":%d", cfg.Port), "Almanach Render Service")
+}
+
+func runHTTPServer(ctx context.Context, cfg Config, addr, serviceName string) error {
+	log.Printf("%s %s starting on %s", serviceName, Version, addr)
 	log.Printf("  Web dir:     %s", cfg.WebDir)
 	log.Printf("  Printer IP:  %s", cfg.PrinterIP)
 	log.Printf("  Chrome:      %s", cfg.ChromePath)
@@ -100,8 +105,15 @@ func RunServe(ctx context.Context, cfg Config) error {
 	mux := http.NewServeMux()
 	srv.RegisterRoutes(mux)
 
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", addr, err)
+	}
+	defer listener.Close()
+	log.Printf("  Listening:   http://%s", listener.Addr().String())
+
 	httpServer := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
+		Addr:         listener.Addr().String(),
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,
@@ -114,7 +126,7 @@ func RunServe(ctx context.Context, cfg Config) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 			return
 		}

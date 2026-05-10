@@ -35,6 +35,7 @@ func NewRootCommand(version string) (*cobra.Command, error) {
 	help_cmd.SetupCobraRootCommand(helpSystem, rootCmd)
 
 	rootCmd.AddCommand(NewServeCommand())
+	rootCmd.AddCommand(NewSetupCommand())
 
 	renderCmd, err := newRenderCommand()
 	if err != nil {

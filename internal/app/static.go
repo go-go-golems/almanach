@@ -44,6 +44,23 @@ func registerStaticRoutes(mux *http.ServeMux, webDir string) {
 		}
 		serveFSFile(w, staticFS, "almanach-bundle.js", "application/javascript; charset=utf-8")
 	})
+
+	mux.HandleFunc("/setup", func(w http.ResponseWriter, r *http.Request) {
+		if serveFromDisk {
+			serveDiskFile(w, filepath.Join(webDir, "setup.html"), "text/html; charset=utf-8")
+			return
+		}
+		serveFSFile(w, staticFS, "setup.html", "text/html; charset=utf-8")
+	})
+
+	mux.HandleFunc("/setup/bundle.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		if serveFromDisk {
+			serveDiskFile(w, filepath.Join(webDir, "setup-bundle.js"), "application/javascript; charset=utf-8")
+			return
+		}
+		serveFSFile(w, staticFS, "setup-bundle.js", "application/javascript; charset=utf-8")
+	})
 }
 
 func serveDiskFile(w http.ResponseWriter, path, contentType string) {
