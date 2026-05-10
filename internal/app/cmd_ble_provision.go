@@ -94,7 +94,7 @@ func bleProvisionFields() []*fields.Definition {
 		fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print the resolved command without executing it")),
 		fields.New("timeout", fields.TypeInteger, fields.WithDefault(120), fields.WithHelp("Timeout in seconds for the esp_prov.py subprocess")),
 		fields.New("install-hints", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Print Linux/ESP-IDF dependency installation hints before running")),
-		fields.New("implementation", fields.TypeChoice, fields.WithDefault("python"), fields.WithChoices("python", "native"), fields.WithHelp("Provisioning implementation to use; native supports action=version and action=provision")),
+		fields.New("implementation", fields.TypeChoice, fields.WithDefault("python"), fields.WithChoices("python", "native"), fields.WithHelp("Provisioning implementation to use; native supports action=version, provision, reset, and reprov")),
 	}
 }
 

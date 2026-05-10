@@ -92,6 +92,8 @@ type fakeSecurity1Transport struct {
 	setPassphrase string
 	applyCount    int
 	statusQueue   []*espidf.RespGetStatus
+	resetCount    int
+	reprovCount   int
 }
 
 func newFakeSecurity1Transport(t *testing.T, pop string) *fakeSecurity1Transport {
@@ -138,6 +140,8 @@ func (t *fakeSecurity1Transport) Send(ctx context.Context, endpoint string, requ
 		}
 	case EndpointProvConfig:
 		return t.handleConfig(request)
+	case EndpointProvCtrl:
+		return t.handleControl(request)
 	default:
 		return nil, fmt.Errorf("unexpected endpoint %s", endpoint)
 	}
@@ -240,6 +244,38 @@ func (t *fakeSecurity1Transport) handleConfig(request []byte) ([]byte, error) {
 		}
 	default:
 		return nil, fmt.Errorf("unexpected config message type %s", msg.GetMsg())
+	}
+	respPlain, err := proto.Marshal(resp)
+	if err != nil {
+		return nil, err
+	}
+	return t.crypt(respPlain), nil
+}
+
+func (t *fakeSecurity1Transport) handleControl(request []byte) ([]byte, error) {
+	plain := t.crypt(request)
+	var msg espidf.WiFiCtrlPayload
+	if err := proto.Unmarshal(plain, &msg); err != nil {
+		return nil, err
+	}
+	var resp *espidf.WiFiCtrlPayload
+	switch msg.GetMsg() {
+	case espidf.WiFiCtrlMsgType_TypeCmdCtrlReset:
+		t.resetCount++
+		resp = &espidf.WiFiCtrlPayload{
+			Msg:     espidf.WiFiCtrlMsgType_TypeRespCtrlReset,
+			Status:  espidf.Status_Success,
+			Payload: &espidf.WiFiCtrlPayload_RespCtrlReset{RespCtrlReset: &espidf.RespCtrlReset{}},
+		}
+	case espidf.WiFiCtrlMsgType_TypeCmdCtrlReprov:
+		t.reprovCount++
+		resp = &espidf.WiFiCtrlPayload{
+			Msg:     espidf.WiFiCtrlMsgType_TypeRespCtrlReprov,
+			Status:  espidf.Status_Success,
+			Payload: &espidf.WiFiCtrlPayload_RespCtrlReprov{RespCtrlReprov: &espidf.RespCtrlReprov{}},
+		}
+	default:
+		return nil, fmt.Errorf("unexpected control message type %s", msg.GetMsg())
 	}
 	respPlain, err := proto.Marshal(resp)
 	if err != nil {

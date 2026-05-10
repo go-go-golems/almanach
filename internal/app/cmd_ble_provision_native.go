@@ -11,8 +11,8 @@ import (
 )
 
 func runNativeBLEProvision(ctx context.Context, s *BLEProvisionSettings, gp middlewares.Processor, readPassphrase bool) error {
-	if s.Action != "version" && s.Action != "provision" {
-		return fmt.Errorf("native implementation currently supports only --action version and --action provision; got %q", s.Action)
+	if s.Action != "version" && s.Action != "provision" && s.Action != "reset" && s.Action != "reprov" {
+		return fmt.Errorf("native implementation currently supports --action version, provision, reset, and reprov; got %q", s.Action)
 	}
 
 	protoVer := s.ProtoVer
@@ -72,6 +72,38 @@ func runNativeBLEProvision(ctx context.Context, s *BLEProvisionSettings, gp midd
 	if _, err := client.EstablishSecurity1(runCtx, s.Pop); err != nil {
 		return fmt.Errorf("native security1: %w", err)
 	}
+
+	if s.Action == "reset" || s.Action == "reprov" {
+		var statusText string
+		var ctrlErr error
+		if s.Action == "reset" {
+			status, err := client.ResetWiFi(runCtx)
+			statusText = status.String()
+			ctrlErr = err
+		} else {
+			status, err := client.ReprovisionWiFi(runCtx)
+			statusText = status.String()
+			ctrlErr = err
+		}
+		if ctrlErr != nil {
+			return fmt.Errorf("native %s WiFi control: %w", s.Action, ctrlErr)
+		}
+		duration := time.Since(started)
+		return gp.AddRow(ctx, types.NewRow(
+			types.MRP("action", s.Action),
+			types.MRP("service_name", s.ServiceName),
+			types.MRP("pop", s.Pop),
+			types.MRP("implementation", "native"),
+			types.MRP("proto_ver", info.Version),
+			types.MRP("sec_ver", info.SecVersion),
+			types.MRP("sec_patch_ver", info.SecPatchVer),
+			types.MRP("capabilities", info.Capabilities),
+			types.MRP("wifi_ctrl_status", statusText),
+			types.MRP("duration_ms", duration.Milliseconds()),
+			types.MRP("endpoint_count", len(transport.Endpoints())),
+		))
+	}
+
 	status, err := client.ProvisionWiFi(runCtx, s.SSID, s.Passphrase, time.Second)
 	if err != nil {
 		return fmt.Errorf("native provision WiFi: %w", err)
