@@ -117,3 +117,12 @@ Added Storybook coverage for the localhost setup/provisioning UI and captured cs
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/AlmanachStudio.stories.jsx — Main editor reference story
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/artifacts/storybook-visuals — css-visual-diff screenshot and report artifacts
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Storybook/css-visual-diff diary entry
+
+## 2026-05-10
+
+Added a playbook for running Storybook with css-visual-diff and ignored local generated visual-diff artifacts.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/.gitignore — Ignores css-visual-diff output directories and ticket Storybook visual artifacts
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/playbooks/01-storybook-css-visual-diff-playbook.md — Operational Storybook/css-visual-diff capture playbook
