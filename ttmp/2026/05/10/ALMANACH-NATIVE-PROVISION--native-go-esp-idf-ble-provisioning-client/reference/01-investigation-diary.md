@@ -151,3 +151,101 @@ docmgr doc add --ticket ALMANACH-NATIVE-PROVISION --doc-type reference --title "
 ```
 
 Evidence was gathered with `nl -ba` over the Go wrapper, firmware provisioning manager, browser Web Bluetooth client, ESP-IDF Python provisioning client, Security 1 implementation, WiFi provisioning helpers, and ESP-IDF protobuf schemas.
+
+## Step 2: Phase 1 native package skeleton and proto-ver tests
+
+This step started implementation by adding the smallest useful native Go protocol slice. The new `internal/provisioning/native` package defines the transport boundary, endpoint metadata, a high-level client skeleton, and a native `proto-ver` verifier. The implementation uses a fake transport in tests, so it can validate protocol parsing and call sequencing without BLE hardware.
+
+This is intentionally not a BLE implementation yet. The goal is to establish package shape and a testable protocol seam before adding BlueZ, protobuf generation, or Security 1. The code mirrors the `proto-ver` behavior already validated in Python and Chrome: accept either a bare `v1.1` string or a JSON capability object with `prov.ver` set to `v1.1`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Do ahead, add tasks to the ticket, and then go through them one by one, committing at appropriate intervals, keeping a diary."
+
+**Assistant interpretation:** Add detailed implementation tasks to the native Go provisioning ticket, begin executing the first phase, validate it, commit at a clean boundary, and record the work in the diary.
+
+**Inferred user intent:** Move from design into implementation while keeping changes reviewable and documented.
+
+**Commit (code):** e3645d0147b5c8e365ab6ac364a55ea281ead466 — "Add native provisioning proto-ver skeleton"
+
+### What I did
+
+- Expanded Phase 1 tasks with explicit subtasks for package creation, fake transport, proto-ver verification, tests, and diary/changelog.
+- Added `internal/provisioning/native/transport.go`:
+  - endpoint constants for `proto-ver`, `prov-session`, `prov-config`, `prov-scan`, and `prov-ctrl`
+  - `EndpointInfo`
+  - `Transport` interface
+- Added `internal/provisioning/native/client.go`:
+  - `Client` wrapper
+  - `NewClient()`
+  - `VerifyVersion()`
+- Added `internal/provisioning/native/protover.go`:
+  - `DefaultProtoVersion`
+  - `ProtoInfo`
+  - `VerifyProtoVersion()`
+- Added fake transport test helper in `fake_transport_test.go`.
+- Added `protover_test.go` covering:
+  - bare string response
+  - JSON response with `sec_ver`, `sec_patch_ver`, and capabilities
+  - default version behavior
+  - version mismatch
+  - transport error wrapping
+  - high-level client forwarding
+- Ran `gofmt` and `go test ./...`.
+
+### Why
+
+- `proto-ver` is the lowest-risk native protocol slice because it is plaintext and has already been validated through Python and Chrome.
+- A fake transport lets the project test native protocol behavior before choosing a BLE library.
+- The `Transport` interface protects future protocol code from BLE implementation details.
+
+### What worked
+
+- `go test ./...` passed.
+- New package tests passed:
+  - `ok github.com/go-go-golems/almanach/internal/provisioning/native`
+- The package now has a clear seam for Phase 2 protobuf and Phase 3/4 BLE transport work.
+
+### What didn't work
+
+- No failure occurred in this phase.
+- No hardware test was attempted because this phase intentionally avoids BLE.
+
+### What I learned
+
+- The current command and browser work gave a stable enough target to implement `proto-ver` parsing without guessing.
+- Keeping fake transport in `_test.go` is enough for unit tests now; a reusable fake can be promoted later if integration tests need it from another package.
+
+### What was tricky to build
+
+- The native package needs to be useful before BLE exists. That means the first abstractions must be byte-oriented endpoint abstractions, not BLE-specific abstractions. The `Transport.Send(ctx, endpoint, []byte)` shape keeps later Security 1 and WiFi config code independent of BlueZ.
+- `proto-ver` has two valid response shapes. Treating the JSON response as the only shape would diverge from Espressif's Python behavior, which also accepts a bare version string.
+
+### What warrants a second pair of eyes
+
+- Review whether `Transport.Connect()` belongs in the same interface as `Send()` or whether future tests would benefit from splitting connected endpoint transport from connection management.
+- Review whether `ProtoInfo` should preserve the full JSON envelope instead of flattening only `prov` fields.
+
+### What should be done in the future
+
+- Phase 2 should add protobuf bindings or a repeatable generation path for ESP-IDF schemas.
+- Phase 3 should implement Security 1 independently of BLE using fake request/response fixtures before real transport work.
+- Phase 4 should choose the Linux BLE library and implement the real transport behind the current interface.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/transport.go` to understand the intended boundary.
+- Then inspect `internal/provisioning/native/protover.go` and `protover_test.go`.
+- Validate with:
+  - `go test ./...`
+
+### Technical details
+
+Commands run:
+
+```bash
+cd almanach
+gofmt -w internal/provisioning/native
+go test ./...
+git commit -m "Add native provisioning proto-ver skeleton"
+```

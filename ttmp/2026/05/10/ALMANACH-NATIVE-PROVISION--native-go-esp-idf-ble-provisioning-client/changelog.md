@@ -28,3 +28,17 @@ Validated the ALMANACH-NATIVE-PROVISION ticket with docmgr doctor and uploaded t
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/design-doc/01-native-go-esp-idf-ble-provisioning-client-analysis-design-and-implementation-guide.md — Included in uploaded bundle
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Included in uploaded bundle
+
+## 2026-05-10
+
+Phase 1 implementation: added the native Go provisioning package skeleton with endpoint transport interfaces, high-level client wrapper, fake transport tests, and plaintext `proto-ver` verification.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/transport.go — Native endpoint transport interface and endpoint constants
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/client.go — High-level native client skeleton
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/protover.go — Native proto-ver parsing and validation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/fake_transport_test.go — Fake transport for protocol unit tests
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/protover_test.go — Unit tests for proto-ver behavior
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 1 task completion
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 1 diary entry
