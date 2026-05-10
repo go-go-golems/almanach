@@ -1154,3 +1154,98 @@ Validation artifacts:
 - Monitor log: `/tmp/almanach-webwait-monitor.log`
 - Go provisioning log: `/tmp/almanach-webwait-go.log`
 - Tmux session: `alm-webwait-test`
+
+## Step 10: Browser BLE picker, GATT connect, and service discovery
+
+This step moved the browser setup page from mock-only behavior to the first real Web Bluetooth milestone. The page can now ask Chrome to open the Bluetooth chooser for `ALM_` devices, connect to the selected device over GATT, and verify that the firmware exposes the custom ESP-IDF provisioning service UUID.
+
+The implementation deliberately stops before ESP-IDF Security 1 and WiFi credential transfer. That keeps the test boundary narrow: first prove browser transport and service discovery against the already-working firmware, then implement `proto-ver`, Security 1/protobuf, credential send, and result polling as separate slices.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Ok, att tasks to implement the browser BLE (if necessary).
+
+go ahead and build them, keep a diary"
+
+**Assistant interpretation:** Add ticket tasks for the real browser BLE client path, implement the next safe browser BLE slice, validate it, commit at a clean boundary, and record the work in the diary.
+
+**Inferred user intent:** Start replacing the setup UI's mock provisioning client with real Chrome/Web Bluetooth integration now that firmware provisioning and Linux CLI provisioning have been proven.
+
+**Commit (code):** e9ae5eb20d459b7a0aa3fc1ef76ec83dd3f2c8ee — "Add browser BLE connection client"
+
+### What I did
+
+- Added browser BLE tasks to `tasks.md` covering picker/connect/service discovery, `proto-ver`, Security 1/protobuf, credential transfer, and hardware validation.
+- Added `web/src/provisioning/espidf-client.js` with:
+  - Almanach/ESP-IDF provisioning service UUID `021a9004-0382-4aea-bff4-6b3f1c5adfb4`.
+  - `ALM_` name-prefix filtering for Chrome's Bluetooth picker.
+  - `navigator.bluetooth.requestDevice(...)` device selection.
+  - GATT connection through `device.gatt.connect()`.
+  - `getPrimaryService(...)` verification for the ESP-IDF provisioning service.
+  - Bluetooth error normalization for cancelled chooser, permission denial, and connection failures.
+- Updated `ProvisioningWizard.jsx` so the user can choose either:
+  - **Find BLE printer** for real Web Bluetooth connection/service discovery.
+  - **Use mock printer** for mock UI validation.
+- Added connected-target UI showing the selected printer and whether it is a real BLE or mock target.
+- Added a Storybook `RealBleConnected` state showing the post-discovery browser milestone.
+- Rebuilt embedded setup assets after the React change.
+
+### Why
+
+- Chrome already reports that Web Bluetooth is available on the localhost setup origin, so the next browser risk is actual BLE device selection and GATT/service discovery.
+- The firmware uses ESP-IDF's standard provisioning manager with a custom BLE service UUID. Browser code must prove it can see the `ALM_...` device and the expected service before implementing crypto/protobuf.
+- Keeping credential transfer disabled for now avoids mixing transport debugging with Security 1/protobuf debugging.
+
+### What worked
+
+- `pnpm --prefix web run build-storybook` passed.
+- `BUILD_WEB_LOCAL=1 go run ./cmd/build-web` passed and regenerated `internal/web/embed/public/setup-bundle.js`.
+- `go test ./...` passed.
+- Storybook now includes a `Provisioning / Setup Page / Real Ble Connected` fixture.
+
+### What didn't work
+
+- No automated browser hardware test was run in this step because Web Bluetooth requires an interactive Chrome chooser and a physical AtomS3R in provisioning mode.
+- Real provisioning still intentionally fails after connection if the user clicks **Continue provisioning**, with an explicit error explaining that ESP-IDF Security 1/protobuf support is not implemented yet.
+
+### What I learned
+
+- The firmware UUID byte array maps to browser UUID `021a9004-0382-4aea-bff4-6b3f1c5adfb4` for Web Bluetooth service discovery.
+- The existing mock-client boundary was good enough to add a real transport client without rewriting the UI state machine.
+
+### What was tricky to build
+
+- Web Bluetooth's `requestDevice()` must run from a user gesture, so the implementation keeps real device selection directly behind the **Find BLE printer** click handler.
+- The browser can only request access to services listed as optional services during device selection. The ESP-IDF provisioning service UUID therefore has to be present in `optionalServices` or later `getPrimaryService()` calls can fail even if the device advertises correctly.
+
+### What warrants a second pair of eyes
+
+- Confirm the UUID byte-order mapping from firmware to Web Bluetooth by testing against the real AtomS3R. If Chrome can select the device but `getPrimaryService()` fails, UUID endianness is the first thing to re-check.
+- Review whether the UI should hide or disable WiFi credential submission for real BLE until Security 1/protobuf is implemented, rather than allowing the explicit not-implemented error.
+
+### What should be done in the future
+
+- Add a browser `proto-ver` endpoint probe as Browser BLE Phase 2.
+- Decide whether to use/adapt an existing ESP-IDF JavaScript provisioning library or implement Security 1/protobuf natively.
+- Add real credential transfer and result polling after the protocol layer is proven.
+
+### Code review instructions
+
+- Start with `web/src/provisioning/espidf-client.js` and verify the service UUID, picker filter, optional services, and GATT connection logic.
+- Then inspect `web/src/provisioning/ProvisioningWizard.jsx` for the real-vs-mock button flow.
+- Validate browser transport manually with:
+  - `go run ./cmd/almanach-render-service setup --port 18299`
+  - open `http://localhost:18299/setup` in Chrome
+  - put AtomS3R in provisioning mode
+  - click **Find BLE printer** and select `ALM_...`
+
+### Technical details
+
+Validation commands run:
+
+```bash
+cd almanach
+pnpm --prefix web run build-storybook
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+go test ./...
+```

@@ -160,3 +160,17 @@ Fixed the first-time provisioning HTTP startup gap by keeping the web-server wai
 ### Related Files
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — `web_server_task()` now keeps waiting until WiFi connects and starts the HTTP server after delayed provisioning.
+
+## 2026-05-10
+
+Added the first real browser Web Bluetooth client slice: Chrome picker for `ALM_` devices, GATT connection, ESP-IDF provisioning service discovery, and a Storybook state for the connected milestone.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/espidf-client.js — Web Bluetooth picker/connect/service discovery client
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.jsx — Real BLE vs mock setup flow wiring
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/ProvisioningWizard.stories.jsx — Real BLE connected Storybook fixture
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/provisioning/types.js — Tracks selected client mode
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/web/embed/public/setup-bundle.js — Rebuilt setup bundle
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/tasks.md — Browser BLE implementation tasks
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Browser BLE diary entry
