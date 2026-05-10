@@ -3,30 +3,40 @@ Title: Investigation Diary
 Ticket: ALMANACH-NATIVE-PROVISION
 Status: active
 Topics:
-  - almanach
-  - go
-  - ble
-  - esp-idf
-  - protocomm
-  - wifi-provisioning
-  - cli
+    - almanach
+    - go
+    - ble
+    - esp-idf
+    - protocomm
+    - wifi-provisioning
+    - cli
 DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-  - Path: /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go
-    Note: Existing Go command inspected to identify Python delegation boundary.
-  - Path: /home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/esp_prov.py
-    Note: Reference provisioning control flow inspected.
-  - Path: /home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/security/security1.py
-    Note: Security 1 algorithm inspected.
-  - Path: /home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/prov/wifi_prov.py
-    Note: WiFi config request/status flow inspected.
+    - Path: ../../../../../../../../../../esp/esp-idf-5.4.2/tools/esp_prov/esp_prov.py
+      Note: Reference provisioning control flow inspected.
+    - Path: ../../../../../../../../../../esp/esp-idf-5.4.2/tools/esp_prov/prov/wifi_prov.py
+      Note: WiFi config request/status flow inspected.
+    - Path: ../../../../../../../../../../esp/esp-idf-5.4.2/tools/esp_prov/security/security1.py
+      Note: Security 1 algorithm inspected.
+    - Path: internal/app/cmd_ble_provision.go
+      Note: |-
+        Existing Go command inspected to identify Python delegation boundary.
+        Implementation selector and native passphrase handling for Phase 7
+    - Path: internal/app/cmd_ble_provision_native.go
+      Note: Native CLI provisioning path for Phase 7
+    - Path: internal/provisioning/native/security1.go
+      Note: Native Security 1 implementation for Phase 5
+    - Path: internal/provisioning/native/wifi_config.go
+      Note: Encrypted WiFi config flow for Phase 6
+ExternalSources: []
 Summary: Chronological investigation diary for native Go ESP-IDF BLE provisioning client design.
 LastUpdated: 2026-05-10T20:20:00-04:00
 WhatFor: Use this to understand what was inspected and why the native Go design proposes the phased implementation plan.
 WhenToUse: Read before implementing the ALMANACH-NATIVE-PROVISION ticket.
 ---
+
 
 # Diary
 
@@ -571,4 +581,250 @@ Commands run:
 go test ./...
 go run ./cmd/almanach-render-service ble-provision --implementation native --action version --service-name ALM_0F2320 --pop alm-0f2320 --timeout 45 --output yaml
 git commit -m "Wire native BLE proto-ver command"
+```
+
+## Step 6: Phase 5 native Security 1 session
+
+This step ported ESP-IDF protocomm Security 1 from the Python reference into native Go. The new `Security1Session` performs the two-message `prov-session` handshake, derives the X25519 shared secret, applies the optional SHA-256(PoP) XOR adjustment, and initializes a stateful AES-256-CTR stream that matches Espressif's Python implementation.
+
+The most important outcome is that the native protocol stack can now create the encrypted session required before sending WiFi credentials. Tests include a fake Security 1 device so the client and device streams advance together through setup0, setup1, client-encrypted data, and device-encrypted responses.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Implement the next tasks, keep a diary (read docmgr and diary skills), commit at appropriate intervals."
+
+**Assistant interpretation:** Continue the native Go provisioning ticket, read/follow the docmgr and diary workflows, implement the next task phases, test them, and commit code/docs at reasonable boundaries.
+
+**Inferred user intent:** Move the native Go BLE provisioning client from proto-ver proof toward real encrypted credential provisioning while preserving traceable project documentation.
+
+**Commit (code):** 87df9f9e3ba3811b8a13647295609754203d900b — "Implement native Security 1 session"
+
+### What I did
+
+- Read the docmgr and diary skills before continuing.
+- Added `internal/provisioning/native/security1.go`.
+- Implemented Security 1 setup0 request generation with a generated X25519 client key.
+- Implemented setup0 response parsing for device public key and device random IV.
+- Implemented X25519 shared-secret derivation.
+- Implemented SHA-256(PoP) XOR shared-key adjustment.
+- Implemented AES-256-CTR stream initialization and continuous stream encrypt/decrypt helpers.
+- Implemented setup1 client proof and device proof verification.
+- Added `Client.EstablishSecurity1()`.
+- Added fake-device tests in `internal/provisioning/native/security1_test.go`.
+- Ran `go test ./...`.
+
+### Why
+
+- ESP-IDF WiFi provisioning requires Security 1 before `prov-config` accepts encrypted WiFi config messages.
+- Porting Security 1 into Go removes the biggest dependency on `esp_prov.py` and gives the future browser JavaScript port a clearer reference implementation.
+
+### What worked
+
+- The generated protobuf bindings were sufficient for `SessionData` / `Sec1Payload` setup messages.
+- The fake device test proved successful PoP handshake and encrypted bidirectional payload flow.
+- `go test ./...` passed after fixing the wrong-PoP expectation.
+
+### What didn't work
+
+- The first wrong-PoP test expected the client-side error `failed to verify device`, but the fake device rejected the setup1 proof earlier with `client failed to prove possession of shared key`. I updated the test to assert the relevant shared-key failure instead.
+
+### What I learned
+
+- The Python client uses one AES-CTR encryptor for both encryption and decryption. The Go implementation must preserve that continuous stream behavior exactly; separate encrypt/decrypt streams would drift.
+- The PoP does not participate directly in protobuf messages. It only mutates the shared secret via SHA-256(PoP) XOR.
+
+### What was tricky to build
+
+- CTR stream ordering is the sharp edge. Setup1 encrypts the device public key first, then setup1 response decrypts the device proof using the next bytes of the same keystream. Application payloads continue from there.
+- The fake device had to mirror the same stream-consumption order to catch drift that simple protobuf round-trips would miss.
+
+### What warrants a second pair of eyes
+
+- Review the continuous AES-CTR stream behavior in `security1.go`; this is the most compatibility-critical part.
+- Review whether comparing proof bytes via `string(...)` should be replaced with `bytes.Equal` or constant-time comparison before wider use.
+
+### What should be done in the future
+
+- Hardware-test Security 1 as part of the native provisioning command.
+- Add fixtures from a Python run if we want golden-byte comparisons for setup messages.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/security1.go`, especially `handleSetup0Response`, `setup1Request`, and `handleSetup1Response`.
+- Then inspect `internal/provisioning/native/security1_test.go` and the fake device's stream ordering.
+- Validate with `go test ./...`.
+
+### Technical details
+
+Reference implementation:
+
+```text
+/home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/security/security1.py
+```
+
+Validation command:
+
+```bash
+go test ./...
+```
+
+## Step 7: Phase 6 encrypted WiFi config flow
+
+This step added the encrypted `prov-config` commands used after Security 1 completes. The native package can now send SetConfig, ApplyConfig, and GetStatus requests by serializing ESP-IDF WiFi protobuf payloads, encrypting them with the active Security 1 stream, sending them over the transport, decrypting responses, and parsing the response protobufs.
+
+A higher-level `ProvisionWiFi` helper now sequences SetConfig, ApplyConfig, and status polling until the device reports a terminal state. This is still fake-transport tested rather than live-provisioned, but it exercises the same encrypted stream continuity that the real device uses.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 6)
+
+**Assistant interpretation:** Continue implementing the next native provisioning phases with tests and commits.
+
+**Inferred user intent:** Build the native Go stack far enough to send WiFi credentials without the Python fallback.
+
+**Commit (code):** fdfe70b327d8e2bf64e6beede28135c651fe0a55 — "Implement native encrypted WiFi config flow"
+
+### What I did
+
+- Added `internal/provisioning/native/wifi_config.go`.
+- Implemented encrypted `SetWiFiConfig`.
+- Implemented encrypted `ApplyWiFiConfig`.
+- Implemented encrypted `GetWiFiStatus`.
+- Added `WiFiStatus` with state text and terminal-state helpers.
+- Added `Client.ProvisionWiFi()` to set credentials, apply them, and poll status.
+- Extended the fake Security 1 transport to decrypt and respond to `prov-config` messages.
+- Added `internal/provisioning/native/wifi_config_test.go` covering success, failed WiFi status, and missing security session.
+- Ran `go test ./...`.
+
+### Why
+
+- Security 1 alone only establishes encryption. Actual provisioning requires the WiFi config protobuf flow over `prov-config`.
+- Keeping this in the native package lets the CLI remain thin and keeps protocol sequencing testable without hardware.
+
+### What worked
+
+- The generated ESP-IDF WiFi protobuf bindings mapped cleanly to SetConfig, ApplyConfig, and GetStatus.
+- Fake encrypted tests verified that credentials are transmitted through the encrypted path and that polling stops on connected or failed states.
+- `go test ./...` passed.
+
+### What didn't work
+
+- No hardware provisioning run was attempted in this step because live provisioning requires known WiFi credentials and changes device state.
+
+### What I learned
+
+- ESP-IDF's WiFi provisioning status response carries both a generic protocomm `Status` and a station state enum. The station state is the useful high-level value for CLI output.
+- Failed WiFi status should be returned as a terminal status rather than necessarily as a Go error; the command can then report the device's failure reason.
+
+### What was tricky to build
+
+- The same Security 1 stream is used for config request encryption and response decryption. The tests had to make the fake device decrypt requests and encrypt responses with the peer stream in exactly the same sequence.
+- `ProvisionWiFi` needs to avoid busy-looping while still making tests fast, so it accepts a polling interval and normalizes non-positive values to one second.
+
+### What warrants a second pair of eyes
+
+- Review whether `Disconnected` should be treated as terminal in all cases or whether a short retry window should be allowed after ApplyConfig.
+- Review CLI semantics for failed status: returning a row with `wifi_state=failed` may be better than returning a process error, but callers may expect non-zero exit for failed provisioning.
+
+### What should be done in the future
+
+- Hardware-test `ProvisionWiFi` through the CLI.
+- Add richer output for connected-state details if the firmware returns IP/auth/SSID metadata.
+
+### Code review instructions
+
+- Start with `internal/provisioning/native/wifi_config.go`.
+- Then inspect the `EndpointProvConfig` branch in `internal/provisioning/native/security1_test.go` and the tests in `wifi_config_test.go`.
+- Validate with `go test ./...`.
+
+### Technical details
+
+Reference implementation:
+
+```text
+/home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/prov/wifi_prov.py
+```
+
+Validation command:
+
+```bash
+go test ./...
+```
+
+## Step 8: Phase 7 native provisioning CLI wiring
+
+This step connected the native encrypted provisioning flow to the existing `ble-provision` command. Python remains the default implementation, while `--implementation native --action provision` now runs proto-ver verification, Security 1 establishment, encrypted SetConfig, ApplyConfig, and status polling.
+
+The command also preserves the existing stdin passphrase prompt for native provisioning and keeps reset/reprov unsupported in native mode with explicit errors. This gives the project a real hardware-testable native provisioning path without removing the Python fallback.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 6)
+
+**Assistant interpretation:** Continue from the native protocol package into CLI integration while keeping fallback behavior safe.
+
+**Inferred user intent:** Make native Go provisioning usable from the same operator command that previously delegated to Python.
+
+**Commit (code):** 4a3130ec051b02a36ecb6d204d6c679be70bf425 — "Wire native BLE provisioning command"
+
+### What I did
+
+- Updated `ble-provision` help for native support.
+- Moved passphrase resolution before implementation dispatch so native provision also supports stdin passphrase prompting.
+- Updated `runNativeBLEProvision` to support `version` and `provision`.
+- Added native dry-run output.
+- Routed native provision through:
+  - BLE connect
+  - proto-ver verification
+  - Security 1 establishment
+  - encrypted WiFi provisioning and status polling
+- Added structured Glazed output fields for native provisioning status.
+- Ran `go test ./...`.
+
+### Why
+
+- A protocol package is useful, but operators need to exercise it through the Almanach binary.
+- Keeping `--implementation python` as the default avoids breaking the known fallback path while native support matures.
+
+### What worked
+
+- The command compiled and all tests passed.
+- The native version path remains available, and native provision is now reachable behind an explicit flag.
+
+### What didn't work
+
+- I did not run live native provisioning because the task needs real WiFi credentials and changes the device's provisioning state.
+- Native reset/reprov remain unsupported.
+
+### What I learned
+
+- Dispatch placement matters: native routing originally happened before passphrase prompting, which would have made native provision fail whenever `--passphrase` was omitted. Moving dispatch after passphrase resolution keeps behavior aligned with Python mode.
+
+### What was tricky to build
+
+- The same command needs to support two implementations with different maturity levels. The safest shape is an explicit selector with Python default and native-only support for actions that are implemented.
+- Native provision should still verify proto-ver first, because that gives a clear plaintext compatibility check before entering the encrypted session.
+
+### What warrants a second pair of eyes
+
+- Review whether live provisioning failures should produce non-zero exit codes even when the command successfully reports `wifi_state=failed`.
+- Review whether native dry-run should avoid passphrase prompting; current behavior matches the Python branch, which prompts before dry-run for `action=provision`.
+
+### What should be done in the future
+
+- Phase 8 should hardware-validate native provisioning with known WiFi credentials.
+- Add reset/reprov native actions after provisioning parity is proven.
+
+### Code review instructions
+
+- Start with `internal/app/cmd_ble_provision.go` for validation, passphrase prompting, and implementation dispatch.
+- Then inspect `internal/app/cmd_ble_provision_native.go` for native action sequencing.
+- Validate with `go test ./...` and then a controlled live provisioning run when credentials are available.
+
+### Technical details
+
+Validation command:
+
+```bash
+go test ./...
 ```

@@ -63,7 +63,7 @@
   - [x] Keep native reset/reprov unsupported with explicit errors
   - [x] Add native dry-run row
   - [x] Run `go test ./...`
-  - [ ] Update diary/changelog and commit Phase 7
+  - [x] Update diary/changelog and commit Phase 7
 - [ ] Phase 8: hardware validate native Go provisioning against AtomS3R
 - [ ] Phase 9: use native Go implementation as reference for future browser JavaScript port
 - [x] Upload native Go provisioning design package to reMarkable

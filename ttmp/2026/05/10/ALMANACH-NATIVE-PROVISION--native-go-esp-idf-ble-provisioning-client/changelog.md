@@ -81,3 +81,35 @@ Phase 4 implementation: added `--implementation python|native` to `ble-provision
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/protover.go — Native proto-ver verifier used by CLI
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 4 task completion
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 4 diary entry
+
+## 2026-05-10
+
+Phase 5 implementation: ported ESP-IDF Security 1 to native Go with X25519, optional SHA-256(PoP) XOR, continuous AES-256-CTR stream handling, setup0/setup1 protobuf messages, and fake-device tests.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/security1.go — Native Security 1 implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/security1_test.go — Fake Security 1 device and stream-continuity tests
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/client.go — Client wrapper for establishing Security 1
+- /home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/security/security1.py — Python reference ported to Go
+
+## 2026-05-10
+
+Phase 6 implementation: added encrypted WiFi config SetConfig, ApplyConfig, GetStatus, and provisioning status polling using generated ESP-IDF WiFi protobuf bindings.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_config.go — Encrypted WiFi config protocol implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_config_test.go — Fake encrypted WiFi config tests
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/security1_test.go — Shared fake encrypted transport used by WiFi config tests
+- /home/manuel/esp/esp-idf-5.4.2/tools/esp_prov/prov/wifi_prov.py — Python WiFi provisioning reference
+
+## 2026-05-10
+
+Phase 7 implementation: wired native provisioning into `ble-provision --implementation native --action provision` while keeping Python as the default fallback.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Implementation selector and native-compatible passphrase prompting
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision_native.go — Native version/provision command flow
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/wifi_config.go — Native provisioning API called by the CLI
