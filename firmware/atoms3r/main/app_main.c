@@ -159,22 +159,36 @@ static void display_status_task(void *arg)
     }
 }
 
-/* Background task: wait for WiFi, then start web server */
+/* Background task: wait for WiFi, then start web server.
+ *
+ * Provisioning can complete after the initial boot window, so this task must not
+ * give up permanently. It polls until WiFi obtains an IP, starts the idempotent
+ * HTTP server once, and then exits.
+ */
 static void web_server_task(void *arg)
 {
     (void)arg;
-    /* Poll until WiFi is connected (max 30 s) */
-    for (int i = 0; i < 60; i++) {
+    int wait_seconds = 0;
+    bool logged_wait = false;
+
+    while (true) {
         if (wifi_mgr_is_connected()) {
             ESP_LOGI(TAG, "WiFi connected — starting web server");
-            web_server_start();
+            esp_err_t err = web_server_start();
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Web server start failed: %s", esp_err_to_name(err));
+            }
             vTaskDelete(NULL);
             return;
         }
-        vTaskDelay(pdMS_TO_TICKS(500));
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        wait_seconds++;
+        if (!logged_wait && wait_seconds >= 30) {
+            ESP_LOGW(TAG, "WiFi not connected after 30s — still waiting to start web server");
+            logged_wait = true;
+        }
     }
-    ESP_LOGW(TAG, "WiFi not connected after 30s — web server not started");
-    vTaskDelete(NULL);
 }
 
 void app_main(void)
