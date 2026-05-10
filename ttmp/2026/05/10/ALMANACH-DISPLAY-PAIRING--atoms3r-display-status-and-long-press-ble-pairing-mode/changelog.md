@@ -67,3 +67,14 @@ Phase 4 partial hardware validation: flashed the display/button firmware, found 
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/backlight.cpp — Switched backlight I2C writes to the new ESP-IDF I2C master API.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-DISPLAY-PAIRING--atoms3r-display-status-and-long-press-ble-pairing-mode/reference/01-investigation-diary.md — Hardware flash and I2C conflict diary entry.
+
+
+## 2026-05-10
+
+Completed real hardware BLE WiFi provisioning validation with `idf.py flash monitor` and the Almanach Go/Glazed `ble-provision` command in tmux. A clean `prov_reset` followed by provisioning to SSID `Verizon_9DNVB9` succeeded, reboot autoconnect succeeded, and `/api/status` returned WiFi/printer status at `192.168.1.242`. The test exposed a remaining web-server startup gap: the first post-provisioning connection can occur after the one-time 30-second boot wait, leaving HTTP unavailable until reboot.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Contains the current one-time WiFi wait before web server startup.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — BLE provisioning events and successful credential connection path validated on hardware.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Go/Glazed wrapper used for the successful real WiFi provisioning run.

@@ -900,3 +900,154 @@ go run ./cmd/almanach-render-service setup --port 18299
 curl -fsS http://127.0.0.1:18299/setup
 curl -fsS http://127.0.0.1:18299/setup/bundle.js
 ```
+
+
+## Step 6: Full BLE WiFi provisioning and reboot autoconnect validation
+
+This step ran the requested end-to-end hardware test with `idf.py flash monitor` in tmux and the Almanach Go/Glazed BLE provisioning command in a second tmux pane. The important result is that the firmware can be provisioned over BLE with real WiFi credentials, persists ESP-IDF provisioning state, reconnects after reboot, starts the web server on the provisioned boot path, and serves `/api/status`.
+
+The test also exposed one timing gap: immediately after first-time provisioning, the app's startup path had already given up waiting for WiFi after 30 seconds, so the web server did not start until the device was rebooted. Reboot autoconnect is successful and starts the web server quickly, but the initial post-provisioning path needs either an event-driven web-server start or a longer/renewed wait.
+
+### Prompt Context
+
+**User prompt (verbatim):** "can you run a real test after flashing the firmware, use idf.py flash monitor and the go 
+
+in a tmux.
+
+(keep a diary, read skills)"
+
+**Assistant interpretation:** Flash the current AtomS3R firmware, keep `idf.py flash monitor` running in tmux, run the Go BLE provisioning command from another tmux pane, and document the exact validation outcome.
+
+**Inferred user intent:** Prove the firmware works on real hardware end-to-end, not only through builds or partial BLE protocol checks.
+
+**Additional user credential prompt:** The SSID was `Verizon_9DNVB9`; the passphrase was intentionally redacted from this diary and logs.
+
+### What I did
+
+- Started `idf.py -D IDF_TARGET=esp32s3 -p /dev/ttyACM0 flash monitor` in tmux session `alm-real-test`.
+- Confirmed firmware boot with display, BLE provisioning, button task, and console prompt.
+- First attempted provisioning against the wrong SSID (`CoxWiFi`) because it was the host laptop's active SSID; BLE/protocomm worked but WiFi failed with AP-not-found.
+- Ran `prov_reset` through the monitor console to clear the bad provisioning state and reboot.
+- Re-ran provisioning through the Almanach Go/Glazed wrapper with SSID `Verizon_9DNVB9`, reading the passphrase from stdin so it was not passed as a command-line flag.
+- Verified the Go command reported success.
+- Verified firmware logs showed association, DHCP, successful provisioning, and provisioning manager teardown.
+- Rebooted the device from `idf.py monitor` and verified persisted credentials autoconnected.
+- Verified `/api/status` over HTTP after reboot:
+  - `curl http://192.168.1.242/api/status`
+
+### What worked
+
+Go provisioning output, sanitized:
+
+```text
+==== Starting Session ====
+==== Session Established ====
+==== Sending Wi-Fi Credentials to Target ====
+==== Wi-Fi Credentials sent successfully ====
+==== Applying Wi-Fi Config to Target ====
+==== Apply config sent successfully ====
+==== Wi-Fi connection state  ====
+++++ WiFi state: Connecting... ++++
+==== Wi-Fi connection state  ====
+==== WiFi state: Connected ====
+==== Provisioning was successful ====
+exit_code: 0
+service_name: ALM_0F2320
+ssid: Verizon_9DNVB9
+```
+
+Firmware monitor evidence:
+
+```text
+I provisioning: Received WiFi credentials for SSID 'Verizon_9DNVB9'
+I wifi:connected with Verizon_9DNVB9, aid = 1, channel 11, 40D
+I esp_netif_handlers: sta ip: 192.168.1.242, mask: 255.255.255.0, gw: 192.168.1.1
+I wifi_mgr: Got IP: 192.168.1.242
+I wifi_prov_mgr: STA Got IP
+I provisioning: Provisioned WiFi credentials connected successfully
+I wifi_prov_mgr: Provisioning stopped
+I provisioning: BLE WiFi provisioning ended
+I provisioning: WiFi provisioning manager deinitialized
+```
+
+Reboot/autoconnect evidence:
+
+```text
+I stoms3r: Provisioned WiFi found — starting station mode
+I wifi:connected with Verizon_9DNVB9, aid = 1, channel 11, 40D
+I wifi_mgr: Got IP: 192.168.1.242
+I stoms3r: WiFi connected — starting web server
+I web_server: HTTP server started on port 80
+```
+
+HTTP validation:
+
+```json
+{"ok":true,"wifi":{"connected":true,"ip":"192.168.1.242"},"printer":{"baud":9600,"swapped":true}}
+```
+
+### What didn't work
+
+- The initial attempt used the wrong SSID (`CoxWiFi`) and failed as expected:
+
+```text
+Failure reason: Incorrect SSID
+wifi_prov_mgr: STA AP Not found
+provisioning: Provisioned WiFi connection failed: AP not found
+```
+
+- A second attempt with the right SSID failed before reset because the firmware was still in the previous bad connection retry loop:
+
+```text
+RuntimeError: Error in apply Wi-Fi config
+```
+
+- After a clean `prov_reset`, the real provisioning flow succeeded.
+- The first successful provisioning connected after the initial `app_main` 30-second web-server wait had already expired:
+
+```text
+W stoms3r: WiFi not connected after 30s — web server not started
+```
+
+  The device was reachable by ping after provisioning, but HTTP port 80 was not open until reboot.
+
+### What I learned
+
+- BLE transport, Security 1, credential transfer, and ESP-IDF provisioning persistence all work on hardware.
+- `prov_reset` is necessary and effective after a failed provisioning attempt if the station retry loop is still active.
+- The web server startup should not depend only on a one-time boot wait. Provisioning can succeed after that wait, especially with BLE/protocomm overhead and AP association latency.
+
+### What was tricky to build
+
+- The Go command can exit successfully only after the ESP-IDF provisioning status reports connected, but the firmware's application-level web server is controlled by a separate startup wait. This creates a split-brain success state: provisioning/WiFi are successful, but HTTP is unavailable until reboot.
+- The monitor contains repeated low-level WiFi BA add/delete noise, so the validation had to focus on high-signal lines: credential receipt, `STA Got IP`, `Provisioning stopped`, reboot autoconnect, and `HTTP server started`.
+
+### What warrants a second pair of eyes
+
+- Review `app_main.c` web-server startup semantics. It should probably start the web server when WiFi gets an IP, not only if WiFi is connected within a fixed startup timeout.
+- Review whether failed provisioning attempts should automatically stop/restart provisioning more cleanly, or whether the documented recovery path should remain `prov_reset`.
+- Review whether storing logs in `/tmp` is enough for validation artifacts or whether sanitized excerpts should be copied into ticket artifacts.
+
+### What should be done in the future
+
+- Fix the initial provisioning web-server startup gap with an event-driven or polling-on-connected path.
+- Physically validate the GPIO41 long-press pairing and reset-confirm behavior.
+- Keep using stdin or another non-argv secret path for provisioning passwords.
+
+### Code review instructions
+
+- Start with `firmware/atoms3r/main/app_main.c` and find the one-time WiFi wait before `web_server_start()`.
+- Review `firmware/atoms3r/main/provisioning_mgr.c` event handling around `WIFI_PROV_CRED_SUCCESS`, `WIFI_PROV_END`, and manager deinit.
+- Reproduce with:
+  - `idf.py -D IDF_TARGET=esp32s3 -p /dev/ttyACM0 flash monitor`
+  - `go run ./cmd/almanach-render-service ble-provision --action provision --service-name ALM_0F2320 --pop alm-0f2320 --ssid <ssid> --timeout 180 --output yaml` with passphrase from stdin.
+  - Reboot from monitor and `curl http://<device-ip>/api/status`.
+
+### Technical details
+
+Artifacts during this run:
+
+- Monitor log: `/tmp/almanach-idf-monitor.log`
+- First wrong-SSID Go log: `/tmp/almanach-go-prov.log`
+- Clean successful Go log: `/tmp/almanach-go-prov-verizon-clean.log`
+- Tmux session: `alm-real-test`

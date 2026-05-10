@@ -140,3 +140,14 @@ Implemented localhost serving for the setup UI: `/setup`, `/setup/bundle.js`, an
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/static_test.go — Verifies setup and editor static routes
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/tasks.md — Marks setup serving tasks complete
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records implementation and validation details
+
+
+## 2026-05-10
+
+Completed real hardware BLE WiFi provisioning validation with `idf.py flash monitor` and the Almanach Go/Glazed `ble-provision` command in tmux. A clean `prov_reset` followed by provisioning to SSID `Verizon_9DNVB9` succeeded, reboot autoconnect succeeded, and `/api/status` returned WiFi/printer status at `192.168.1.242`. The test exposed a remaining web-server startup gap: the first post-provisioning connection can occur after the one-time 30-second boot wait, leaving HTTP unavailable until reboot.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Contains the current one-time WiFi wait before web server startup.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — BLE provisioning events and successful credential connection path validated on hardware.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Go/Glazed wrapper used for the successful real WiFi provisioning run.

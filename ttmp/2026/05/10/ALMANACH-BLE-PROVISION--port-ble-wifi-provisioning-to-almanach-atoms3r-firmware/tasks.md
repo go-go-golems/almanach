@@ -13,7 +13,7 @@
 - [x] Phase 3: integrate provisioning decision into app_main boot flow without breaking saved console WiFi autoconnect
 - [x] Phase 4: add provisioning_cmd.c/.h for prov_status, prov_start, prov_reset and register commands
 - [x] Phase 5: update wifi_forget/reset semantics to clear both explicit NVS WiFi and provisioning manager state
-- [ ] Phase 6: build, flash, monitor, and validate console plus BLE provisioning behavior on AtomS3R
+- [x] Phase 6: build, flash, monitor, and validate console plus BLE provisioning behavior on AtomS3R
 - [x] Design Web Bluetooth provisioning UI for top-level Almanach web app
 - [x] Setup page Phase 1: add standalone React setup entrypoint and mock provisioning component modules
 - [x] Setup page Phase 2: update esbuild to emit setup.html/setup-bundle.js alongside Almanach editor bundle
@@ -32,3 +32,7 @@
 - [x] Implement ble-provision Glazed verb wrapping ESP-IDF esp_prov.py
 - [x] Validate ble-provision dry-run and protocol version check against AtomS3R
 - [x] Upload Linux CLI provisioning design guide to reMarkable
+
+- [x] Validate Linux Go/Glazed provisioning with real WiFi credentials
+- [x] Validate reboot autoconnect and /api/status after provisioning
+- [ ] Fix or document web server startup gap when first provisioning gets IP after app_main initial wait
