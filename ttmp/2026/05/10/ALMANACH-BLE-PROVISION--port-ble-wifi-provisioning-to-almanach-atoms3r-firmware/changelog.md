@@ -126,3 +126,17 @@ Added a playbook for running Storybook with css-visual-diff and ignored local ge
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/.gitignore — Ignores css-visual-diff output directories and ticket Storybook visual artifacts
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/playbooks/01-storybook-css-visual-diff-playbook.md — Operational Storybook/css-visual-diff capture playbook
+
+## 2026-05-10
+
+Implemented localhost serving for the setup UI: `/setup`, `/setup/bundle.js`, and `almanach-render-service setup` bound to 127.0.0.1.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/static.go — Serves setup HTML and bundle from disk or embedded assets
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_setup.go — Adds localhost-only setup command
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_serve.go — Shares HTTP server startup with explicit listen addresses
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_root.go — Registers setup command
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/static_test.go — Verifies setup and editor static routes
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/tasks.md — Marks setup serving tasks complete
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Records implementation and validation details

@@ -805,3 +805,98 @@ css-visual-diff compare --url1 http://127.0.0.1:6007/iframe.html?id=provisioning
 BUILD_WEB_LOCAL=1 go run ./cmd/build-web
 go test ./...
 ```
+
+## Step 9: Localhost setup route and setup command
+
+This step wired the committed React setup page into the Go binary. The service can now serve the standalone provisioning UI at `/setup` with its JavaScript bundle at `/setup/bundle.js`, using either `web/dist` in local development or the bundled `internal/web/embed/public` assets.
+
+I also added a dedicated `almanach-render-service setup` command that binds to `127.0.0.1` and prints a `http://localhost:<port>/setup` URL. This keeps the setup page local-only while still satisfying Web Bluetooth's secure-context requirement for localhost.
+
+### Prompt Context
+
+**User prompt (verbatim):** "add tasks to the ticket and then work on them , commit at appropriate intervals, keep a diary (read skills if necessary)"
+
+**Assistant interpretation:** Expand the ticket task list for the remaining setup-page serving work, implement the next tasks, validate them, commit at a clean boundary, and record the implementation in the ticket diary.
+
+**Inferred user intent:** Continue from the reviewed React/Storybook setup UI into a usable localhost-served setup page from the Go binary, without mixing unrelated colleague firmware work.
+
+**Commit (code):** dc36e39b28d1e47dd1c63541799c47c32f597a1f — "Serve setup page from localhost command"
+
+### What I did
+
+- Expanded the setup-page tasks with explicit subtasks for static handlers, route tests, setup subcommand, URL logging, and smoke validation.
+- Added `/setup` and `/setup/bundle.js` handlers in `internal/app/static.go`.
+- Kept the existing `/almanach` and `/almanach/bundle.js` editor routes unchanged.
+- Refactored `RunServe` in `internal/app/cmd_serve.go` through a shared `runHTTPServer` helper that accepts an explicit listen address.
+- Added `internal/app/cmd_setup.go` with `almanach-render-service setup`.
+- Registered the new setup command from `internal/app/cmd_root.go`.
+- Added `internal/app/static_test.go` to verify `/setup`, `/setup/bundle.js`, `/almanach`, and `/almanach/bundle.js` serve expected content types and body markers.
+
+### Why
+
+- The printer cannot serve a setup page before WiFi exists, so the setup UI must be served by the local Go binary.
+- Web Bluetooth works from localhost, so the command prints a `localhost` URL while binding only to `127.0.0.1`.
+- Route tests protect the embedded/local static asset mapping, especially the intentionally different bundle filenames: `setup-bundle.js` on disk and `/setup/bundle.js` in the browser.
+
+### What worked
+
+- `go test ./...` passed.
+- `BUILD_WEB_LOCAL=1 go run ./cmd/build-web` passed and regenerated `setup.html`/`setup-bundle.js` into the embed directory.
+- A local smoke test passed with:
+  - `go run ./cmd/almanach-render-service setup --port 18299`
+  - `curl http://127.0.0.1:18299/setup`
+  - `curl http://127.0.0.1:18299/setup/bundle.js`
+- The setup HTML contained `/setup/bundle.js` and the setup bundle contained `ALMANACH SETUP`.
+
+### What didn't work
+
+- During the smoke loop, the first two `curl` attempts failed because the `go run` server was still compiling/starting:
+  - `curl: (7) Failed to connect to 127.0.0.1 port 18299 after 0 ms: Couldn't connect to server`
+- Retrying in the loop succeeded once the server printed:
+  - `Open setup page: http://localhost:18299/setup`
+  - `Listening:   http://127.0.0.1:18299`
+
+### What I learned
+
+- The static asset serving layer already had the right disk-vs-bundled abstraction; setup serving only needed two additional routes.
+- Sharing a lower-level HTTP server helper made it easy for the normal `serve` command to retain all behavior while the setup command uses a localhost-only address.
+
+### What was tricky to build
+
+- The browser-facing setup bundle URL is `/setup/bundle.js`, but the generated asset file is `setup-bundle.js`. The route handler deliberately maps between those names.
+- `RunServe` previously used `ListenAndServe` directly, which only supported the implicit all-interfaces `:<port>` address. The setup command needed localhost-only binding, so I changed the server startup to create a `net.Listener` explicitly and serve on that listener.
+
+### What warrants a second pair of eyes
+
+- Review whether `almanach-render-service setup` should expose only static setup routes or whether it is acceptable that it currently registers the same API routes as the normal service.
+- Review whether the default setup port should remain `ALMANACH_PORT`/8199 or move to a dedicated setup default.
+
+### What should be done in the future
+
+- Add an optional browser-open flag if desired.
+- Spike the real Web Bluetooth provisioning adapter behind the current mock-client boundary.
+- Consider route redirects such as `/setup/` to `/setup` if users type the trailing slash often.
+
+### Code review instructions
+
+- Start with `internal/app/static.go` and verify the setup route/file mapping.
+- Then inspect `internal/app/cmd_setup.go` and `internal/app/cmd_serve.go` for the localhost bind behavior.
+- Validate with:
+  - `go test ./...`
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+  - `go run ./cmd/almanach-render-service setup --port 18299`
+  - open `http://localhost:18299/setup`
+
+### Technical details
+
+Commands run:
+
+```bash
+cd almanach
+gofmt -w internal/app/cmd_serve.go internal/app/cmd_setup.go internal/app/cmd_root.go internal/app/static.go internal/app/static_test.go
+go test ./...
+BUILD_WEB_LOCAL=1 go run ./cmd/build-web
+go run ./cmd/almanach-render-service setup --port 18299
+curl -fsS http://127.0.0.1:18299/setup
+curl -fsS http://127.0.0.1:18299/setup/bundle.js
+```

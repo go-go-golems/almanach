@@ -27,7 +27,7 @@
 - [x] Setup page Phase 5: validate devctl build, setup page load, and mock provisioning flow
   - [x] Run go test ./... and web build validation
   - [x] Smoke-test /setup through a local server
-- [ ] Setup page Phase 6: update diary/changelog and design docs with implemented route and command names
+- [x] Setup page Phase 6: update diary/changelog and design docs with implemented route and command names
 - [x] Design Linux Go/Glazed BLE provisioning CLI feedback loop
 - [x] Implement ble-provision Glazed verb wrapping ESP-IDF esp_prov.py
 - [x] Validate ble-provision dry-run and protocol version check against AtomS3R
