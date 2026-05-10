@@ -18,6 +18,7 @@
 #include "nvs_store.h"
 #include "printer_cmd.h"
 #include "printer_drv.h"
+#include "provisioning_mgr.h"
 #include "web_server.h"
 #include "wifi_cmd.h"
 #include "wifi_mgr.h"
@@ -88,6 +89,39 @@ static esp_err_t apply_saved_printer_settings(void)
     return ESP_OK;
 }
 
+static void start_network_onboarding(void)
+{
+    ESP_ERROR_CHECK(provisioning_mgr_init());
+
+    bool provisioned = false;
+    esp_err_t err = provisioning_mgr_is_provisioned(&provisioned);
+    if (err == ESP_OK && provisioned) {
+        ESP_LOGI(TAG, "Provisioned WiFi found — starting station mode");
+        ESP_ERROR_CHECK(wifi_mgr_start_station());
+        return;
+    } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Could not query provisioning state: %s", esp_err_to_name(err));
+    }
+
+    char ssid[64] = {0};
+    char password[64] = {0};
+    if (nvs_store_load_wifi(ssid, sizeof(ssid),
+                             password, sizeof(password)) == ESP_OK) {
+        ESP_LOGI(TAG, "Console-saved WiFi found: \"%s\" — connecting...", ssid);
+        wifi_mgr_connect(ssid, password);
+        return;
+    }
+
+    ESP_LOGI(TAG, "No saved WiFi credentials — starting BLE provisioning");
+    bool started = false;
+    err = provisioning_mgr_start_if_needed(&started);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "BLE provisioning start failed: %s", esp_err_to_name(err));
+    } else if (!started) {
+        ESP_LOGI(TAG, "BLE provisioning was not needed");
+    }
+}
+
 /* Background task: wait for WiFi, then start web server */
 static void web_server_task(void *arg)
 {
@@ -127,16 +161,8 @@ void app_main(void)
     ESP_ERROR_CHECK(printer_drv_init());
     apply_saved_printer_settings();
 
-    /* 5. Auto-connect if credentials are saved */
-    char ssid[64] = {0};
-    char password[64] = {0};
-    if (nvs_store_load_wifi(ssid, sizeof(ssid),
-                             password, sizeof(password)) == ESP_OK) {
-        ESP_LOGI(TAG, "Saved WiFi found: \"%s\" — connecting...", ssid);
-        wifi_mgr_connect(ssid, password);
-    } else {
-        ESP_LOGI(TAG, "No saved WiFi credentials");
-    }
+    /* 5. Start WiFi from saved credentials or BLE provisioning */
+    start_network_onboarding();
 
     /* 6. Start background task that launches the web server once WiFi is up */
     xTaskCreate(web_server_task, "web_wait", 4096, NULL, 2, NULL);

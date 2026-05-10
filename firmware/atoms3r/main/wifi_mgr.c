@@ -156,11 +156,18 @@ esp_err_t wifi_mgr_scan(void)
     return ESP_OK;
 }
 
-esp_err_t wifi_mgr_connect(const char *ssid, const char *password)
+esp_err_t wifi_mgr_start_station(void)
 {
     esp_err_t err = esp_wifi_set_mode(WIFI_MODE_STA);
     if (err != ESP_OK) return err;
     err = esp_wifi_start();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_CONN) return err;
+    return ESP_OK;
+}
+
+esp_err_t wifi_mgr_connect(const char *ssid, const char *password)
+{
+    esp_err_t err = wifi_mgr_start_station();
     if (err != ESP_OK) return err;
 
     wifi_config_t wifi_config = {0};

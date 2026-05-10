@@ -15,6 +15,13 @@ esp_err_t wifi_mgr_init(void);
 esp_err_t wifi_mgr_scan(void);
 
 /**
+ * Start station mode using credentials already stored by ESP-IDF's WiFi stack
+ * (for example credentials received through wifi_prov_mgr). The event handler
+ * will call esp_wifi_connect() when the station starts.
+ */
+esp_err_t wifi_mgr_start_station(void);
+
+/**
  * Connect to a Wi-Fi access point. If successful, credentials are NOT
  * saved automatically — call nvs_store_save_wifi() explicitly.
  */

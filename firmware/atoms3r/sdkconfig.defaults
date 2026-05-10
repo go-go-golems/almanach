@@ -23,15 +23,10 @@ CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
 
-# Console history
-CONFIG_ESP_CONSOLE_HISTORY_LEN=50
-
-# BLE WiFi provisioning transport. Keep Classic BT disabled and use NimBLE for
-# the ESP-IDF wifi_prov_mgr BLE scheme.
+# BLE WiFi provisioning transport. Use NimBLE for the ESP-IDF wifi_prov_mgr
+# BLE scheme. Classic Bluetooth controller mode symbols used by older ESP-IDF
+# releases are not present for this ESP32-S3 / ESP-IDF 5.4 target.
 CONFIG_BT_ENABLED=y
-CONFIG_BTDM_CTRL_MODE_BLE_ONLY=y
-CONFIG_BTDM_CTRL_MODE_BR_EDR_ONLY=n
-CONFIG_BTDM_CTRL_MODE_BTDM=n
 CONFIG_BT_NIMBLE_ENABLED=y
 
 # WiFi provisioning security 1 provides Proof-of-Possession protected

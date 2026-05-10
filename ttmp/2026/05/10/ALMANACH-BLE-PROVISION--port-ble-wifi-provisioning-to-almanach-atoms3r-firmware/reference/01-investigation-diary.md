@@ -215,3 +215,106 @@ Successfully created esp32s3 image.
 Generated .../firmware/atoms3r/build/stoms3r.bin
 stoms3r.bin binary size 0x116a30 bytes. Smallest app partition is 0x400000 bytes. 0x2e95d0 bytes (73%) free.
 ```
+
+## Step 3: Phase 2 and 3 provisioning manager and boot-flow integration
+
+This step added the first real firmware implementation for BLE WiFi provisioning. I created a dedicated `provisioning_mgr` module, then changed the firmware boot flow so first boot can start BLE provisioning while existing provisioned or console-saved credentials still take the station-mode path.
+
+The implementation keeps WiFi/IP state in `wifi_mgr` and makes provisioning own only ESP-IDF provisioning/protocomm events. This follows the design guide's preferred first approach and avoids rewriting the working console WiFi path before hardware validation proves a conflict exists.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Continue implementing the ticket phases and commit at logical milestones.
+
+**Inferred user intent:** Add the actual BLE provisioning firmware plumbing while keeping changes reviewable.
+
+**Commit (code):** pending — this step will be committed after diary/changelog update.
+
+### What I did
+
+- Added `firmware/atoms3r/main/provisioning_mgr.h`.
+- Added `firmware/atoms3r/main/provisioning_mgr.c`.
+- Added `provisioning_mgr.c` to `firmware/atoms3r/main/CMakeLists.txt`.
+- Implemented MAC-derived BLE service identity:
+  - service name: `ALM_<last-three-mac-bytes>`
+  - PoP: `alm-<last-three-mac-bytes>`
+- Implemented provisioning/protocomm event logging for:
+  - `WIFI_PROV_EVENT`
+  - `PROTOCOMM_TRANSPORT_BLE_EVENT`
+  - `PROTOCOMM_SECURITY_SESSION_EVENT`
+- Implemented provisioning manager APIs:
+  - `provisioning_mgr_init`
+  - `provisioning_mgr_is_provisioned`
+  - `provisioning_mgr_start_if_needed`
+  - `provisioning_mgr_start_force`
+  - `provisioning_mgr_stop`
+  - `provisioning_mgr_reset`
+  - `provisioning_mgr_get_status`
+- Added `wifi_mgr_start_station()` for ESP-IDF stored credentials.
+- Updated `app_main.c` boot flow to:
+  - initialize provisioning manager
+  - start station mode if ESP-IDF says the device is provisioned
+  - fall back to explicit `nvs_store_load_wifi()` console credentials
+  - start BLE provisioning when no credentials exist
+- Built firmware after integration:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+### Why
+
+- The firmware needs first-boot onboarding without USB serial, but the current console and saved-WiFi paths should remain valid.
+- ESP-IDF provisioning manager can store credentials in the WiFi stack's NVS storage; `wifi_mgr_start_station()` lets the firmware connect using those stored credentials without knowing the SSID/password itself.
+
+### What worked
+
+- Firmware build passed after adding the manager and boot-flow integration.
+- Output image was generated successfully:
+  - `stoms3r.bin binary size 0x158140 bytes`
+  - Free app partition space: `0x2a7ec0 bytes (66%)`
+
+### What didn't work
+
+- The first version of the manager used `ESP_RETURN_ON_ERROR(wifi_prov_mgr_stop_provisioning(), ...)`, but ESP-IDF 5.4's `wifi_prov_mgr_stop_provisioning()` returns `void`, not `esp_err_t`.
+- Fix: call `wifi_prov_mgr_stop_provisioning()` directly and then update local state.
+- The first Kconfig defaults copied older ESP32 symbols (`CONFIG_BTDM_CTRL_MODE_*`) and the old console history symbol. ESP-IDF 5.4 for ESP32-S3 reported them as unknown.
+- Fix: remove those unknown symbols and keep only `CONFIG_BT_ENABLED`, `CONFIG_BT_NIMBLE_ENABLED`, and protocomm security 1.
+
+### What I learned
+
+- ESP-IDF 5.4's WiFi provisioning manager API differs slightly from older examples around return types and target-specific Kconfig symbols.
+- Linking the provisioning manager into application code pulls in significantly more binary than dependency-only linking, but the app partition still has substantial headroom.
+
+### What was tricky to build
+
+- The subtle part is avoiding duplicate event handler registration. Provisioning can deinitialize itself on `WIFI_PROV_END`, but the event handlers should not be registered repeatedly on later manager init calls. I added a local `s_handlers_registered` guard.
+- Another subtle point is source-of-truth. The boot flow now checks ESP-IDF provisioning state first, then falls back to explicit console NVS credentials. This should support both BLE-provisioned and console-configured devices.
+
+### What warrants a second pair of eyes
+
+- Review `provisioning_mgr_reset()` behavior with `wifi_prov_mgr_reset_provisioning()` before relying on it for `prov_reset`.
+- Review whether deinitializing the provisioning manager on `WIFI_PROV_END` is correct alongside later status queries.
+- Review whether `wifi_mgr_start_station()` should tolerate a different already-started WiFi error code than `ESP_ERR_WIFI_CONN`.
+
+### What should be done in the future
+
+- Add console commands for provisioning status/start/reset.
+- Flash and monitor runtime behavior after commands are available.
+
+### Code review instructions
+
+- Start with `provisioning_mgr.h` for the API contract.
+- Review `provisioning_mgr.c` for event ownership, service identity, and start/reset behavior.
+- Review `app_main.c` `start_network_onboarding()` for boot decision order.
+- Review `wifi_mgr_start_station()` in `wifi_mgr.c`.
+- Validate with:
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+### Technical details
+
+Successful build summary:
+
+```text
+Successfully created esp32s3 image.
+stoms3r.bin binary size 0x158140 bytes. Smallest app partition is 0x400000 bytes. 0x2a7ec0 bytes (66%) free.
+```
