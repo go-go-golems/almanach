@@ -4,9 +4,9 @@ Ticket: ALMANACH-SETUP-STATE
 Status: active
 Topics:
     - almanach
-    - setup
-    - provisioning
-    - state
+    - go
+    - cli
+    - wifi-provisioning
 DocType: index
 Intent: long-term
 Owners: []
@@ -36,9 +36,9 @@ Current status: **active**
 ## Topics
 
 - almanach
-- setup
-- provisioning
-- state
+- go
+- cli
+- wifi-provisioning
 
 ## Tasks
 
