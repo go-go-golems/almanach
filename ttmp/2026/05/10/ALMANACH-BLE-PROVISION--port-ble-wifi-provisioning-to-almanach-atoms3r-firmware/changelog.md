@@ -61,3 +61,24 @@ Phases 4-5: added provisioning console commands and made WiFi forget/reset clear
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/wifi_cmd.c — wifi_forget clears provisioning state
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Phases 4-5 diary entry
 
+
+## 2026-05-10
+
+Added Web Bluetooth provisioning UI design guide for almanach/web, covering browser constraints, React integration, ESP-IDF BLE protocol adapter, phases, tests, and risks.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Firmware BLE protocol facts referenced by UI guide
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/design-doc/02-web-bluetooth-provisioning-ui-design-and-implementation-guide.md — New intern-facing web UI provisioning guide
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/web/src/almanach-studio.jsx — Primary UI integration target
+
+
+## 2026-05-10
+
+Hardware smoke-tested BLE provisioning boot path on AtomS3R after erase/flash; verified BLE advertising, prov_status, prov_start idempotence, and wifi_status from serial monitor.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/provisioning_mgr.c — Fixed provisioning_mgr_start_if_needed to report already-running state correctly
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/reference/01-investigation-diary.md — Hardware smoke-test diary entry
+

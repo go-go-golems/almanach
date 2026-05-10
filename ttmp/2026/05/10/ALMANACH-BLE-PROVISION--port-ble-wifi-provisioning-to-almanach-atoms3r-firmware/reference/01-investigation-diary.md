@@ -400,3 +400,212 @@ prov_status  Show provisioning manager state, BLE service name, PoP, and current
 prov_start   Start BLE provisioning if the device is not already provisioned
 prov_reset   Erase explicit/provisioned WiFi state and reboot
 ```
+
+## Step 5: Web Bluetooth provisioning UI design for `almanach/web`
+
+This step added a second design document focused specifically on the browser UI work. The earlier design document focused on firmware BLE provisioning; this new guide explains how a Web Bluetooth provisioning experience should fit into the existing Almanach React app, which browser constraints matter, and how an intern should phase the implementation without destabilizing the existing editor, render-service, and print paths.
+
+The most important finding is that the firmware-embedded `/almanach` page is not the right first-boot Web Bluetooth entrypoint because Web Bluetooth requires a secure context and first-boot devices are not yet reachable over WiFi. The UI can still live in `./almanach/web`, but it should be served from localhost during development or from a future HTTPS setup origin for production provisioning.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Look at docmgr ticket ALMANACH-BLE-PROVISION and create a design implementation guide to add BLE provisioning to the web UI of ./almanach/web .
+
+Create  a detailed analysis / design / implementation guide that is for a new intern, explaining all the parts of the system needed to understand what it is, with prose paragraphs and bullet point sand pseudocode and diagrams and api references and file references. It should be very clear and technical. Store in the ticket and the nupload to remarkable."
+
+**Assistant interpretation:** Add a new ticket document for Web Bluetooth provisioning UI design, grounded in the existing BLE provisioning ticket and the current web/firmware code, then upload the deliverable to reMarkable.
+
+**Inferred user intent:** Prepare an intern-facing handoff for the next phase: implementing a browser provisioning flow in the Almanach web app.
+
+**Commit (code):** N/A — documentation-only work.
+
+### What I did
+
+- Reviewed the existing `ALMANACH-BLE-PROVISION` ticket documents, tasks, and diary.
+- Inspected current frontend files:
+  - `web/src/almanach-studio.jsx`
+  - `web/esbuild.mjs`
+  - `web/package.json`
+- Inspected current firmware provisioning and HTTP files:
+  - `firmware/atoms3r/main/provisioning_mgr.c`
+  - `firmware/atoms3r/main/provisioning_mgr.h`
+  - `firmware/atoms3r/main/app_main.c`
+  - `firmware/atoms3r/main/web_server.c`
+  - `firmware/atoms3r/main/CMakeLists.txt`
+  - `firmware/atoms3r/sdkconfig.defaults`
+- Created `design-doc/02-web-bluetooth-provisioning-ui-design-and-implementation-guide.md`.
+- Related the new doc to the key frontend and firmware files with `docmgr doc relate`.
+- Added and checked the task `Design Web Bluetooth provisioning UI for top-level Almanach web app`.
+
+### Why
+
+- Adding BLE provisioning to the web UI crosses frontend architecture, browser API limitations, ESP-IDF BLE provisioning semantics, firmware status endpoints, and build/firmware asset sync. An intern needs a cohesive map before writing code.
+- The current React app is a monolithic 2,594-line file. The guide recommends a small topbar integration plus separate `web/src/provisioning/` modules to avoid making the monolith harder to maintain.
+- The secure-context constraint changes the product shape: browser provisioning should be hosted from localhost/HTTPS, not assumed to work from the firmware's plain HTTP page.
+
+### What worked
+
+- The existing ticket already had a strong firmware provisioning design, which provided the firmware-side context for the web UI guide.
+- Source inspection found clear anchors for the design:
+  - The web app topbar and print path in `almanach-studio.jsx`.
+  - The esbuild IIFE output and generated HTML shell in `esbuild.mjs`.
+  - The firmware service name, PoP, service UUID, events, and status struct in `provisioning_mgr.c/.h`.
+  - The current `/api/status` and embedded `/almanach` routes in `web_server.c`.
+- The new guide includes architecture, diagrams, pseudocode, API references, phases, test strategy, risks, alternatives, and file references.
+
+### What didn't work
+
+- No code implementation was attempted in this step, so there were no build/test failures.
+- I initially drafted one paragraph as if `app_main.c` had not yet integrated provisioning. A later source check showed the ticket implementation has progressed: `app_main.c` now includes `provisioning_mgr.h`, calls `start_network_onboarding()`, and registers provisioning console commands. I corrected the document before upload.
+- The prompt said `nupload`; I interpreted that as upload to reMarkable.
+
+### What I learned
+
+- `almanach/web` is both the hosted render-service UI source and the source that can be synced into firmware assets. A provisioning feature added there must explicitly handle both runtime contexts.
+- Web Bluetooth support is origin-dependent, so UX copy and capability checks are not optional polish; they are core correctness.
+- The npm package `esp-idf-provisioning-web` exists and is worth a spike, but the design should hide any third-party package behind an adapter interface so the UI does not depend on a single library's API shape.
+
+### What was tricky to build
+
+- The tricky part was drawing the boundary between firmware-served UI and hosted setup UI. The same bundle can be embedded into firmware, but the same browser APIs will not necessarily be available when served over firmware HTTP. The guide therefore recommends clear capability detection and user-facing unsupported messages.
+- Another subtle point is the ESP-IDF service UUID byte order. The firmware sets a byte array in C; browser code usually needs a canonical UUID string. The guide calls this out as a hardware validation item rather than pretending a copied string is guaranteed correct.
+
+### What warrants a second pair of eyes
+
+- Review the recommendation to use `esp-idf-provisioning-web` as a package spike before manual protocomm implementation.
+- Review the proposed product stance that first-boot browser provisioning should be hosted from localhost/HTTPS rather than the firmware page.
+- Review whether the guide should also propose splitting the current monolithic `almanach-studio.jsx` beyond provisioning modules.
+
+### What should be done in the future
+
+- Implement the mock `ProvisioningWizard` and topbar entrypoint first.
+- Validate firmware BLE provisioning with Espressif's app before debugging custom browser provisioning.
+- Spike `esp-idf-provisioning-web` against real AtomS3R hardware.
+- Add a firmware `/api/status` provisioning block that does not expose PoP.
+
+### Code review instructions
+
+- Start with the new design doc's Executive Summary and Critical Constraint sections.
+- Then compare `web/src/almanach-studio.jsx` topbar/print paths with the proposed minimal integration.
+- Review `firmware/atoms3r/main/provisioning_mgr.c` for the firmware protocol facts used by the UI plan.
+- Validate documentation with:
+  - `cd almanach && docmgr doctor --ticket ALMANACH-BLE-PROVISION --stale-after 30`
+
+### Technical details
+
+New document:
+
+```text
+ttmp/2026/05/10/ALMANACH-BLE-PROVISION--port-ble-wifi-provisioning-to-almanach-atoms3r-firmware/design-doc/02-web-bluetooth-provisioning-ui-design-and-implementation-guide.md
+```
+
+Key design output:
+
+- Add `web/src/provisioning/` modules.
+- Add a topbar `Set up printer` modal entrypoint.
+- Use `window.isSecureContext` and `navigator.bluetooth` capability checks.
+- Keep the BLE/protocomm implementation behind an adapter interface.
+- Treat firmware-served `/almanach` as post-WiFi UI, not the primary first-boot provisioning origin.
+
+## Step 5: Flash and first serial-console validation on AtomS3R
+
+This step flashed the provisioning firmware to the physical AtomS3R and validated the first-boot BLE advertising path plus the new provisioning console commands from `idf.py monitor`.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Validate the implemented phases on hardware where possible before moving on.
+
+**Inferred user intent:** Catch integration problems that only appear on the ESP32-S3 runtime, not just during build.
+
+**Commit (code):** pending — this step also includes a small follow-up fix to `provisioning_mgr_start_if_needed()` discovered during monitor testing.
+
+### What I did
+
+- Erased flash and flashed the current firmware to `/dev/ttyACM0`:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 erase-flash`
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 flash`
+- Started `idf.py monitor` in a tmux session.
+- Verified first-boot logs after erased flash:
+  - No saved WiFi credentials were found.
+  - BLE provisioning started automatically.
+  - Advertised provisioning identity was `ALM_0F2320`.
+  - PoP was `alm-0f2320`.
+  - QR payload was printed as JSON.
+- Ran `prov_status` from the monitor console and confirmed:
+  - manager initialized: yes
+  - provisioned: no
+  - BLE running: yes
+  - WiFi: disconnected
+- Ran `wifi_status` and confirmed the legacy console command still responds while BLE provisioning is active.
+- Ran `prov_start` while BLE provisioning was already running and found the message was misleading: it said provisioning started even though the manager logged that it was already running.
+- Fixed `provisioning_mgr_start_if_needed()` so it returns success without setting `out_started=true` when BLE provisioning is already running.
+- Rebuilt and reflashed the firmware.
+- Re-ran monitor validation and confirmed `prov_start` now prints:
+  - `BLE provisioning not started: device is already provisioned or already running.`
+
+### Why
+
+- The build can only prove that the APIs link. It cannot prove BLE controller initialization, NimBLE startup, console registration, or real boot ordering on the AtomS3R.
+- The misleading `prov_start` output was exactly the kind of runtime UX issue this phase was meant to catch.
+
+### What worked
+
+- Erase/flash completed successfully.
+- Boot completed successfully.
+- BLE/NimBLE initialized successfully.
+- `wifi_prov_mgr` started BLE provisioning.
+- Console remained usable while BLE provisioning was advertising.
+- `prov_status`, `prov_start`, and `wifi_status` executed from the serial monitor.
+
+### What didn't work
+
+- I did not complete mobile-app provisioning in this step. The firmware is advertising the standard ESP-IDF BLE provisioning service, but the next validation pass still needs a phone/client to send credentials and confirm connected/reboot behavior.
+
+### What I learned
+
+- On the tested AtomS3R, the provisioning values are:
+  - Service name: `ALM_0F2320`
+  - PoP: `alm-0f2320`
+- `wifi_prov_scheme_ble: BT memory released` appears during init before BLE provisioning starts; BLE still initializes and advertises correctly afterward.
+
+### What was tricky to build
+
+- `prov_start` needed a clear idempotent path. Calling it while BLE is already active should not look like a fresh start.
+
+### What warrants a second pair of eyes
+
+- Review the `s_running` guard in `provisioning_mgr_start_if_needed()` and confirm it is the desired public API behavior.
+- During mobile-app provisioning, verify whether provisioning manager state transitions produce the expected status output for client-connected/security/session events.
+
+### What should be done in the future
+
+- Provision with Espressif's BLE provisioning app using:
+  - Device: `ALM_0F2320`
+  - PoP: `alm-0f2320`
+- Confirm successful WiFi connection, web server startup, `/api/status`, reboot autoconnect, and reset/re-provision flow.
+
+### Code review instructions
+
+- Review the monitor transcript evidence in this diary step.
+- Re-run on hardware with:
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 erase-flash && ./build.sh /dev/ttyACM0 flash`
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 monitor`
+- Console smoke commands:
+  - `prov_status`
+  - `prov_start`
+  - `wifi_status`
+
+### Technical details
+
+Observed first-boot provisioning log excerpt:
+
+```text
+No saved WiFi credentials — starting BLE provisioning
+wifi_prov_mgr: Provisioning started with service name : ALM_0F2320
+provisioning: BLE WiFi provisioning started
+provisioning:   Device    : ALM_0F2320
+provisioning:   Security  : Security 1
+provisioning:   PoP       : alm-0f2320
+```

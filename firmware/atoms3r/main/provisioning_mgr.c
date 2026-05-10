@@ -203,6 +203,11 @@ esp_err_t provisioning_mgr_start_if_needed(bool *out_started)
 
     ESP_RETURN_ON_ERROR(provisioning_mgr_init(), TAG, "ensure provisioning manager initialized");
 
+    if (s_running) {
+        ESP_LOGI(TAG, "BLE provisioning already running");
+        return ESP_OK;
+    }
+
     bool provisioned = false;
     ESP_RETURN_ON_ERROR(wifi_prov_mgr_is_provisioned(&provisioned), TAG, "check provisioned state");
     if (provisioned) {
