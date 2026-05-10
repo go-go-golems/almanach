@@ -87,3 +87,14 @@ Fixed the first-time provisioning HTTP startup gap by keeping the web-server wai
 ### Related Files
 
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — `web_server_task()` now keeps waiting until WiFi connects and starts the HTTP server after delayed provisioning.
+
+
+## 2026-05-10
+
+Adjusted AtomS3R button UX after physical press logs showed the hold detector working but the provisioned-device pairing path doing nothing. Pairing is now a 3-second hold, destructive reset is now a 10-second hold, and pairing uses the force-start provisioning path so a configured device can re-enter BLE pairing mode.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/button_input.c — Pairing hold now force-starts BLE provisioning.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/Kconfig.projbuild — Reset hold default increased to 10 seconds.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/sdkconfig.defaults — Committed button timing defaults for fresh builds.

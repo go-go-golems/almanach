@@ -32,3 +32,8 @@ CONFIG_BT_NIMBLE_ENABLED=y
 # WiFi provisioning security 1 provides Proof-of-Possession protected
 # protocomm sessions for the standard Espressif provisioning clients.
 CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y
+
+# AtomS3R button UX: pairing should be easy to trigger, credential reset should
+# require a much more deliberate hold.
+CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS=3000
+CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS=10000

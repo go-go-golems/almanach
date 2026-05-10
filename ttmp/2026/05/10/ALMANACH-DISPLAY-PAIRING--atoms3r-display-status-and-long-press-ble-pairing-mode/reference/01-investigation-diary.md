@@ -682,3 +682,98 @@ Validation artifacts:
 - Monitor log: `/tmp/almanach-webwait-monitor.log`
 - Go provisioning log: `/tmp/almanach-webwait-go.log`
 - Tmux session: `alm-webwait-test`
+
+
+## Step 8: Button hold UX adjustment after physical press testing
+
+This step interpreted the button logs from physical presses and adjusted the button UX. The presses were reaching the pairing threshold around 2.6 seconds, but because the device was already provisioned the old button path called `provisioning_mgr_start_if_needed()` and reported `Device already provisioned; BLE provisioning not started`. That made the 3-second action feel ambiguous: the hold was detected, but it did not actually open pairing for a configured device.
+
+The reset threshold was also too close to the pairing threshold. The firmware now uses a 3-second pairing hold and a 10-second destructive reset hold. The pairing action now calls the force-start provisioning path so a provisioned device can explicitly re-enter BLE pairing/reprovisioning mode from the button instead of silently doing nothing.
+
+### Prompt Context
+
+**User prompt (verbatim):** "I tried to press, read the logs, a couple of time. I think 3 vs 5 is too small a difference, it should be 3 and 10. I don't know if the 3 seconds thing worked"
+
+**Assistant interpretation:** Inspect monitor logs from the user's physical button presses, determine whether the pairing hold was detected, then change the UX to 3 seconds for pairing and 10 seconds for reset.
+
+**Inferred user intent:** Make the physical button interaction less error-prone and make pairing visibly/actually happen when holding for the shorter threshold.
+
+**Commit (code):** pending — button threshold and pairing behavior update.
+
+### What I did
+
+- Read `/tmp/almanach-webwait-monitor.log` and the active tmux monitor pane.
+- Confirmed several physical button presses were captured.
+- Confirmed the prior threshold was effectively reached around 2.6 seconds, but the provisioned-device path did not start BLE advertising.
+- Updated `firmware/atoms3r/main/Kconfig.projbuild`:
+  - reset hold default: `10000` ms
+- Updated `firmware/atoms3r/sdkconfig.defaults`:
+  - pairing hold: `3000` ms
+  - reset hold: `10000` ms
+- Updated `firmware/atoms3r/main/button_input.c` so the pairing hold calls `provisioning_mgr_start_force()` instead of `provisioning_mgr_start_if_needed()`.
+- Built and flashed the firmware.
+- Started a new monitor session and confirmed boot logs show:
+  - `pair_hold_ms=3000 reset_hold_ms=10000`
+
+### What worked
+
+The user's prior physical presses were visible in the monitor:
+
+```text
+I button_input: button press started
+I button_input: button pairing hold reached: 2592 ms
+I provisioning: Device already provisioned; BLE provisioning not started
+I button_input: button released after 3047 ms
+```
+
+This means the button GPIO and hold detector worked. The confusing part was the policy: because the device was already provisioned, the old non-force start path refused to start BLE provisioning.
+
+After the change and flash, monitor showed the new thresholds:
+
+```text
+I button_input: button init: gpio=41 active_low=1 debounce_ms=50 pair_hold_ms=3000 reset_hold_ms=10000
+```
+
+### What didn't work
+
+- The old 3-ish second pairing action did not visibly start pairing on an already provisioned device because it used `start_if_needed`.
+- I have not yet observed a post-change physical 3-second hold from the user in the new monitor log, so the force-start behavior still needs one more physical press validation.
+
+### What I learned
+
+- The hardware button itself is working: short presses, releases, and long-hold timing are logged correctly.
+- The UX issue was a combination of timing and semantics. A pairing button should enter pairing mode even when already provisioned; otherwise users cannot tell whether anything happened.
+
+### What was tricky to build
+
+- There are two separate concepts: `pairing` and `reset`. Pairing should be non-destructive and easy to trigger. Reset is destructive and needs a much larger hold gap.
+- ESP-IDF provisioning state made the earlier button action look like a no-op on provisioned devices. Switching the button path to `provisioning_mgr_start_force()` better matches user expectations for a physical pairing button.
+
+### What warrants a second pair of eyes
+
+- Confirm `provisioning_mgr_start_force()` is the correct long-term API for provisioned-device pairing/reprovisioning mode while WiFi remains connected.
+- Confirm whether the display should show a stronger countdown between 3s and 10s, e.g. `Hold to reset: 7...6...5`.
+
+### What should be done in the future
+
+- Ask the user to press and hold for about 3.5 seconds on the newly flashed firmware and verify BLE provisioning starts.
+- Ask the user to only test the 10-second reset when ready to reprovision WiFi.
+- Consider adding a short-press display/status refresh action later.
+
+### Code review instructions
+
+- Start with `firmware/atoms3r/main/button_input.c`, function `maybe_start_pairing()`.
+- Then review `firmware/atoms3r/main/Kconfig.projbuild` and `firmware/atoms3r/sdkconfig.defaults` for threshold defaults.
+- Validate with monitor:
+  - 3.5-second hold should log `button pairing hold reached` and start/keep BLE provisioning.
+  - 10-second hold should log reset and reboot.
+
+### Technical details
+
+Commands run:
+
+```bash
+cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build
+cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 flash
+cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 monitor
+```

@@ -141,6 +141,6 @@ config ALMANACH_ATOMS3R_PAIRING_HOLD_MS
 config ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS
     int "Hold duration to reset credentials and reboot (ms)"
     range 1000 20000
-    default 5000
+    default 10000
 
 endmenu

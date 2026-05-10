@@ -40,6 +40,7 @@
   - [x] Fix web server startup gap when provisioning succeeds after the initial 30s boot wait
   - [ ] Validate long-press pairing behavior
   - [ ] Validate reset-confirm behavior only after on-screen feedback is visible
+  - [x] Adjust button thresholds to 3s pairing / 10s reset after hardware press testing
   - [x] Update diary/changelog with monitor/display observations
 - [ ] Phase 5: Optional GIF animation layer
   - [ ] Vendor or add `echo_gif` and AnimatedGIF dependencies

@@ -95,8 +95,10 @@ static void reset_provisioning_and_reboot(void)
 
 static void maybe_start_pairing(void)
 {
-    bool started = false;
-    esp_err_t err = provisioning_mgr_start_if_needed(&started);
+    provisioning_status_t before = {0};
+    (void)provisioning_mgr_get_status(&before);
+
+    esp_err_t err = provisioning_mgr_start_force();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "BLE provisioning start from button failed: %s", esp_err_to_name(err));
         display_app_show_error("Pair failed", esp_err_to_name(err));
@@ -112,7 +114,7 @@ static void maybe_start_pairing(void)
     ds.provisioning_security_ok = st.security_ok;
     snprintf(ds.service_name, sizeof(ds.service_name), "%s", st.service_name);
     snprintf(ds.pop, sizeof(ds.pop), "%s", st.pop);
-    snprintf(ds.message, sizeof(ds.message), "%s", started ? "Pairing on" : "Already ready");
+    snprintf(ds.message, sizeof(ds.message), "%s", before.running ? "Pairing already on" : "Pairing on");
     display_app_show_status(&ds);
 }
 
