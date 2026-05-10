@@ -39,3 +39,12 @@ Phase 0/1 implementation: added M5GFX managed dependency, Almanach display/backl
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_hal.cpp — AtomS3R GC9107 display bring-up.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Text-only boot/status/error display API.
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Best-effort display initialization and boot screen.
+
+## 2026-05-10
+
+Phase 2 implementation: added a polling display status task that renders provisioning state, BLE service/PoP, client/security flags, WiFi connection state, and IP address.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/app_main.c — Added `display_status_task()` and display status task startup.
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/firmware/atoms3r/main/display_app.cpp — Existing text status renderer used by the task.

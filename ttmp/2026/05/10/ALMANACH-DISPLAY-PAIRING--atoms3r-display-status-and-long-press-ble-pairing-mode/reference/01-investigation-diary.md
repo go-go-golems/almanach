@@ -190,3 +190,75 @@ This step moved from design into implementation. I resolved the first implementa
 - Review `display_app.cpp` for text-only rendering and C-compatible API boundaries.
 - Validate with:
   - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+## Step 3: Phase 2 polling display status model
+
+This step added the first live status display path. The firmware now starts a `display_status` task when the display initializes successfully. The task polls the existing provisioning and WiFi managers once per second, converts their state into `display_status_t`, and renders the status screen.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Continue the phased implementation after the text-only display bring-up and commit each validated milestone.
+
+**Inferred user intent:** Make the built-in LCD show useful provisioning and IP information before adding button behavior.
+
+**Commit (code):** pending — this step will be committed after diary/changelog update.
+
+### What I did
+
+- Added `display_status_task()` in `app_main.c`.
+- The task polls `provisioning_mgr_get_status()` for:
+  - provisioned state
+  - BLE running state
+  - BLE client-connected state
+  - protocomm security state
+  - service name
+  - PoP
+- The task polls `wifi_mgr_is_connected()` and `wifi_mgr_get_ip()` for WiFi/IP state.
+- The task calls `display_app_show_status()` once per second.
+- Built firmware successfully:
+  - `cd almanach/firmware/atoms3r && ./build.sh /dev/ttyACM0 build`
+
+### Why
+
+- Polling is the simplest safe first implementation. It avoids rendering from ESP event callbacks and avoids adding a new event bus before the display behavior has been hardware-validated.
+- The existing managers are already authoritative for provisioning and WiFi state, so the display layer should derive from them rather than storing duplicate state.
+
+### What worked
+
+- Firmware built successfully.
+- Output image remains within partition limits:
+  - `stoms3r.bin binary size 0x17bd10 bytes`
+  - free app partition space: `0x2842f0 bytes (63%)`
+
+### What didn't work
+
+- No compile failures in this phase.
+- The task has not yet been visually validated on the LCD; that remains in Phase 4 hardware validation.
+
+### What I learned
+
+- The existing `provisioning_mgr_get_status()` and `wifi_mgr_get_ip()` APIs are enough for a first useful status screen.
+- A low-rate polling task keeps the display logic decoupled from provisioning and WiFi event callbacks.
+
+### What was tricky to build
+
+- The display task must start only if `display_app_is_ready()` returns true. Display initialization is best-effort so serial console and printer behavior remain available even if the LCD fails.
+
+### What warrants a second pair of eyes
+
+- Review whether the display should show `Web ready` only after `web_server_start()` succeeds, rather than assuming WiFi connected means web-ready. The current text is a reasonable first approximation but not a distinct web-server state.
+
+### What should be done in the future
+
+- Add event notifications for faster transitions after the polling path is verified.
+- Add long-press button behavior.
+- Flash and visually check that text fits on the 128x128 display.
+
+### Code review instructions
+
+- Review `display_status_task()` in `app_main.c`.
+- Confirm the task reads state but does not mutate provisioning or WiFi behavior.
+- Validate with:
+  - `cd firmware/atoms3r && ./build.sh /dev/ttyACM0 build`

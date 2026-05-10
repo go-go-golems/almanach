@@ -124,6 +124,40 @@ static void start_network_onboarding(void)
     }
 }
 
+static void display_status_task(void *arg)
+{
+    (void)arg;
+    while (true) {
+        display_status_t ds = {0};
+        provisioning_status_t ps = {0};
+        if (provisioning_mgr_get_status(&ps) == ESP_OK) {
+            ds.provisioned = ps.provisioned;
+            ds.provisioning_running = ps.running;
+            ds.provisioning_client_connected = ps.client_connected;
+            ds.provisioning_security_ok = ps.security_ok;
+            strlcpy(ds.service_name, ps.service_name, sizeof(ds.service_name));
+            strlcpy(ds.pop, ps.pop, sizeof(ds.pop));
+        }
+
+        ds.wifi_connected = wifi_mgr_is_connected();
+        if (ds.wifi_connected) {
+            if (wifi_mgr_get_ip(ds.ip, sizeof(ds.ip)) != ESP_OK) {
+                strlcpy(ds.ip, "IP pending", sizeof(ds.ip));
+            }
+            strlcpy(ds.message, "Ready", sizeof(ds.message));
+        } else if (ds.provisioning_running) {
+            strlcpy(ds.message, "Use app/CLI", sizeof(ds.message));
+        } else if (ds.provisioned) {
+            strlcpy(ds.message, "Connecting", sizeof(ds.message));
+        } else {
+            strlcpy(ds.message, "Hold: Pair", sizeof(ds.message));
+        }
+
+        display_app_show_status(&ds);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 /* Background task: wait for WiFi, then start web server */
 static void web_server_task(void *arg)
 {
@@ -174,7 +208,10 @@ void app_main(void)
     /* 6. Start WiFi from saved credentials or BLE provisioning */
     start_network_onboarding();
 
-    /* 7. Start background task that launches the web server once WiFi is up */
+    /* 7. Start background display status task and web-server wait task. */
+    if (display_app_is_ready()) {
+        xTaskCreate(display_status_task, "display_status", 4096, NULL, 2, NULL);
+    }
     xTaskCreate(web_server_task, "web_wait", 4096, NULL, 2, NULL);
 
     /* 8. Start the interactive console (blocks forever) */

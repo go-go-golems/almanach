@@ -19,12 +19,12 @@
   - [x] Add `display_app.cpp/.h` for boot/status/error screens
   - [x] Wire display initialization into `app_main.c`
   - [x] Build firmware and commit text-only display bring-up
-- [ ] Phase 2: Add display status model
-  - [ ] Add a polling UI status task
-  - [ ] Read `provisioning_mgr_get_status()` into display status
-  - [ ] Read `wifi_mgr_is_connected()` and `wifi_mgr_get_ip()` into display status
-  - [ ] Show BLE service name, PoP, client/security state, WiFi state, IP, and web readiness
-  - [ ] Build firmware and commit display status screens
+- [x] Phase 2: Add display status model
+  - [x] Add a polling UI status task
+  - [x] Read `provisioning_mgr_get_status()` into display status
+  - [x] Read `wifi_mgr_is_connected()` and `wifi_mgr_get_ip()` into display status
+  - [x] Show BLE service name, PoP, client/security state, WiFi state, IP, and web readiness
+  - [x] Build firmware and commit display status screens
 - [ ] Phase 3: Add button long-press pairing mode
   - [ ] Add `button_input` ISR plus task state machine for GPIO41 active-low
   - [ ] Detect short press, pairing hold, and reset-confirm hold outside ISR context
