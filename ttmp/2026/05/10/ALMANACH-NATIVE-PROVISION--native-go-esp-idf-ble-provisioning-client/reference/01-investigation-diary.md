@@ -442,3 +442,133 @@ gofmt -w internal/provisioning/native/tinygo_transport.go internal/provisioning/
 go test ./...
 git commit -m "Add native BLE transport skeleton"
 ```
+
+## Step 5: Phase 4 native proto-ver CLI and hardware validation
+
+This step connected the native transport and native `proto-ver` verifier to the existing `ble-provision` command. The command now accepts `--implementation python|native`, defaults to the existing Python implementation, and routes `--implementation native --action version` through the Go BLE transport and `VerifyProtoVersion()`.
+
+The hardware test succeeded against the AtomS3R advertising as `ALM_0F2320`. This is the first end-to-end native Go BLE/protocomm validation: the Go process scanned, connected over BLE, discovered the ESP-IDF provisioning service and five endpoint characteristics, wrote `v1.1` to `proto-ver`, read the JSON response, parsed it, and emitted a Glazed row.
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Assistant interpretation:** Continue executing ticket phases and validate the native Go path on real hardware when the code reaches that point.
+
+**Inferred user intent:** Replace the Python provisioning dependency incrementally while preserving known-good Python behavior as fallback.
+
+**Commit (code):** 9320f58a6f1ecf662d1c98360bd5b1af3494e396 — "Wire native BLE proto-ver command"
+
+### What I did
+
+- Added `implementation` flag to `ble-provision`:
+  - choices: `python`, `native`
+  - default: `python`
+- Added `internal/app/cmd_ble_provision_native.go`.
+- Routed native `--action version` through:
+  - `native.NewTinyGoTransport()`
+  - `transport.Connect(ctx, serviceName)`
+  - `native.NewClient(transport).VerifyVersion(ctx, protoVer)`
+- Added structured Glazed output fields for native version checks:
+  - `implementation`
+  - `proto_ver`
+  - `sec_ver`
+  - `sec_patch_ver`
+  - `capabilities`
+  - `raw_response`
+  - `duration_ms`
+  - `endpoint_count`
+- Returned explicit not-implemented errors for native actions other than `version`.
+- Ran `go test ./...`.
+- Ran a hardware native version check against `ALM_0F2320`.
+
+### Why
+
+- The native package was only unit-tested through fake transport before this step. The project needed a CLI path to exercise real BLE automatically outside the browser.
+- Keeping Python as the default preserves the known-good provisioning path while native support is incomplete.
+- Version probing is the right first hardware action because it is plaintext and already validated through Python and Chrome.
+
+### What worked
+
+`go test ./...` passed.
+
+The native hardware run succeeded:
+
+```bash
+go run ./cmd/almanach-render-service ble-provision \
+  --implementation native \
+  --action version \
+  --service-name ALM_0F2320 \
+  --pop alm-0f2320 \
+  --timeout 45 \
+  --output yaml
+```
+
+Output:
+
+```yaml
+action: version
+capabilities:
+    - wifi_scan
+duration_ms: 154
+endpoint_count: 5
+implementation: native
+pop: alm-0f2320
+proto_ver: v1.1
+raw_response: |-
+    {
+    	"prov":	{
+    		"ver":	"v1.1",
+    		"sec_ver":	1,
+    		"sec_patch_ver":	0,
+    		"cap":	["wifi_scan"]
+    	}
+    }
+sec_patch_ver: 0
+sec_ver: 1
+service_name: ALM_0F2320
+```
+
+### What didn't work
+
+- Native `provision`, `reset`, and `reprov` intentionally return not-implemented errors for now.
+- The native transport uses fallback endpoint UUIDs rather than descriptor names because the selected TinyGo BLE API does not expose descriptor reads in the documented central API.
+
+### What I learned
+
+- The TinyGo BLE transport is sufficient for the native `proto-ver` path on the current Linux host.
+- The native endpoint UUID mapping agrees with Chrome and ESP-IDF: five endpoints are available and `proto-ver` returns the expected JSON capability response.
+- The native Go implementation has now reached parity with the first Python wrapper milestone: `--action version`.
+
+### What was tricky to build
+
+- The existing command validates passphrase and builds Python command arguments before execution. Native routing must happen before Python argument construction, but after shared validation for service name and timeout.
+- The command must preserve the Python default while allowing native testing. A new `implementation` field is less disruptive than introducing a separate command.
+
+### What warrants a second pair of eyes
+
+- Review whether the native implementation selector should be exposed in help now or hidden until native provisioning is complete.
+- Review whether native version should include endpoint UUIDs in output for debugging.
+
+### What should be done in the future
+
+- Phase 5 should implement Security 1 over `prov-session` using generated protobuf bindings.
+- Once Security 1 exists, the native command can support real `provision`.
+
+### Code review instructions
+
+- Start in `internal/app/cmd_ble_provision.go` and find the `implementation` flag and native routing point.
+- Then inspect `internal/app/cmd_ble_provision_native.go`.
+- Validate with:
+  - `go test ./...`
+  - `go run ./cmd/almanach-render-service ble-provision --implementation native --action version --service-name ALM_0F2320 --timeout 45 --output yaml`
+
+### Technical details
+
+Commands run:
+
+```bash
+go test ./...
+go run ./cmd/almanach-render-service ble-provision --implementation native --action version --service-name ALM_0F2320 --pop alm-0f2320 --timeout 45 --output yaml
+git commit -m "Wire native BLE proto-ver command"
+```

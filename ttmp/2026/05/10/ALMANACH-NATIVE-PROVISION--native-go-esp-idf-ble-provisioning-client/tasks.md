@@ -37,7 +37,7 @@
   - [x] Return explicit not-implemented errors for native provision/reset/reprov
   - [x] Run `go test ./...`
   - [x] Hardware test native version against `ALM_0F2320`
-  - [ ] Update diary/changelog and commit Phase 4
+  - [x] Update diary/changelog and commit Phase 4
 - [ ] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
 - [ ] Phase 6: implement encrypted WiFi config set/apply/status polling
 - [ ] Phase 7: add native mode to ble-provision behind a flag while keeping Python fallback

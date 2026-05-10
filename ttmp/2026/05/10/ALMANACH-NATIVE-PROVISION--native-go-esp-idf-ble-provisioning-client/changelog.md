@@ -68,3 +68,16 @@ Phase 3 implementation: added a Linux BLE transport skeleton using `tinygo.org/x
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/tinygo_transport.go — Linux BLE transport implementation
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 3 task completion
 - /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 3 diary entry
+
+## 2026-05-10
+
+Phase 4 implementation: added `--implementation python|native` to `ble-provision`, routed native `--action version` through the Go BLE transport and proto-ver verifier, and validated it against `ALM_0F2320` hardware.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision.go — Adds implementation selector and native routing
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/app/cmd_ble_provision_native.go — Native version action implementation
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/tinygo_transport.go — Real BLE transport used by native version action
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/internal/provisioning/native/protover.go — Native proto-ver verifier used by CLI
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/tasks.md — Phase 4 task completion
+- /home/manuel/workspaces/2026-05-08/extract-almanach/almanach/ttmp/2026/05/10/ALMANACH-NATIVE-PROVISION--native-go-esp-idf-ble-provisioning-client/reference/01-investigation-diary.md — Phase 4 diary entry
