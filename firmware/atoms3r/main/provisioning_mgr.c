@@ -23,6 +23,15 @@ static bool s_handlers_registered = false;
 static char s_service_name[32] = {0};
 static char s_pop[32] = {0};
 
+// ESP-IDF stores the pointer passed to wifi_prov_scheme_ble_set_service_uuid()
+// and copies it later when provisioning starts. Keep this UUID in static
+// storage; a stack array can be invalid by the time the BLE GATT service is
+// created.
+static uint8_t s_custom_service_uuid[] = {
+    0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b, 0xf4, 0xbf,
+    0xea, 0x4a, 0x82, 0x03, 0x04, 0x90, 0x1a, 0x02,
+};
+
 static void make_service_identity(void)
 {
     uint8_t mac[6] = {0};
@@ -171,11 +180,7 @@ esp_err_t provisioning_mgr_init(void)
 
     ESP_RETURN_ON_ERROR(wifi_prov_mgr_init(config), TAG, "wifi_prov_mgr_init");
 
-    uint8_t custom_service_uuid[] = {
-        0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b, 0xf4, 0xbf,
-        0xea, 0x4a, 0x82, 0x03, 0x04, 0x90, 0x1a, 0x02,
-    };
-    wifi_prov_scheme_ble_set_service_uuid(custom_service_uuid);
+    wifi_prov_scheme_ble_set_service_uuid(s_custom_service_uuid);
 
     ESP_RETURN_ON_ERROR(register_event_handlers(), TAG, "register provisioning handlers");
 
