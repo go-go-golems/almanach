@@ -36,3 +36,12 @@
 - [x] Validate Linux Go/Glazed provisioning with real WiFi credentials
 - [x] Validate reboot autoconnect and /api/status after provisioning
 - [x] Fix web server startup gap when first provisioning gets IP after app_main initial wait
+- [x] Browser BLE Phase 1: add real Web Bluetooth picker/connect/service discovery client
+  - [x] Add ESP-IDF provisioning Web Bluetooth client module with service UUID and ALM_ device filter
+  - [x] Wire setup page buttons for mock flow vs real BLE connection
+  - [x] Add Storybook state for real BLE connected/discovery-ready UI
+  - [x] Validate web build and Storybook build
+- [ ] Browser BLE Phase 2: implement browser proto-ver endpoint probe
+- [ ] Browser BLE Phase 3: decide library vs native implementation for ESP-IDF Security 1/protobuf
+- [ ] Browser BLE Phase 4: send WiFi credentials and poll provisioning result from Chrome
+- [ ] Browser BLE Phase 5: browser hardware validation against AtomS3R and diary/changelog update

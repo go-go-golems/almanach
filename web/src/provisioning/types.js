@@ -11,6 +11,7 @@ export const DEFAULT_SETUP_STATE = Object.freeze({
   step: ProvisioningStep.SUPPORT,
   support: null,
   device: null,
+  clientMode: "mock",
   ssid: "",
   password: "",
   pop: "",

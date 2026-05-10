@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Bluetooth, CheckCircle2, AlertTriangle, Wifi, X, Loader2 } from "lucide-react";
 import { getBluetoothSupport } from "./bluetooth-support";
 import { createMockProvisioningClient } from "./mock-client";
+import { createEspIdfProvisioningClient } from "./espidf-client";
 import { appendLog, DEFAULT_SETUP_STATE, ProvisioningStep, validateWifiCredentials } from "./types";
 
 const card = {
@@ -41,6 +42,7 @@ export default function ProvisioningWizard({
   initialState = {},
   supportOverride = null,
   clientFactory = createMockProvisioningClient,
+  realClientFactory = createEspIdfProvisioningClient,
   storyMode = false,
 }) {
   const [state, setState] = useState(() => ({
@@ -49,9 +51,9 @@ export default function ProvisioningWizard({
     support: supportOverride || initialState.support || getBluetoothSupport(),
   }));
   const [busy, setBusy] = useState(false);
-  const client = useMemo(() => clientFactory({
-    log: (message) => setState((s) => ({ ...s, logs: appendLog(s.logs, message) })),
-  }), [clientFactory]);
+  const makeLog = () => (message) => setState((s) => ({ ...s, logs: appendLog(s.logs, message) }));
+  const mockClient = useMemo(() => clientFactory({ log: makeLog() }), [clientFactory]);
+  const realClient = useMemo(() => realClientFactory({ log: makeLog() }), [realClientFactory]);
 
   const support = state.support || getBluetoothSupport();
   const canUseRealBluetooth = support.ok;
@@ -60,13 +62,19 @@ export default function ProvisioningWizard({
   const setField = (key, value) => setState((s) => ({ ...s, [key]: value, error: null }));
   const fail = (error) => setState((s) => ({ ...s, step: ProvisioningStep.ERROR, error: error.message || String(error), logs: appendLog(s.logs, `ERROR: ${error.message || error}`) }));
 
-  async function chooseMockDevice() {
+  async function chooseDevice(mode) {
+    const selectedClient = mode === "real" ? realClient : mockClient;
     setBusy(true);
     try {
-      setState((s) => ({ ...s, step: ProvisioningStep.DEVICE, logs: appendLog(s.logs, "Using mock provisioning client for UI validation") }));
-      const device = await client.chooseDevice();
-      await client.connect(device);
-      setState((s) => ({ ...s, device, step: ProvisioningStep.WIFI }));
+      setState((s) => ({
+        ...s,
+        clientMode: mode,
+        step: ProvisioningStep.DEVICE,
+        logs: appendLog(s.logs, mode === "real" ? "Using real Web Bluetooth ESP-IDF client" : "Using mock provisioning client for UI validation"),
+      }));
+      const device = await selectedClient.chooseDevice();
+      await selectedClient.connect(device);
+      setState((s) => ({ ...s, clientMode: mode, device: { ...device, mode }, step: ProvisioningStep.WIFI }));
     } catch (e) {
       fail(e);
     } finally {
@@ -74,7 +82,7 @@ export default function ProvisioningWizard({
     }
   }
 
-  async function runMockProvisioning() {
+  async function runProvisioning() {
     const validation = validateWifiCredentials({ ssid: state.ssid, password: state.password });
     if (validation) {
       fail(new Error(validation));
@@ -83,9 +91,10 @@ export default function ProvisioningWizard({
     setBusy(true);
     try {
       setState((s) => ({ ...s, step: ProvisioningStep.PROVISIONING, logs: appendLog(s.logs, "Starting mock provisioning flow") }));
-      await client.establishSession({ pop: state.pop });
-      await client.sendCredentials({ ssid: state.ssid, password: state.password });
-      const result = await client.waitForResult();
+      const selectedClient = state.clientMode === "real" ? realClient : mockClient;
+      await selectedClient.establishSession({ pop: state.pop });
+      await selectedClient.sendCredentials({ ssid: state.ssid, password: state.password });
+      const result = await selectedClient.waitForResult();
       setState((s) => ({ ...s, result, step: ProvisioningStep.DONE, logs: appendLog(s.logs, result.message) }));
     } catch (e) {
       fail(e);
@@ -126,7 +135,7 @@ export default function ProvisioningWizard({
                     {support.hint && <p style={{ color: "#c9b896" }}>{support.hint}</p>}
                   </div>
                 )}
-                <p style={{ color: "#c9b896", lineHeight: 1.5 }}>The real BLE client will use this browser capability check. This first implementation includes a mock client so the setup flow can be reviewed without hardware.</p>
+                <p style={{ color: "#c9b896", lineHeight: 1.5 }}>Chrome can now use the real BLE picker to connect to an Almanach printer and verify the ESP-IDF provisioning service. WiFi credential transfer still waits on the next Security 1/protobuf implementation step.</p>
               </div>
 
               <div style={{ padding: 16, border: "1px solid #3a3128", borderRadius: 8, background: "rgba(0,0,0,0.16)", marginBottom: 16 }}>
@@ -143,12 +152,14 @@ export default function ProvisioningWizard({
                 {credentialError && <div style={{ color: "#c97766", fontSize: 13 }}>{credentialError}</div>}
               </div>
 
+              {state.device && <div style={{ padding: 12, border: "1px solid #4a3f33", color: "#c9b896", borderRadius: 6, marginBottom: 16 }}><Bluetooth size={14} /> Connected target: <strong>{state.device.name}</strong> ({state.clientMode === "real" ? "real BLE" : "mock"})</div>}
               {state.error && <div style={{ padding: 12, border: "1px solid #c97766", color: "#c97766", borderRadius: 6, marginBottom: 16 }}><X size={14} /> {state.error}</div>}
               {state.result && <div style={{ padding: 12, border: "1px solid #6f8f60", color: "#a8d08d", borderRadius: 6, marginBottom: 16 }}><CheckCircle2 size={14} /> {state.result.message}</div>}
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <button style={buttonStyle} onClick={chooseMockDevice} disabled={busy}>{busy ? <Loader2 size={14} /> : <Bluetooth size={14} />} Use mock printer</button>
-                <button style={{ ...buttonStyle, background: "#c9a36b", color: "#17130f" }} onClick={runMockProvisioning} disabled={busy || !state.device}>{busy ? <Loader2 size={14} /> : <Wifi size={14} />} Run mock provisioning</button>
+                <button style={{ ...buttonStyle, background: "#c9a36b", color: "#17130f" }} onClick={() => chooseDevice("real")} disabled={busy || !canUseRealBluetooth}>{busy ? <Loader2 size={14} /> : <Bluetooth size={14} />} Find BLE printer</button>
+                <button style={buttonStyle} onClick={() => chooseDevice("mock")} disabled={busy}>{busy ? <Loader2 size={14} /> : <Bluetooth size={14} />} Use mock printer</button>
+                <button style={buttonStyle} onClick={runProvisioning} disabled={busy || !state.device}>{busy ? <Loader2 size={14} /> : <Wifi size={14} />} {state.clientMode === "real" ? "Continue provisioning" : "Run mock provisioning"}</button>
                 <button style={buttonStyle} onClick={() => setState({ ...DEFAULT_SETUP_STATE, support: supportOverride || getBluetoothSupport() })} disabled={busy}>Reset</button>
               </div>
             </div>
@@ -157,7 +168,7 @@ export default function ProvisioningWizard({
               <h3 style={{ marginTop: 0 }}>Progress</h3>
               <LogPanel logs={state.logs} />
               <div style={{ marginTop: 16, color: "#8a7c66", fontSize: 12, lineHeight: 1.45 }}>
-                <strong>Next implementation step:</strong> replace the mock client with an ESP-IDF BLE provisioning adapter while keeping this page and state flow stable.
+                <strong>Next implementation step:</strong> add ESP-IDF proto-ver, Security 1/protobuf, credential transfer, and status polling on top of the real BLE connection.
               </div>
             </aside>
           </section>

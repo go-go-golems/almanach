@@ -43,10 +43,36 @@ export const WifiDetailsEntered = {
       step: ProvisioningStep.WIFI,
       support: supported,
       device: { id: "mock", name: "ALM_MOCK01" },
+      clientMode: "mock",
       pop: "alm-mock01",
       ssid: "Workshop WiFi",
       password: "correct horse battery staple",
       logs: logs.slice(0, 2),
+    },
+  },
+};
+
+export const RealBleConnected = {
+  args: {
+    initialState: {
+      step: ProvisioningStep.WIFI,
+      support: supported,
+      device: {
+        id: "chrome-device-id",
+        name: "ALM_0F2320",
+        mode: "real",
+        serviceUuid: "021a9004-0382-4aea-bff4-6b3f1c5adfb4",
+      },
+      clientMode: "real",
+      pop: "alm-0f2320",
+      ssid: "Workshop WiFi",
+      password: "correct horse battery staple",
+      logs: [
+        { at: "2026-05-10T17:00:01Z", message: "Using real Web Bluetooth ESP-IDF client" },
+        { at: "2026-05-10T17:00:02Z", message: "Selected ALM_0F2320" },
+        { at: "2026-05-10T17:00:03Z", message: "GATT connection established" },
+        { at: "2026-05-10T17:00:04Z", message: "Found ESP-IDF provisioning service 021a9004-0382-4aea-bff4-6b3f1c5adfb4" },
+      ],
     },
   },
 };
@@ -57,6 +83,7 @@ export const ProvisioningProgress = {
       step: ProvisioningStep.PROVISIONING,
       support: supported,
       device: { id: "mock", name: "ALM_MOCK01" },
+      clientMode: "mock",
       pop: "alm-mock01",
       ssid: "Workshop WiFi",
       password: "correct horse battery staple",
@@ -71,6 +98,7 @@ export const Success = {
       step: ProvisioningStep.DONE,
       support: supported,
       device: { id: "mock", name: "ALM_MOCK01" },
+      clientMode: "mock",
       pop: "alm-mock01",
       ssid: "Workshop WiFi",
       password: "correct horse battery staple",
@@ -90,6 +118,7 @@ export const ErrorState = {
       step: ProvisioningStep.ERROR,
       support: supported,
       device: { id: "mock", name: "ALM_MOCK01" },
+      clientMode: "mock",
       pop: "wrong-pop",
       ssid: "Workshop WiFi",
       password: "fail",
