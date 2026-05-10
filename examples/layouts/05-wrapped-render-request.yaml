@@ -1,0 +1,42 @@
+# Wrapped render request layout.
+# Purpose: demonstrate the supported { layout, render } wrapper shape.
+layout:
+  almanach_studio_version: 1
+  exported_at: "2026-05-08T12:00:00Z"
+  theme: minimal
+  paperWidth: 384
+  bodyScale: 1.5
+  feedLines: 3
+  blocks:
+    - id: title-wrapped
+      type: title
+      data:
+        text: WRAPPED REQUEST
+        subtitle: Layout plus render options in one YAML file
+    - id: date-wrapped
+      type: date
+      data:
+        date: May 8, 2026
+        day: Friday
+    - id: note-wrapped
+      type: note
+      data:
+        label: Render Options
+        text: This file carries layout data and a render selector. Command flags may still override the output path and other options.
+        author: CLI example
+    - id: divider-wrapped
+      type: divider
+      data:
+        style: line
+    - id: did-wrapped
+      type: did
+      data:
+        label: Did You Know?
+        items:
+          - The CLI starts a temporary localhost server only long enough for Chrome to load the SPA.
+          - The default CLI selector is .paper-body for print-oriented output.
+render:
+  selector: .paper-body
+  threshold: 128
+  viewportWidth: 800
+  viewportHeight: 3000

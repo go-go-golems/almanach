@@ -1,0 +1,63 @@
+# Tracker and journal layout.
+# Purpose: exercise habits, mood, reading, reflection, and note blocks.
+almanach_studio_version: 1
+exported_at: "2026-05-08T12:00:00Z"
+theme: minimal
+paperWidth: 384
+bodyScale: 1.25
+feedLines: 5
+blocks:
+  - id: title-tracker
+    type: title
+    data:
+      text: DAILY TRACKER
+      subtitle: Compact personal dashboard
+  - id: date-tracker
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: habits-tracker
+    type: habits
+    data:
+      label: Habit Tracker
+      range: May 4 — May 10
+      columns: [M, T, W, T, F, S, S]
+      items:
+        - name: Meditate
+          days: [1, 1, 1, 1, 1, 0, 0]
+        - name: Exercise
+          days: [1, 0, 1, 1, 0, 0, 0]
+        - name: Read
+          days: [1, 1, 1, 1, 1, 1, 0]
+        - name: No sugar
+          days: [0, 1, 1, 0, 1, 0, 0]
+      reflection: Good consistency. Keep sleep routine earlier.
+  - id: mood-tracker
+    type: mood
+    data:
+      label: Mood & Energy
+      mood: 4
+      energy: 3
+      sleep: 7h 05m
+      notes: Focus was strong before lunch, lower after errands.
+  - id: reading-tracker
+    type: reading
+    data:
+      label: Reading List
+      current:
+        title: The Design of Everyday Things
+        author: Don Norman
+        progress: 68
+      next:
+        - Deep Work — Cal Newport
+        - The Daily Stoic — Ryan Holiday
+        - Thinking in Systems — Donella Meadows
+  - id: reflection-tracker
+    type: reflection
+    data:
+      label: Daily Reflection
+      well: Built the preview loop before touching paper.
+      better: Keep test layouts shorter and more focused.
+      learned: Screenshots need layout metrics, not just pixels.
+      quote: Measure twice, print once.

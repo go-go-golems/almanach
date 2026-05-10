@@ -1,0 +1,57 @@
+# Knowledge strip layout.
+# Purpose: exercise word, history, did-you-know, divider, and quote blocks.
+almanach_studio_version: 1
+exported_at: "2026-05-08T12:00:00Z"
+theme: minimal
+paperWidth: 384
+bodyScale: 1.35
+feedLines: 3
+blocks:
+  - id: title-knowledge
+    type: title
+    data:
+      text: KNOWLEDGE STRIP
+      subtitle: Word, history, facts, and one quote
+  - id: date-knowledge
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: word-knowledge
+    type: word
+    data:
+      label: Word of the Day
+      word: apricity
+      phonetic: a-pri-ci-ty
+      part: noun
+      definition: The warmth of the sun in winter.
+      example: We stood by the window enjoying the brief apricity.
+  - id: history-knowledge
+    type: history
+    data:
+      label: Today in History
+      items:
+        - year: "1945"
+          event: Victory in Europe Day is celebrated after Germany's surrender in World War II.
+        - year: "1886"
+          event: Coca-Cola is first sold at Jacob's Pharmacy in Atlanta, Georgia.
+        - year: "1970"
+          event: The Beatles release their final studio album, Let It Be.
+  - id: divider-knowledge
+    type: divider
+    data:
+      style: dots
+  - id: did-knowledge
+    type: did
+    data:
+      label: Did You Know?
+      items:
+        - Honey never spoils when stored properly.
+        - A day on Venus is longer than a Venusian year.
+        - Octopuses have three hearts and blue blood.
+  - id: quote-knowledge
+    type: quote
+    data:
+      label: Closing Thought
+      text: The cure for boredom is curiosity. There is no cure for curiosity.
+      author: Dorothy Parker

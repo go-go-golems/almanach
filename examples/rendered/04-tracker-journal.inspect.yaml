@@ -1,0 +1,85 @@
+display: block
+found: true
+height: 1063.984375
+overflow: visible
+overflow_x: visible
+overflow_y: visible
+position: static
+screenshot_selector: .paper-body
+scroll_height: 1064
+scroll_width: 384
+selector: .paper-shell
+width: 384
+x: 0
+"y": 0
+
+---
+
+display: block
+found: true
+height: 1043.984375
+overflow: visible
+overflow_x: visible
+overflow_y: visible
+position: relative
+screenshot_selector: .paper-body
+scroll_height: 1044
+scroll_width: 384
+selector: .paper-body
+width: 384
+x: 0
+"y": 10
+
+---
+
+display: block
+found: true
+height: 1063.984375
+overflow: visible
+overflow_x: visible
+overflow_y: visible
+position: static
+screenshot_selector: .paper-body
+scroll_height: 1064
+scroll_width: 384
+selector: .canvas
+width: 384
+x: 0
+"y": 0
+
+---
+
+display: block
+found: true
+height: 1063.984375
+overflow: visible
+overflow_x: visible
+overflow_y: visible
+position: relative
+screenshot_selector: .paper-body
+scroll_height: 1064
+scroll_width: 384
+selector: .workspace
+width: 384
+x: 0
+"y": 0
+
+---
+
+display: block
+found: true
+height: 1063.984375
+overflow: visible
+overflow_x: visible
+overflow_y: visible
+position: relative
+screenshot_selector: .paper-body
+scroll_height: 1064
+scroll_width: 384
+selector: .almanach-app
+width: 384
+x: 0
+"y": 0
+
+---
+

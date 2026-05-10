@@ -5,6 +5,18 @@ topics:
       description: Backend services
     - slug: websocket
       description: WebSocket lifecycle & events
+    - slug: almanach
+      description: almanach topic
+    - slug: ble
+      description: ble topic
+    - slug: esp-idf
+      description: esp-idf topic
+    - slug: firmware
+      description: firmware topic
+    - slug: thermal-printer
+      description: thermal-printer topic
+    - slug: wifi-provisioning
+      description: wifi-provisioning topic
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes

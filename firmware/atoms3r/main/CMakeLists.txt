@@ -1,0 +1,25 @@
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "printer_drv.c"
+        "printer_cmd.c"
+        "wifi_mgr.c"
+        "wifi_cmd.c"
+        "nvs_store.c"
+        "web_server.c"
+    PRIV_REQUIRES
+        console
+        esp_driver_gpio
+        driver
+        nvs_flash
+        esp_wifi
+        esp_netif
+        esp_event
+        esp_http_server
+    EMBED_TXTFILES
+        "index.html"
+        "assets/almanach/almanach.html"
+        "assets/almanach/almanach-bundle.js"
+    INCLUDE_DIRS
+        "."
+)

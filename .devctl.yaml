@@ -1,0 +1,33 @@
+# Almanach — devctl configuration
+#
+# Common workflow:
+#   devctl plugins list
+#   devctl plan
+#   devctl up --force
+#   devctl status
+#   devctl logs --service render --follow
+#   devctl health
+#   devctl build                 # web bundle + render-service binary
+#   devctl build-web             # web bundle only
+#   devctl render [examples/layouts/01-minimal.yaml] [/tmp/almanach-render.png]
+#   devctl inspect [examples/layouts/01-minimal.yaml]
+#   devctl print [examples/layouts/01-minimal.yaml]
+#   devctl sync-firmware-web     # copy web/dist into firmware embedded assets
+#   devctl firmware-build
+#   devctl down
+#
+# Environment overrides:
+#   ALMANACH_PORT=8199
+#   ALMANACH_PRINTER_IP=192.168.0.126
+#   ALMANACH_CHROME_PATH=/usr/bin/chromium-browser
+#   ALMANACH_BUILD_WEB_LOCAL=0   # allow cmd/build-web to try Dagger first
+
+plugins:
+  - id: almanach
+    path: python3
+    args:
+      - ./plugins/almanach-render.py
+    priority: 10
+    env:
+      ALMANACH_PORT: "8199"
+      ALMANACH_PRINTER_IP: "192.168.0.126"

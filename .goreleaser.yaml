@@ -1,14 +1,12 @@
 version: 2
-project_name: XXX
+project_name: almanach-render-service
 
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
-    # you may remove this if you don't need go generate
-    - go generate ./...
+    - go generate ./internal/web
 builds:
-  - id: XXX-linux
+  - id: almanach-render-service-linux
     env:
       - CGO_ENABLED=1
       - CC_linux_amd64=gcc
@@ -17,20 +15,22 @@ builds:
       - CXX_linux_arm64=aarch64-linux-gnu-g++
       - 'CC={{ index .Env (print "CC_" .Os "_" .Arch) }}'
       - 'CXX={{ index .Env (print "CXX_" .Os "_" .Arch) }}'
-    main: ./cmd/XXX
-    binary: XXX
+    main: ./cmd/almanach-render-service
+    binary: almanach-render-service
+    flags:
+      - -tags=embed
     goos:
       - linux
-# I am not able to test windows at the time
-#      - windows
     goarch:
       - amd64
       - arm64
-  - id: XXX-darwin
+  - id: almanach-render-service-darwin
     env:
       - CGO_ENABLED=1
-    main: ./cmd/XXX
-    binary: XXX
+    main: ./cmd/almanach-render-service
+    binary: almanach-render-service
+    flags:
+      - -tags=embed
     goos:
       - darwin
     goarch:
@@ -49,62 +49,41 @@ changelog:
 
 signs:
   - artifacts: checksum
-    # setup for github actions according to https://goreleaser.com/ci/actions/
     args: [ "--batch", "-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}" ]
 
 brews:
-  - name: XXX
-    description: "XXX is a tool"
-    homepage: "https://github.com/go-go-golems/XXX"
+  - name: almanach-render-service
+    description: "Render and print Almanach Studio thermal-printer pages"
+    homepage: "https://github.com/go-go-golems/almanach"
     repository:
       owner: go-go-golems
       name: homebrew-go-go-go
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
 
 nfpms:
-  -
-    id: packages
-
+  - id: packages
     vendor: GO GO GOLEMS
-    homepage: https://github.com/go-go-golems/
+    homepage: https://github.com/go-go-golems/almanach
     maintainer: Manuel Odendahl <wesen@ruinwesen.com>
-
     description: |-
-      XXX is a tool
-
+      Almanach Render Service renders Almanach Studio pages and sends thermal-printer bitmaps.
     license: MIT
-
-    # Formats to be generated.
     formats:
-      # - apk
       - deb
       - rpm
-
-    # Version Release.
     release: 1
-
-    # Section.
     section: default
-
-    # Priority.
     priority: extra
-
-    # Custom configuration applied only to the Deb packager.
     deb:
-      # Lintian overrides
       lintian_overrides:
         - statically-linked-binary
         - changelog-file-missing-in-native-package
 
 publishers:
   - name: fury.io
-    # by specifying `packages` id here goreleaser will only use this publisher
-    # with artifacts identified by this id
     ids:
       - packages
     dir: "{{ dir .ArtifactPath }}"
     cmd: curl -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/go-go-golems/
 
-# modelines, feel free to remove those if you don't want/use them:
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj

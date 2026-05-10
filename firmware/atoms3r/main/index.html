@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SToMS3R Printer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       background: #1a1a2e; color: #eee; padding: 1rem; max-width: 600px; margin: 0 auto; }
+h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #e94560; }
+h2 { font-size: 1.1rem; margin: 1rem 0 0.5rem; color: #0f3460; background: #e94560;
+     padding: 0.3rem 0.6rem; border-radius: 4px; }
+section { background: #16213e; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+input[type=text], textarea { width: 100%; padding: 0.5rem; border: 1px solid #0f3460;
+       border-radius: 4px; background: #1a1a2e; color: #eee; font-size: 1rem; }
+textarea { height: 80px; resize: vertical; }
+button { background: #e94560; color: #fff; border: none; padding: 0.6rem 1.2rem;
+         border-radius: 4px; cursor: pointer; font-size: 1rem; margin-top: 0.5rem; }
+button:hover { background: #c73651; }
+button:disabled { background: #555; cursor: not-allowed; }
+.status { font-size: 0.85rem; color: #aaa; margin-bottom: 0.5rem; }
+.ok { color: #4ecca3; }
+.err { color: #e94560; }
+#preview-container { margin-top: 0.5rem; text-align: center; }
+#preview-container canvas { border: 1px solid #333; max-width: 100%; image-rendering: pixelated; }
+.drop-zone { border: 2px dashed #0f3460; border-radius: 8px; padding: 2rem; text-align: center;
+             cursor: pointer; margin-bottom: 0.5rem; }
+.drop-zone:hover, .drop-zone.dragover { border-color: #e94560; background: #1a1a2e; }
+</style>
+</head>
+<body>
+
+<h1>SToMS3R Thermal Printer</h1>
+<div class="status" id="status">Connecting...</div>
+
+<section>
+  <h2>Print Text</h2>
+  <textarea id="text-input" placeholder="Type text to print..."></textarea>
+  <button onclick="printText()" id="btn-text">Print Text</button>
+</section>
+
+<section>
+  <h2>Print Image</h2>
+  <div class="drop-zone" id="drop-zone">
+    Drop image here or click to browse<br>
+    <small>Will be resized to 384px wide, converted to B/W</small>
+    <input type="file" id="file-input" accept="image/*" style="display:none">
+  </div>
+  <div style="margin:0.5rem 0; display:flex; align-items:center; gap:0.8rem;">
+    <label style="font-size:0.85rem; color:#aaa;">Dithering:</label>
+    <select id="dither-mode" style="background:#1a1a2e; color:#eee; border:1px solid #0f3460; border-radius:4px; padding:0.3rem 0.5rem; font-size:0.9rem;">
+      <option value="floyd-steinberg" selected>Floyd-Steinberg</option>
+      <option value="none">None (threshold 128)</option>
+      <option value="auto">Auto (skip if already B/W)</option>
+    </select>
+  </div>
+  <div id="preview-container">
+    <canvas id="preview" style="display:none"></canvas>
+  </div>
+  <button onclick="printBitmap()" id="btn-bitmap" disabled>Print Image</button>
+</section>
+
+<section>
+  <h2>Test Patterns</h2>
+  <p><small>Generate test bitmaps to verify printer alignment, dithering, and density.</small></p>
+  <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+    <button onclick="printPattern('fullblack')">Full Black</button>
+    <button onclick="printPattern('fullwhite')">Full White</button>
+    <button onclick="printPattern('hbars')">H Bars</button>
+    <button onclick="printPattern('vbars')">V Bars</button>
+    <button onclick="printPattern('gradient')">Gradient</button>
+    <button onclick="printPattern('checker')">Checker</button>
+    <button onclick="printPattern('graylevels')">Gray Levels</button>
+    <button onclick="printPattern('border')">Border</button>
+    <button onclick="printPattern('diagonal')">Diagonal</button>
+  </div>
+</section>
+
+<script>
+const PRINTER_WIDTH = 384; // dots
+let currentBitmap = null;
+
+// ---- Status ----
+async function refreshStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const el = document.getElementById('status');
+    if (d.wifi.connected) {
+      el.innerHTML = '<span class="ok">● Connected</span> — ' + d.wifi.ip +
+                     ' | baud: ' + d.printer.baud +
+                     ' | swap: ' + (d.printer.swapped ? 'on' : 'off');
+    } else {
+      el.innerHTML = '<span class="err">● Disconnected</span>';
+    }
+  } catch(e) {
+    document.getElementById('status').innerHTML = '<span class="err">● Error: ' + e + '</span>';
+  }
+}
+refreshStatus();
+setInterval(refreshStatus, 10000);
+
+// ---- Print Text ----
+async function printText() {
+  const text = document.getElementById('text-input').value;
+  if (!text.trim()) return;
+  const btn = document.getElementById('btn-text');
+  btn.disabled = true; btn.textContent = 'Printing...';
+  try {
+    const r = await fetch('/api/print/text', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: text})
+    });
+    const d = await r.json();
+    if (!d.ok) alert('Error: ' + d.error);
+  } catch(e) { alert('Error: ' + e); }
+  btn.disabled = false; btn.textContent = 'Print Text';
+}
+
+// ---- Image Drop Zone ----
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) loadImage(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) loadImage(fileInput.files[0]); });
+
+function loadImage(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => ditherAndPreview(img);
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ---- Dithering Pipeline ----
+function ditherAndPreview(img) {
+  const canvas = document.getElementById('preview');
+  const ctx = canvas.getContext('2d');
+
+  // Resize to printer width, preserve aspect ratio
+  const scale = PRINTER_WIDTH / img.width;
+  const W = PRINTER_WIDTH;
+  const H = Math.round(img.height * scale);
+
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.display = 'inline-block';
+  canvas.style.width = Math.min(W, 384) + 'px';
+
+  ctx.drawImage(img, 0, 0, W, H);
+  const imgData = ctx.getImageData(0, 0, W, H);
+  const pixels = imgData.data;
+
+  // Grayscale
+  const gray = new Float32Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    gray[i] = 0.299 * pixels[i*4] + 0.587 * pixels[i*4+1] + 0.114 * pixels[i*4+2];
+  }
+
+  // Check if image is already pure black & white
+  const ditherMode = document.getElementById('dither-mode').value;
+  let isAlreadyBW = false;
+  if (ditherMode === 'auto') {
+    isAlreadyBW = true;
+    for (let i = 0; i < W * H; i++) {
+      if (gray[i] > 5 && gray[i] < 250) { isAlreadyBW = false; break; }
+    }
+  }
+
+  const bw = new Uint8Array(W * H);
+  let ditherUsed = 'Floyd-Steinberg';
+
+  if (ditherMode === 'none' || (ditherMode === 'auto' && isAlreadyBW)) {
+    // Simple threshold — no error diffusion
+    for (let i = 0; i < W * H; i++) {
+      bw[i] = gray[i] <= 128 ? 1 : 0;
+    }
+    ditherUsed = (ditherMode === 'none') ? 'threshold' : 'auto(B/W, threshold)';
+  } else {
+    // Floyd-Steinberg dithering
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const idx = y * W + x;
+        const old = gray[idx];
+        const val = old > 128 ? 255 : 0;
+        bw[idx] = val > 128 ? 0 : 1; // 1 = black dot
+        const err = old - val;
+        if (x + 1 < W)           gray[idx + 1]         += err * 7/16;
+        if (y + 1 < H && x > 0)  gray[(y+1)*W + x - 1] += err * 3/16;
+        if (y + 1 < H)           gray[(y+1)*W + x]     += err * 5/16;
+        if (y + 1 < H && x+1<W)  gray[(y+1)*W + x + 1] += err * 1/16;
+      }
+    }
+  }
+
+  // Pack into bytes (MSB first)
+  const bytesPerRow = Math.ceil(W / 8);
+  const bitmap = new Uint8Array(bytesPerRow * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (bw[y * W + x]) {
+        bitmap[y * bytesPerRow + Math.floor(x / 8)] |= (0x80 >> (x % 8));
+      }
+    }
+  }
+
+  currentBitmap = { data: bitmap, width: W, height: H, bytesPerRow };
+
+  // Draw preview
+  const preview = ctx.createImageData(W, H);
+  for (let i = 0; i < W * H; i++) {
+    const c = bw[i] ? 0 : 255;
+    preview.data[i*4]   = c;
+    preview.data[i*4+1] = c;
+    preview.data[i*4+2] = c;
+    preview.data[i*4+3] = 255;
+  }
+  ctx.putImageData(preview, 0, 0);
+
+  document.getElementById('btn-bitmap').disabled = false;
+  dropZone.innerHTML = 'Image loaded (' + W + '×' + H + ', dither: ' + ditherUsed + '). Drop another to replace.';
+  dropZone.appendChild(fileInput);
+}
+
+// ---- Test Patterns ----
+function generatePattern(type) {
+  const W = 384, H = 200;
+  const bytesPerRow = W / 8;
+  const data = new Uint8Array(bytesPerRow * H);
+  // Also build a preview canvas
+  const canvas = document.getElementById('preview');
+  canvas.width = W; canvas.height = H;
+  canvas.style.display = 'inline-block';
+  canvas.style.width = Math.min(W, 384) + 'px';
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(W, H);
+
+  function setPixel(x, y, black) {
+    if (x < 0 || x >= W || y < 0 || y >= H) return;
+    if (black) data[y * bytesPerRow + Math.floor(x / 8)] |= (0x80 >> (x % 8));
+    const c = black ? 0 : 255;
+    const i = (y * W + x) * 4;
+    img.data[i] = c; img.data[i+1] = c; img.data[i+2] = c; img.data[i+3] = 255;
+  }
+
+  switch(type) {
+    case 'fullblack':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setPixel(x, y, true);
+      break;
+    case 'fullwhite':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setPixel(x, y, false);
+      break;
+    case 'hbars':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setPixel(x, y, y % 4 < 2);
+      break;
+    case 'vbars':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setPixel(x, y, x % 8 < 4);
+      break;
+    case 'gradient': {
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const val = (x / W) * 255;
+          // Simple threshold dither
+          setPixel(x, y, val < 128);
+        }
+      }
+      break;
+    }
+    case 'checker':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) setPixel(x, y, (x+y) % 2 === 0);
+      break;
+    case 'graylevels': {
+      // 8 blocks of increasing density (0/8, 1/8, 2/8 ... 7/8, 8/8)
+      const bw = W / 9;
+      for (let y = 0; y < H; y++) {
+        for (let b = 0; b < 9; b++) {
+          const density = b / 8; // 0=white, 1=black
+          for (let dx = 0; dx < bw; dx++) {
+            const x = b * bw + dx;
+            // Ordered dither (Bayer 2x2)
+            const threshold = [[2,3],[4,1]][y%2][dx%2] / 5;
+            setPixel(x, y, density > threshold);
+          }
+        }
+      }
+      break;
+    }
+    case 'border':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        setPixel(x, y, x < 4 || x >= W-4 || y < 4 || y >= H-4);
+      break;
+    case 'diagonal':
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        setPixel(x, y, ((x + y) % 16) < 8);
+      break;
+  }
+
+  ctx.putImageData(img, 0, 0);
+  return { data, width: W, height: H, bytesPerRow };
+}
+
+async function printPattern(type) {
+  const bitmap = generatePattern(type);
+  try {
+    const r = await fetch('/api/print/bitmap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Width': String(bitmap.width),
+        'X-Height': String(bitmap.height)
+      },
+      body: bitmap.data
+    });
+    const d = await r.json();
+    if (!d.ok) alert('Error: ' + d.error);
+  } catch(e) { alert('Error: ' + e); }
+}
+
+// ---- Print Bitmap ----
+async function printBitmap() {
+  if (!currentBitmap) return;
+  const btn = document.getElementById('btn-bitmap');
+  btn.disabled = true; btn.textContent = 'Printing...';
+  try {
+    const r = await fetch('/api/print/bitmap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Width': String(currentBitmap.width),
+        'X-Height': String(currentBitmap.height)
+      },
+      body: currentBitmap.data
+    });
+    const d = await r.json();
+    if (!d.ok) alert('Error: ' + d.error);
+  } catch(e) { alert('Error: ' + e); }
+  btn.disabled = false; btn.textContent = 'Print Image';
+}
+</script>
+
+</body>
+</html>

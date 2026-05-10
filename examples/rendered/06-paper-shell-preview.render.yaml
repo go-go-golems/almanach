@@ -1,0 +1,12 @@
+artifact: examples/rendered/06-paper-shell-preview.png
+bytes: 32308
+debug_dir: ""
+format: png
+height: 465
+rendered_at: "2026-05-08T10:28:31Z"
+selector: .paper-shell
+threshold: 128
+width: 384
+
+---
+

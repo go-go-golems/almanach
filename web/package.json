@@ -1,0 +1,22 @@
+{
+  "name": "almanach-studio-build",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build pipeline for Almanach Studio SPA \u2014 precompiles JSX into a minified IIFE bundle for ESP32 embedding",
+  "scripts": {
+    "dev": "vite",
+    "build": "node esbuild.mjs",
+    "build:dev": "node esbuild.mjs --dev"
+  },
+  "dependencies": {
+    "lucide-react": "^0.469.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.25.2",
+    "vite": "^8.0.10"
+  },
+  "packageManager": "pnpm@10.15.0"
+}

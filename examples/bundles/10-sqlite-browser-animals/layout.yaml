@@ -1,0 +1,145 @@
+# SQLite/sql.js performance field card using ZIP-relative image assets.
+# Bundle this directory with: (cd examples/bundles/10-sqlite-browser-animals && zip -qr ../10-sqlite-browser-animals.zip .)
+almanach_studio_version: 1
+exported_at: "2026-05-08T15:05:00Z"
+theme: minimal
+paperWidth: 384
+bodyScale: 1.28
+feedLines: 3
+blocks:
+  - id: title-sqlite-browser
+    type: title
+    data:
+      text: SQLITE IN THE BROWSER
+      subtitle: sql.js performance field notes
+  - id: banner-fox-top
+    type: image
+    data:
+      label: ""
+      src: images/fox.png
+      alt: "Fox separator banner"
+      caption: ""
+      height: 56
+      fit: contain
+      border: false
+      grayscale: true
+  - id: date-sqlite-browser
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: word-hot-path
+    type: word
+    data:
+      label: Core Term
+      word: Query Shape
+      phonetic: kweer-ee shayp
+      part: noun
+      definition: "The operational structure SQLite must execute: joins, filters, view expansion, JSON iteration, temp B-trees, and result ordering."
+      example: "In browser-side SQLite, query shape is UI behavior because synchronous sql.js stepping can block paint and input."
+  - id: banner-owl
+    type: image
+    data:
+      label: ""
+      src: images/owl.png
+      alt: "Owl separator banner"
+      caption: ""
+      height: 58
+      fit: contain
+      border: false
+      grayscale: true
+  - id: history-measurements
+    type: history
+    data:
+      label: Measured Failure and Fix
+      items:
+        - year: "198.92 MB"
+          event: "Full Glazed static export database size. Cross-reference tables dominated the file."
+        - year: "6,074,525"
+          event: "commit_refs rows. The reference graph was large enough to expose a bad hot-path query."
+        - year: "60.285s"
+          event: "Native SQLite time for the old snapshot_refs count on one source file."
+        - year: "0.009s"
+          event: "Native SQLite time after constraining commit and file before expanding locations_json."
+        - year: "19ms"
+          event: "Browser sql.js source-reference query after the rewrite."
+  - id: did-sqlite-rules
+    type: did
+    data:
+      label: Field Rules
+      items:
+        - "Measure native SQLite first. If native SQLite takes a minute, WebAssembly is not the root cause."
+        - "Do not trust compatibility views on hot source/xref paths. Views are convenient interfaces, not guaranteed performance boundaries."
+        - "Constrain by commit and stable file identity before expanding JSON with json_each."
+        - "Keep provider result shapes stable so React components do not know whether the SQL came from a view or normalized tables."
+  - id: banner-snake
+    type: image
+    data:
+      label: ""
+      src: images/snake.png
+      alt: "Snake separator banner"
+      caption: ""
+      height: 54
+      fit: contain
+      border: false
+      grayscale: true
+  - id: plan-source-path
+    type: plan
+    data:
+      label: Source Page Data Path
+      items:
+        - time: "route"
+          text: "SourcePage asks for source text, refs, index data, and file xrefs."
+          done: false
+        - time: "cheap"
+          text: "Raw source bytes load by content hash from file_contents."
+          done: false
+        - time: "hot"
+          text: "Reference lookup uses commit_refs, ref_versions, files, symbols, and locations_json."
+          done: false
+        - time: "bad"
+          text: "snapshot_refs expanded the broad reference space before the file-level answer emerged."
+          done: false
+        - time: "fix"
+          text: "The new query filters latest commit and file first, then expands only matching JSON locations."
+          done: false
+  - id: note-worker
+    type: note
+    data:
+      label: Worker Layer
+      text: "The SQL rewrite fixes query latency. The Worker layer fixes responsiveness boundaries: SQLite stepping moves off the main thread while RTK Query keeps the same provider contract."
+      author: Codebase Browser GCB-022
+  - id: banner-hedgehog
+    type: image
+    data:
+      label: ""
+      src: images/hedgehog.png
+      alt: "Hedgehog separator banner"
+      caption: ""
+      height: 58
+      fit: contain
+      border: false
+      grayscale: true
+  - id: quote-sqlite
+    type: quote
+    data:
+      label: Operational Rule
+      text: "When SQLite runs in the browser, a query plan is part of frontend architecture."
+      author: Browser SQLite field guide
+  - id: note-validation
+    type: note
+    data:
+      label: Validation Spell
+      text: "Serve the static export, open the source route with ?debugSql, watch source refs, used-by, and uses timings, then compare against the old export as a negative control."
+      author: Playwright plus native sqlite3
+  - id: banner-fish-bottom
+    type: image
+    data:
+      label: ""
+      src: images/fish.png
+      alt: "Fish separator banner"
+      caption: ""
+      height: 55
+      fit: contain
+      border: false
+      grayscale: true
