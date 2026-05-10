@@ -23,8 +23,11 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	// SPA static files (loaded by Chrome headless)
 	registerStaticRoutes(mux, s.cfg.WebDir)
 
-	if s.setupDevices == nil {
-		s.setupDevices = &setupDeviceStore{}
+	if err := s.ensureSetupDeviceStore(); err != nil {
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		})
+		return
 	}
 
 	// Setup rendezvous API

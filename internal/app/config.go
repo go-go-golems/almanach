@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -17,6 +18,7 @@ type Config struct {
 	FeedLines    int // Default feed lines after printing (default 3)
 	DefaultTheme string
 	LogLevel     string // debug, info, warn, error
+	StateFile    string // Local render/setup server state file
 }
 
 func LoadConfig() Config {
@@ -31,7 +33,15 @@ func LoadConfig() Config {
 		FeedLines:    envInt("ALMANACH_DEFAULT_FEED", 3),
 		DefaultTheme: envStr("ALMANACH_DEFAULT_THEME", "minimal"),
 		LogLevel:     envStr("ALMANACH_LOG_LEVEL", "info"),
+		StateFile:    envStr("ALMANACH_STATE_FILE", defaultStateFile()),
 	}
+}
+
+func defaultStateFile() string {
+	if dir, err := os.UserConfigDir(); err == nil && dir != "" {
+		return filepath.Join(dir, "almanach", "render-service", "state.json")
+	}
+	return filepath.Join(os.Getenv("HOME"), ".config", "almanach", "render-service", "state.json")
 }
 
 func envStr(key, fallback string) string {

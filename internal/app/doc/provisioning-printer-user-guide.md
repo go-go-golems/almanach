@@ -95,7 +95,13 @@ The disconnect at the end is expected. ESP-IDF stops BLE provisioning after WiFi
 
 ## Verify the Local Server Learned the Printer IP
 
-The setup page reports the provisioned device to the same local server that served the page. You can inspect the remembered device with:
+The setup page reports the provisioned device to the same local server that served the page. The server persists that record in a local JSON state file so it survives restarts. By default the file is:
+
+```text
+~/.config/almanach/render-service/state.json
+```
+
+Override it with `ALMANACH_STATE_FILE` or the `--state-file` flag. You can inspect the remembered device with:
 
 ```bash
 curl http://localhost:18299/api/setup/provisioned-device
@@ -116,7 +122,13 @@ A successful response looks like:
 }
 ```
 
-The server uses this IP as the active printer endpoint when `ALMANACH_PRINTER_IP` is not explicitly configured. This lets the setup flow hand off naturally into rendering and printing.
+The server uses this IP as the active printer endpoint when `ALMANACH_PRINTER_IP` is not explicitly configured. This lets the setup flow hand off naturally into rendering and printing. Explicit configuration still wins: if `ALMANACH_PRINTER_IP` is set, the persisted setup-discovered IP is ignored.
+
+To forget the persisted device:
+
+```bash
+curl -X DELETE http://localhost:18299/api/setup/provisioned-device
+```
 
 ## Provision from the Native CLI
 
@@ -165,6 +177,7 @@ The physical reset path is the most reliable fallback because it does not requir
 | Security 1 fails. | The PoP is wrong or the session stream is out of sync. | Re-enter the PoP exactly as shown by firmware/device status and retry from a fresh connection. |
 | WiFi status stays `connecting`. | The AP is slow, out of range, or credentials are wrong. | Wait briefly, then reset/reprovision with known-good 2.4 GHz credentials. |
 | The local server has no printer IP after success. | The browser could not report the connected result back to localhost. | Check `/api/setup/provisioned-device`, keep the setup page on the same localhost server, and retry provisioning. |
+| The server uses an old printer IP after restart. | The setup-discovered endpoint is persisted in the local state file. | Delete it with `curl -X DELETE http://localhost:18299/api/setup/provisioned-device`, remove the state file, or set `ALMANACH_PRINTER_IP` explicitly. |
 
 ## See Also
 

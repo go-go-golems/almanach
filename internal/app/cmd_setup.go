@@ -9,15 +9,17 @@ import (
 )
 
 type setupSettings struct {
-	Port   int
-	WebDir string
+	Port      int
+	WebDir    string
+	StateFile string
 }
 
 func NewSetupCommand() *cobra.Command {
 	defaults := LoadConfig()
 	settings := setupSettings{
-		Port:   defaults.Port,
-		WebDir: defaults.WebDir,
+		Port:      defaults.Port,
+		WebDir:    defaults.WebDir,
+		StateFile: defaults.StateFile,
 	}
 
 	cmd := &cobra.Command{
@@ -29,12 +31,14 @@ func NewSetupCommand() *cobra.Command {
 			cfg := LoadConfig()
 			cfg.Port = settings.Port
 			cfg.WebDir = settings.WebDir
+			cfg.StateFile = settings.StateFile
 			return RunSetup(cmd.Context(), cfg)
 		},
 	}
 
 	cmd.Flags().IntVar(&settings.Port, "port", defaults.Port, "localhost HTTP listen port for the setup page")
 	cmd.Flags().StringVar(&settings.WebDir, "web-dir", defaults.WebDir, "Almanach web dist directory containing setup.html and setup-bundle.js")
+	cmd.Flags().StringVar(&settings.StateFile, "state-file", defaults.StateFile, "Local JSON state file for setup-discovered printer endpoint")
 
 	return cmd
 }

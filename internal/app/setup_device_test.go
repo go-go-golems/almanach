@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 )
 
 func TestProvisionedDeviceAPIStoresPrinterIP(t *testing.T) {
-	server := &Server{cfg: Config{}}
+	stateFile := filepath.Join(t.TempDir(), "state.json")
+	server := &Server{cfg: Config{StateFile: stateFile}}
 	mux := http.NewServeMux()
 	server.RegisterRoutes(mux)
 
@@ -39,6 +41,45 @@ func TestProvisionedDeviceAPIStoresPrinterIP(t *testing.T) {
 	}
 	if !got.OK || got.Device == nil || got.Device.IP != "192.168.1.242" || got.Device.ServiceName != "ALM_0F2320" {
 		t.Fatalf("unexpected response: %+v", got)
+	}
+
+	loaded := &Server{cfg: Config{StateFile: stateFile}}
+	mux = http.NewServeMux()
+	loaded.RegisterRoutes(mux)
+	if got := loaded.effectivePrinterIP(); got != "192.168.1.242" {
+		t.Fatalf("loaded effective printer IP = %q, want 192.168.1.242", got)
+	}
+}
+
+func TestProvisionedDeviceAPIDeleteClearsPersistedPrinterIP(t *testing.T) {
+	stateFile := filepath.Join(t.TempDir(), "state.json")
+	server := &Server{cfg: Config{StateFile: stateFile}}
+	mux := http.NewServeMux()
+	server.RegisterRoutes(mux)
+
+	body := bytes.NewBufferString(`{"serviceName":"ALM_0F2320","ip":"192.168.1.242","source":"web-bluetooth"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/setup/provisioned-device", body)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("POST status: got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/api/setup/provisioned-device", nil)
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("DELETE status: got %d body=%s", rr.Code, rr.Body.String())
+	}
+	if got := server.effectivePrinterIP(); got != "" {
+		t.Fatalf("effective printer IP after delete = %q, want empty", got)
+	}
+
+	loaded := &Server{cfg: Config{StateFile: stateFile}}
+	mux = http.NewServeMux()
+	loaded.RegisterRoutes(mux)
+	if got := loaded.effectivePrinterIP(); got != "" {
+		t.Fatalf("loaded effective printer IP after delete = %q, want empty", got)
 	}
 }
 

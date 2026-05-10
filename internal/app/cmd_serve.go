@@ -25,6 +25,7 @@ type serveSettings struct {
 	FeedLines    int
 	DefaultTheme string
 	LogLevel     string
+	StateFile    string
 }
 
 func serveSettingsFromConfig(cfg Config) serveSettings {
@@ -39,6 +40,7 @@ func serveSettingsFromConfig(cfg Config) serveSettings {
 		FeedLines:    cfg.FeedLines,
 		DefaultTheme: cfg.DefaultTheme,
 		LogLevel:     cfg.LogLevel,
+		StateFile:    cfg.StateFile,
 	}
 }
 
@@ -54,6 +56,7 @@ func configFromServeSettings(s serveSettings) Config {
 		FeedLines:    s.FeedLines,
 		DefaultTheme: s.DefaultTheme,
 		LogLevel:     s.LogLevel,
+		StateFile:    s.StateFile,
 	}
 }
 
@@ -79,6 +82,7 @@ func NewServeCommand() *cobra.Command {
 	cmd.Flags().IntVar(&settings.FeedLines, "feed-lines", defaults.FeedLines, "Default printer feed lines after print")
 	cmd.Flags().StringVar(&settings.DefaultTheme, "default-theme", defaults.DefaultTheme, "Default Almanach theme")
 	cmd.Flags().StringVar(&settings.LogLevel, "log-level", defaults.LogLevel, "Log verbosity")
+	cmd.Flags().StringVar(&settings.StateFile, "state-file", defaults.StateFile, "Local JSON state file for setup-discovered printer endpoint")
 
 	return cmd
 }
@@ -92,6 +96,7 @@ func runHTTPServer(ctx context.Context, cfg Config, addr, serviceName string) er
 	log.Printf("  Web dir:     %s", cfg.WebDir)
 	log.Printf("  Printer IP:  %s", cfg.PrinterIP)
 	log.Printf("  Chrome:      %s", cfg.ChromePath)
+	log.Printf("  State file:  %s", cfg.StateFile)
 
 	allocatorCtx, allocatorCancel := newChromeAllocator(cfg)
 	defer allocatorCancel()
