@@ -1,0 +1,12 @@
+artifact: examples/rendered/01-minimal.png
+bytes: 22322
+debug_dir: ""
+format: png
+height: 343
+rendered_at: "2026-05-08T10:28:17Z"
+selector: .paper-body
+threshold: 128
+width: 384
+
+---
+

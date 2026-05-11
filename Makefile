@@ -1,14 +1,25 @@
-.PHONY: gifs
+.PHONY: all build build-web test clean run lint lintmax gosec govulncheck goreleaser
 
-all: gifs
-
-VERSION=v0.1.14
+BINARY := almanach-render-service
 GORELEASER_ARGS ?= --skip=sign --snapshot --clean
 GORELEASER_TARGET ?= --single-target
 
-TAPES=$(wildcard doc/vhs/*tape)
-gifs: $(TAPES)
-	for i in $(TAPES); do vhs < $$i; done
+all: build
+
+build-web:
+	GOWORK=off go run ./cmd/build-web
+
+test:
+	GOWORK=off go test ./...
+
+build: build-web
+	GOWORK=off go build -tags embed -o ./dist/$(BINARY) ./cmd/almanach-render-service
+
+run:
+	GOWORK=off go run ./cmd/almanach-render-service serve
+
+clean:
+	rm -rf dist web/dist
 
 docker-lint:
 	docker run --rm -v $(shell pwd):/app -w /app golangci/golangci-lint:latest golangci-lint run -v
@@ -21,18 +32,11 @@ lintmax:
 
 gosec:
 	GOWORK=off go install github.com/securego/gosec/v2/cmd/gosec@latest
-	gosec -exclude-generated -exclude=G101,G304,G301,G306 -exclude-dir=.history ./...
+	gosec -exclude-generated -exclude=G101,G304,G301,G306,G204,G404,G703,G122 -exclude-dir=.history ./...
 
 govulncheck:
 	GOWORK=off go install golang.org/x/vuln/cmd/govulncheck@latest
 	govulncheck ./...
-
-test:
-	GOWORK=off go test ./...
-
-build:
-	GOWORK=off go generate ./...
-	GOWORK=off go build ./...
 
 goreleaser:
 	GOWORK=off goreleaser release $(GORELEASER_ARGS) $(GORELEASER_TARGET)
@@ -48,14 +52,8 @@ tag-patch:
 
 release:
 	git push origin --tags
-	GOWORK=off GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/XXX@$(shell svu current)
+	GOWORK=off GOPROXY=proxy.golang.org go list -m github.com/go-go-golems/almanach@$(shell svu current)
 
 bump-glazed:
 	GOWORK=off go get github.com/go-go-golems/glazed@latest
-	GOWORK=off go get github.com/go-go-golems/clay@latest
 	GOWORK=off go mod tidy
-
-XXX_BINARY=$(shell which XXX)
-install:
-	GOWORK=off go build -o ./dist/XXX ./cmd/XXX && \
-		cp ./dist/XXX $(XXX_BINARY)

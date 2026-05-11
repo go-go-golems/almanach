@@ -1,0 +1,75 @@
+# Tasks
+
+## TODO
+
+- [x] Create ALMANACH-NATIVE-PROVISION ticket workspace
+- [x] Inspect current Go/Glazed ble-provision wrapper and identify Python delegation boundary
+- [x] Inspect ESP-IDF esp_prov.py provisioning flow
+- [x] Inspect Security 1 Python implementation and protobuf schemas
+- [x] Inspect firmware/browser evidence needed for native Go compatibility
+- [x] Write intern-facing native Go provisioning design guide
+- [x] Write investigation diary
+- [x] Phase 1: add Go package layout for native provisioning transport/protocol modules
+  - [x] Create `internal/provisioning/native` package with transport interfaces and high-level client skeleton
+  - [x] Add fake transport test helper for protocol unit tests without BLE hardware
+  - [x] Implement native `proto-ver` parsing/verification against fake transport
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 1
+- [x] Phase 2: generate Go protobuf bindings from ESP-IDF schemas using Buf
+  - [x] Vendor ESP-IDF protocomm and wifi_provisioning `.proto` schemas into the native package
+  - [x] Add Go package options suitable for internal generated bindings
+  - [x] Add Buf generation config and `go generate` hook
+  - [x] Generate Go protobuf bindings with `buf generate` / `protoc-gen-go`
+  - [x] Add compile/round-trip tests for SessionData and WiFiConfigPayload
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 2
+- [x] Phase 3: implement BLE transport using a Linux BlueZ-capable Go BLE library
+  - [x] Add tinygo.org/x/bluetooth dependency for Linux BLE central support
+  - [x] Add provisioning service and endpoint UUID constants
+  - [x] Add TinyGoTransport for scan/connect/service/characteristic discovery
+  - [x] Implement byte-oriented endpoint write/read against discovered characteristics
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 3
+- [x] Phase 4: implement native proto-ver hardware path and endpoint discovery parity with browser/Linux Python client
+  - [x] Add `--implementation python|native` flag while keeping Python as default
+  - [x] Route native `--action version` through TinyGoTransport and VerifyProtoVersion
+  - [x] Return structured Glazed row for native version checks
+  - [x] Return explicit not-implemented errors for native provision/reset/reprov
+  - [x] Run `go test ./...`
+  - [x] Hardware test native version against `ALM_0F2320`
+  - [x] Update diary/changelog and commit Phase 4
+- [x] Phase 5: implement Security 1 X25519 + PoP + AES-CTR session in Go
+  - [x] Add Security1Session state machine for setup0/setup1 over prov-session
+  - [x] Implement X25519 shared secret derivation
+  - [x] Implement optional SHA-256(PoP) XOR shared-key adjustment
+  - [x] Implement AES-256-CTR stream continuity for handshake and later payloads
+  - [x] Add fake Security 1 device tests for successful PoP handshake and encrypted round-trip
+  - [x] Add wrong-PoP and pre-establish error tests
+  - [x] Add Client.EstablishSecurity1 wrapper
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 5
+- [x] Phase 6: implement encrypted WiFi config set/apply/status polling
+  - [x] Add encrypted SetWiFiConfig request/response handling
+  - [x] Add encrypted ApplyWiFiConfig request/response handling
+  - [x] Add encrypted GetWiFiStatus request/response handling
+  - [x] Add ProvisionWiFi helper with polling until terminal state
+  - [x] Add fake encrypted WiFi config tests for success and failed status
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 6
+- [x] Phase 7: add native mode to ble-provision behind a flag while keeping Python fallback
+  - [x] Keep `--implementation python|native` with Python as default
+  - [x] Route native `--action provision` through proto-ver, Security 1, and encrypted WiFi config flow
+  - [x] Preserve passphrase stdin prompting for native provision
+  - [x] Keep native reset/reprov unsupported with explicit errors
+  - [x] Add native dry-run row
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 7
+- [x] Phase 8: hardware validate native Go provisioning against AtomS3R
+  - [x] Run native provisioning against `ALM_0F2320` with provided WiFi credentials
+  - [x] Confirm native command reaches `wifi_state=connected`
+  - [x] Confirm firmware logs show Security 1 session, received SSID, STA got IP, web server start, and provisioning stop
+  - [x] Fix misleading default fail-reason output for connected status
+  - [x] Run `go test ./...`
+  - [x] Update diary/changelog and commit Phase 8
+- [ ] Phase 9: use native Go implementation as reference for future browser JavaScript port
+- [x] Upload native Go provisioning design package to reMarkable

@@ -1,0 +1,65 @@
+# Daily briefing layout.
+# Purpose: exercise common daily blocks: weather, plan, news, and note.
+almanach_studio_version: 1
+exported_at: "2026-05-08T12:00:00Z"
+theme: minimal
+paperWidth: 384
+bodyScale: 1.45
+feedLines: 4
+blocks:
+  - id: title-briefing
+    type: title
+    data:
+      text: DAILY BRIEFING
+      subtitle: Local preview for the thermal printer
+  - id: date-briefing
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: weather-briefing
+    type: weather
+    data:
+      temp: 18°C
+      condition: Clear morning, light breeze
+      high: 23°C
+      low: 12°C
+      sunrise: "05:47"
+      sunset: "20:32"
+  - id: plan-briefing
+    type: plan
+    data:
+      label: Today's Plan
+      items:
+        - time: "08:30"
+          text: Morning review and coffee
+          done: true
+        - time: "10:00"
+          text: Almanach CLI render polish
+          done: false
+        - time: "13:30"
+          text: Hardware printer check
+          done: false
+        - time: "17:00"
+          text: Notes, commit, and handoff
+          done: false
+  - id: news-briefing
+    type: news
+    data:
+      label: Top News
+      items:
+        - headline: One-shot CLI renderer now accepts YAML layouts.
+          source: Almanach Lab
+          time: now
+        - headline: Inspect command reports paper-body and canvas metrics for cutoff debugging.
+          source: Render Desk
+          time: 5m
+        - headline: Thermal output defaults to pure black on white with .paper-body capture.
+          source: Printer Notes
+          time: 9m
+  - id: note-briefing
+    type: note
+    data:
+      label: Daily Note
+      text: Preview first, then print. The paper remembers every mistake.
+      author: Almanach Studio

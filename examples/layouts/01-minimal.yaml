@@ -1,0 +1,25 @@
+# Minimal smoke-test layout.
+# Purpose: verify basic YAML loading, .paper-body capture, title/date/quote rendering.
+almanach_studio_version: 1
+exported_at: "2026-05-08T12:00:00Z"
+theme: minimal
+paperWidth: 384
+bodyScale: 1.6
+feedLines: 3
+blocks:
+  - id: title-minimal
+    type: title
+    data:
+      text: THE ALMANACH
+      subtitle: Minimal CLI smoke test
+  - id: date-minimal
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: quote-minimal
+    type: quote
+    data:
+      label: Quote of the Day
+      text: Simplicity is prerequisite for reliability.
+      author: Edsger W. Dijkstra

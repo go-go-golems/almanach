@@ -1,0 +1,22 @@
+.PHONY: build run clean test
+
+BINARY    := almanach-render-service
+WEB_DIR   := ../web/dist
+PORT      := 8199
+PRINTER_IP ?=
+
+build:
+	go build -o $(BINARY) .
+
+run: build
+	ALMANACH_WEB_DIR=$(WEB_DIR) ALMANACH_PORT=$(PORT) ALMANACH_PRINTER_IP=$(PRINTER_IP) ./$(BINARY)
+
+clean:
+	rm -f $(BINARY)
+
+test:
+	go test ./... -v
+
+# Cross-compile for Raspberry Pi
+build-pi:
+	GOOS=linux GOARCH=arm64 go build -o $(BINARY)-arm64 .

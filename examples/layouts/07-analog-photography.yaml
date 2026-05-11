@@ -1,0 +1,86 @@
+# Analog Photography & Large Format — a knowledge strip for film lovers
+almanach_studio_version: 1
+exported_at: "2026-05-08T13:00:00Z"
+theme: classic
+paperWidth: 384
+bodyScale: 1.45
+feedLines: 3
+blocks:
+  - id: title-film
+    type: title
+    data:
+      text: ANALOG PHOTOGRAPHY
+      subtitle: Large Format · Film · Craft
+  - id: date-film
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: divider-1
+    type: divider
+    data:
+      style: leaves
+  - id: word-film
+    type: word
+    data:
+      label: Word of the Day
+      word: Chiaroscuro
+      phonetic: ki-ä-ro-skü-ro
+      part: noun
+      definition: The treatment of light and shade in drawing and painting; the strong contrast between light and dark that gives a sense of volume and drama to a photograph.
+      example: The large format portrait was a study in chiaroscuro — window light falling across the sitter's face as the darkroom faded to black.
+  - id: history-film
+    type: history
+    data:
+      label: Milestones in Film
+      items:
+        - year: "1839"
+          event: Louis Daguerre presents the daguerreotype to the French Academy of Sciences — the first practical photographic process.
+        - year: "1888"
+          event: George Eastman introduces the Kodak No. 1 camera with the slogan "You press the button, we do the rest."
+        - year: "1948"
+          event: Ansel Adams publishes "The Negative," codifying the Zone System for precise exposure control in large format.
+        - year: "2013"
+          event: Kodak files for bankruptcy. Fujifilm discontinues FP-100C — the last instant peel-apart film.
+  - id: divider-2
+    type: divider
+    data:
+      style: dots
+  - id: did-film
+    type: did
+    data:
+      label: Large Format Lore
+      items:
+        - An 8×10 sheet of Tri-X has roughly 500 megapixels of resolution when drum-scanned — every grain is a pixel of truth.
+        - Ansel Adams hiked Yosemite with a 60-pound pack containing his 8×10 view camera, three lenses, and a dozen film holders.
+        - The Movielab 70mm IMAX format uses 15-perforation film — each frame is roughly the size of a postcard.
+        - A standard 4×5 film holder carries two sheets — one per side. You get two chances before you reload.
+  - id: quote-film
+    type: quote
+    data:
+      label: From the Darkroom
+      text: You don't take a photograph, you make it. The negative is the score, the print is the performance.
+      author: Ansel Adams
+  - id: divider-3
+    type: divider
+    data:
+      style: wave
+  - id: reading-film
+    type: reading
+    data:
+      label: Reading List
+      current:
+        title: "The Negative"
+        author: Ansel Adams
+        progress: 68
+      next:
+        - "The Print — Ansel Adams"
+        - "View Camera Technique — Leslie Stroebel"
+        - "The Art of Photography — Bruce Barnbaum"
+        - "Way Beyond Monochrome — Ralph Lambrecht"
+  - id: note-film
+    type: note
+    data:
+      label: Today's Exposure Notes
+      text: f/22 at 1/4 sec on Tri-X. Reciprocity failure kicked in at 1 second — added one stop. The bellows extension factor on the 210mm at close focus costs another 1.5 stops. Meter reads EV 8 but you'll need EV 5.5 after corrections. Write it on the film holder.
+      author: ""

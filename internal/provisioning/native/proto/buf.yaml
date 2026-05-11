@@ -1,0 +1,14 @@
+version: v2
+modules:
+  - path: espidf
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_DEFINED
+    - PACKAGE_DIRECTORY_MATCH
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+breaking:
+  use:
+    - FILE

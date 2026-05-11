@@ -1,0 +1,40 @@
+# Paper shell preview layout.
+# Purpose: demonstrate .paper-shell capture, including the decorative top/bottom zigzag edges.
+layout:
+  almanach_studio_version: 1
+  exported_at: "2026-05-08T12:00:00Z"
+  theme: minimal
+  paperWidth: 384
+  bodyScale: 1.55
+  feedLines: 3
+  blocks:
+    - id: title-shell
+      type: title
+      data:
+        text: PAPER SHELL
+        subtitle: Captures zigzag edges for visual preview
+    - id: date-shell
+      type: date
+      data:
+        date: May 8, 2026
+        day: Friday
+    - id: weather-shell
+      type: weather
+      data:
+        temp: 21°C
+        condition: Preview weather
+        high: 24°C
+        low: 16°C
+        sunrise: "05:50"
+        sunset: "20:29"
+    - id: quote-shell
+      type: quote
+      data:
+        label: Preview Note
+        text: Use .paper-shell for decorative previews, .paper-body for print-oriented bitmap output.
+        author: Almanach CLI
+render:
+  selector: .paper-shell
+  threshold: 128
+  viewportWidth: 900
+  viewportHeight: 3000

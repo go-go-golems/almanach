@@ -1,0 +1,12 @@
+artifact: examples/rendered/03-knowledge-strip.png
+bytes: 65116
+debug_dir: ""
+format: png
+height: 955
+rendered_at: "2026-05-08T10:28:22Z"
+selector: .paper-body
+threshold: 128
+width: 384
+
+---
+

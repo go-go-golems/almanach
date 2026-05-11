@@ -1,0 +1,75 @@
+# Tasks
+
+## TODO
+
+- [x] Add tasks here
+
+- [x] Implement provisioning_mgr BLE WiFi provisioning subsystem
+- [ ] Preserve and validate esp_console WiFi save/status/forget behavior
+- [x] Add provisioning console commands and reset flow
+- [ ] Validate provisioning with Espressif app on AtomS3R hardware
+- [x] Phase 1: add BLE/NimBLE/protocomm sdkconfig defaults and CMake dependencies, then clean-build firmware
+- [x] Phase 2: add provisioning_mgr.c/.h with service name, MAC-derived PoP, status, event handling, start/reset APIs
+- [x] Phase 3: integrate provisioning decision into app_main boot flow without breaking saved console WiFi autoconnect
+- [x] Phase 4: add provisioning_cmd.c/.h for prov_status, prov_start, prov_reset and register commands
+- [x] Phase 5: update wifi_forget/reset semantics to clear both explicit NVS WiFi and provisioning manager state
+- [x] Phase 6: build, flash, monitor, and validate console plus BLE provisioning behavior on AtomS3R
+- [x] Design Web Bluetooth provisioning UI for top-level Almanach web app
+- [x] Setup page Phase 1: add standalone React setup entrypoint and mock provisioning component modules
+- [x] Setup page Phase 2: update esbuild to emit setup.html/setup-bundle.js alongside Almanach editor bundle
+- [x] Setup page Phase 2b: add Storybook coverage for setup states and capture css-visual-diff screenshots against the main editor
+- [x] Setup page Phase 3: serve /setup and /setup/bundle.js from embedded/local web assets in Go
+  - [x] Add static handlers for setup.html and setup-bundle.js in both disk and bundled modes
+  - [x] Add route tests for /setup and /setup/bundle.js
+- [x] Setup page Phase 4: add almanach-render-service setup command bound to localhost
+  - [x] Add a setup subcommand with --port/--web-dir flags and localhost-only bind address
+  - [x] Print the localhost setup URL when the server starts
+- [x] Setup page Phase 5: validate devctl build, setup page load, and mock provisioning flow
+  - [x] Run go test ./... and web build validation
+  - [x] Smoke-test /setup through a local server
+- [x] Setup page Phase 6: update diary/changelog and design docs with implemented route and command names
+- [x] Design Linux Go/Glazed BLE provisioning CLI feedback loop
+- [x] Implement ble-provision Glazed verb wrapping ESP-IDF esp_prov.py
+- [x] Validate ble-provision dry-run and protocol version check against AtomS3R
+- [x] Upload Linux CLI provisioning design guide to reMarkable
+
+- [x] Validate Linux Go/Glazed provisioning with real WiFi credentials
+- [x] Validate reboot autoconnect and /api/status after provisioning
+- [x] Fix web server startup gap when first provisioning gets IP after app_main initial wait
+- [x] Browser BLE Phase 1: add real Web Bluetooth picker/connect/service discovery client
+  - [x] Add ESP-IDF provisioning Web Bluetooth client module with service UUID and ALM_ device filter
+  - [x] Wire setup page buttons for mock flow vs real BLE connection
+  - [x] Add Storybook state for real BLE connected/discovery-ready UI
+  - [x] Validate web build and Storybook build
+- [x] Browser BLE Phase 2: implement browser proto-ver endpoint probe
+- [x] Browser BLE Phase 3: decide library vs native implementation for ESP-IDF Security 1/protobuf
+  - [x] Use `@noble/curves` for X25519
+  - [x] Add minimal ESP-IDF protobuf helpers for Security 1 and WiFi config payloads
+  - [x] Use WebCrypto SHA-256 and AES-CTR stream adapter instead of adding a cipher package
+- [x] Browser BLE Phase 4: send WiFi credentials and poll provisioning result from Chrome
+  - [x] Add binary endpoint send/read support
+  - [x] Implement browser Security 1 setup0/setup1
+  - [x] Implement encrypted SetConfig/ApplyConfig/GetStatus
+  - [x] Wire real setup wizard flow through Security 1 and status polling
+  - [x] Build setup bundle and embedded assets
+- [x] Browser BLE Phase 5: browser hardware validation against AtomS3R and diary/changelog update
+  - [x] User validated Chrome provisioning flow through connected status and BLE disconnect after success
+- [x] Reset/reprovision Step 1: add native Go `prov-ctrl` reset/reprov actions
+  - [x] Add encrypted `WiFiCtrlPayload` reset/reprov helpers against `prov-ctrl`
+  - [x] Wire `ble-provision --implementation native --action reset|reprov`
+  - [x] Add fake encrypted transport tests
+  - [x] Run `go test ./...`
+- [x] Reset/reprovision Step 2: add browser `prov-ctrl` reset/reprov actions
+  - [x] Add minimal browser WiFi control protobuf helpers
+  - [x] Add Web Bluetooth client `resetWiFi` and `reprovisionWiFi`
+  - [x] Add guarded setup-page buttons
+  - [x] Rebuild setup bundle and embedded assets
+- [x] Reset/reprovision Step 3: confirm physical reset path
+  - [x] Confirm button long-hold already clears WiFi/provisioning state and reboots via `reset_provisioning_and_reboot()`
+- [x] Setup rendezvous: report provisioned printer IP back to localhost render server
+  - [x] Add Glazed help page for provisioning the printer
+  - [x] Add `POST /api/setup/provisioned-device` and `GET /api/setup/provisioned-device`
+  - [x] Use remembered setup IP as render/print printer endpoint when `ALMANACH_PRINTER_IP` is unset
+  - [x] Decode connected IP/SSID from browser BLE provisioning status
+  - [x] Browser posts provisioned device to the localhost setup server after connected status
+  - [x] Validate help discoverability, web build, embedded assets, and Go tests

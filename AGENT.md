@@ -2,11 +2,12 @@
 
 ## Build Commands
 
-- Run a binary in XXX/YYY/FOOO: `go run ./XXX/YYY/FOOO` . Use this instead of build + ./XXX.
-- Build: `go build ./...`
+- Run the service: `go run ./cmd/almanach-render-service serve`.
+- Build web assets: `BUILD_WEB_LOCAL=1 go run ./cmd/build-web` or `go run ./cmd/build-web` for Dagger-first builds.
+- Build: `go build -tags embed ./cmd/almanach-render-service`
 - Test: `go test ./...`
-- Run single test: `go test ./pkg/path/to/package -run TestName`
-- Generate: `go generate ./...`
+- Run single test: `go test ./internal/app -run TestName`
+- Generate: `go generate ./internal/web`
 - Lint: `golangci-lint run -v` or `make lint`
 - Format: `go fmt ./...`
 

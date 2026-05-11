@@ -1,0 +1,6 @@
+almanach-render-service
+almanach-render-service-arm64
+*.exe
+.git
+.gitignore
+README.md

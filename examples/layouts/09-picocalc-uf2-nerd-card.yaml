@@ -1,0 +1,118 @@
+# Nerd card based on: PicoCalc UF2 Loader — Two-Stage Bootloader Deep Dive
+almanach_studio_version: 1
+exported_at: "2026-05-08T14:00:00Z"
+theme: space
+paperWidth: 384
+bodyScale: 1.28
+feedLines: 3
+blocks:
+  - id: title-picocalc-uf2
+    type: title
+    data:
+      text: PICOCALC UF2 LOADER
+      subtitle: two-stage bootloader field notes
+  - id: date-picocalc-uf2
+    type: date
+    data:
+      date: May 8, 2026
+      day: Friday
+  - id: boot-flow-diagram
+    type: image
+    data:
+      label: Boot Flow
+      src: >-
+        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NDAiIGhlaW
+        dodD0iMzAwIiB2aWV3Qm94PSIwIDAgNjQwIDMwMCI+CiAgPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSIzMDAiIGZpbGw9IndoaX
+        RlIi8+CiAgPHN0eWxlPnRleHR7Zm9udC1mYW1pbHk6bW9ub3NwYWNlO2ZvbnQtc2l6ZToyNHB4O2ZpbGw6IzAwMH0uc21hbGx7Zm
+        9udC1zaXplOjE4cHh9LnRpbnl7Zm9udC1zaXplOjE2cHh9LmJveHtmaWxsOiNmZmY7c3Ryb2tlOiMwMDA7c3Ryb2tlLXdpZHRoOj
+        R9LmFycm93e3N0cm9rZTojMDAwO3N0cm9rZS13aWR0aDo0O2ZpbGw6bm9uZTttYXJrZXItZW5kOnVybCgjYSl9PC9zdHlsZT4KIC
+        A8ZGVmcz48bWFya2VyIGlkPSJhIiB2aWV3Qm94PSIwIDAgMTAgMTAiIHJlZlg9IjkiIHJlZlk9IjUiIG1hcmtlcldpZHRoPSI4Ii
+        BtYXJrZXJIZWlnaHQ9IjgiIG9yaWVudD0iYXV0by1zdGFydC1yZXZlcnNlIj48cGF0aCBkPSJNMCwwIEwxMCw1IEwwLDEwIHoiIG
+        ZpbGw9IiMwMDAiLz48L21hcmtlcj48L2RlZnM+CiAgPHJlY3QgY2xhc3M9ImJveCIgeD0iMjQiIHk9IjMwIiB3aWR0aD0iMTY4Ii
+        BoZWlnaHQ9Ijc2Ii8+PHRleHQgeD0iMTA4IiB5PSI2NCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+UkVTRVQ8L3RleHQ+PHRleHQgY2
+        xhc3M9InNtYWxsIiB4PSIxMDgiIHk9IjkwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5zdGFnZTMgZmxhc2g8L3RleHQ+CiAgPHBhdG
+        ggY2xhc3M9ImFycm93IiBkPSJNMTkyIDY4IEgyNzAiLz4KICA8cmVjdCBjbGFzcz0iYm94IiB4PSIyNzAiIHk9IjMwIiB3aWR0aD
+        0iMTY4IiBoZWlnaHQ9Ijc2Ii8+PHRleHQgeD0iMzU0IiB5PSI2NCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+S0VZPzwvdGV4dD48dG
+        V4dCBjbGFzcz0ic21hbGwiIHg9IjM1NCIgeT0iOTAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPjAuNXMgc2NhbjwvdGV4dD4KICA8cG
+        F0aCBjbGFzcz0iYXJyb3ciIGQ9Ik00MzggNjggSDUxNiIvPgogIDxyZWN0IGNsYXNzPSJib3giIHg9IjUxNiIgeT0iMzAiIHdpZH
+        RoPSIxMDAiIGhlaWdodD0iNzYiLz48dGV4dCB4PSI1NjYiIHk9IjY0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BUFA8L3RleHQ+PH
+        RleHQgY2xhc3M9InNtYWxsIiB4PSI1NjYiIHk9IjkwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5WVE9SK01TUDwvdGV4dD4KICA8cG
+        F0aCBjbGFzcz0iYXJyb3ciIGQ9Ik0zNTQgMTA2IFYxNjAiLz4KICA8cmVjdCBjbGFzcz0iYm94IiB4PSIxODQiIHk9IjE2MCIgd2
+        lkdGg9IjM0MCIgaGVpZ2h0PSI3NiIvPjx0ZXh0IHg9IjM1NCIgeT0iMTk0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5CT09UMjA0MC
+        5VRjI8L3RleHQ+PHRleHQgY2xhc3M9InNtYWxsIiB4PSIzNTQiIHk9IjIyMCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+U0QgbWVudS
+        Bsb2FkZWQgaW50byBTUkFNPC90ZXh0PgogIDxwYXRoIGNsYXNzPSJhcnJvdyIgZD0iTTUyNCAxOTggSDU2NiBWMTA2Ii8+CiAgPH
+        RleHQgY2xhc3M9InRpbnkiIHg9IjM1NCIgeT0iMjcwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5zZWxlY3QgLnVmMiAg4oaSICBmbG
+        FzaCBhcHAgIOKGkiAgcmVib290PC90ZXh0Pgo8L3N2Zz4=
+      alt: Diagram showing reset to stage3, key scan, app launch, or BOOT2040 UF2 menu from SD
+      caption: "Tiny flashed stage3 + SD-card UF2 menu = ordinary apps, less linker drama."
+      height: 176
+      fit: contain
+      border: true
+      grayscale: true
+  - id: word-vector-hole
+    type: word
+    data:
+      label: Nerd Word
+      word: Vector Hole
+      phonetic: vek-tor hohl
+      part: noun
+      definition: "A small gap at RP2040 flash offset 0x110 where uf2loader stores proginfo: magic, safe flash end, and the currently installed app name."
+      example: "If the magic at XIP_BASE + 0x110 is valid, stage3 knows the app can be launched."
+  - id: divider-picocalc-1
+    type: divider
+    data:
+      style: dots
+  - id: plan-boot-keys
+    type: plan
+    data:
+      label: Power-On Decision Tree
+      items:
+        - time: "0ms"
+          text: Reset lands in tiny stage3 bootloader in Pico flash.
+          done: false
+        - time: "500ms"
+          text: "Scan PicoCalc keyboard: Up/F1/F5 means SD menu."
+          done: false
+        - time: "default"
+          text: "No key: set VTOR, set MSP, branch to installed app reset vector."
+          done: false
+        - time: "menu"
+          text: Load BOOT2040.UF2 from SD into SRAM and jump there.
+          done: false
+        - time: "select"
+          text: Menu flashes normal .uf2 from /pico1-apps/ and reboots.
+          done: false
+  - id: did-picocalc-uf2
+    type: did
+    data:
+      label: Why This Beats /firmware/*.bin
+      items:
+        - "Stock Bootloader v1.0 wants a specially linked .bin whose first words are stack pointer + reset vector at the 200 KiB app offset."
+        - "UF2-to-BIN conversion failed because normal Pico images start with boot2 bytes, not the vector table the stock loader validates."
+        - "uf2loader accepts ordinary Arduino/Pico .uf2 apps, preserves its high-flash loader region, and keeps the big menu on SD."
+        - "BOOT2040.UF2 is not flashed as firmware; it is the menu UI loaded from SD into RAM."
+  - id: history-addresses
+    type: history
+    data:
+      label: Magic Addresses
+      items:
+        - year: "0x10000000"
+          event: "XIP flash base on RP2040. Normal images begin with boot2 here."
+        - year: "0x10000100"
+          event: "Application vector table after boot2; stage3 jumps here for installed apps."
+        - year: "0x10000110"
+          event: "Vector-table hole used for uf2loader proginfo metadata."
+        - year: "top 16 KiB"
+          event: "Protected high-flash area: 8 KiB stage3 plus 8 KiB reserved BT-stack space."
+  - id: quote-picocalc-uf2
+    type: quote
+    data:
+      label: Loader Maxim
+      text: "Do not flash BOOT2040.UF2 to the Pico. Put it on the SD card. Flash bootloader_pico.uf2 once, then feed the menu ordinary .uf2 apps."
+      author: "PicoCalc field rule"
+  - id: note-picocalc-uf2
+    type: note
+    data:
+      label: SD Card Spell
+      text: "/BOOT2040.UF2 + /pico1-apps/uLisp_4.8f_arduino_pico_4.5.0.uf2. Hold Up, F1, or F5 on power-up. Select the app. Reboot into Lisp."
+      author: "two-stage incantation"

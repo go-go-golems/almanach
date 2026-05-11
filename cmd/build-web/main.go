@@ -1,0 +1,223 @@
+// build-web builds the React frontend and copies the output to
+// internal/web/embed/public/ for embedding via //go:embed.
+//
+// Usage:
+//
+//	go run ./cmd/build-web           # Dagger (requires Docker)
+//	BUILD_WEB_LOCAL=1 go run ./cmd/build-web  # Local pnpm (requires node + pnpm)
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"dagger.io/dagger"
+)
+
+const (
+	defaultBuilderImage = "node:22"
+	defaultPNPMVersion  = "10.15.0"
+)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "build-web: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context) error {
+	repoRoot, err := findRepoRoot()
+	if err != nil {
+		return err
+	}
+
+	// Dagger-first; falls back to local pnpm if Docker is unavailable.
+	if os.Getenv("BUILD_WEB_LOCAL") == "1" {
+		return runLocal(repoRoot)
+	}
+	if err := runDagger(ctx, repoRoot); err != nil {
+		if errors.Is(err, errDaggerUnavailable) {
+			fmt.Fprintf(os.Stderr, "dagger unavailable, falling back to local pnpm\n")
+			return runLocal(repoRoot)
+		}
+		return err
+	}
+	return nil
+}
+
+var errDaggerUnavailable = errors.New("dagger: engine not reachable")
+
+func runDagger(ctx context.Context, repoRoot string) error {
+	client, err := dagger.Connect(ctx, dagger.WithLogOutput(os.Stdout))
+	if err != nil {
+		return fmt.Errorf("%w: %v", errDaggerUnavailable, err)
+	}
+	defer func() { _ = client.Close() }()
+
+	webDir := filepath.Join(repoRoot, "web")
+	pnpmVersion := getenv("WEB_PNPM_VERSION", readPNPMVersion(webDir))
+	if pnpmVersion == "" {
+		pnpmVersion = defaultPNPMVersion
+	}
+	builderImage := getenv("WEB_BUILDER_IMAGE", defaultBuilderImage)
+
+	source := client.Host().Directory(webDir, dagger.HostDirectoryOpts{
+		Exclude: []string{"dist", "node_modules", ".git"},
+	})
+
+	pnpmStore := client.CacheVolume("almanach-web-pnpm-store")
+	pathEnv := "/pnpm:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+	container := client.Container().
+		From(builderImage).
+		WithEnvVariable("PNPM_HOME", "/pnpm").
+		WithEnvVariable("PATH", pathEnv).
+		WithMountedCache("/pnpm/store", pnpmStore).
+		WithDirectory("/src", source).
+		WithWorkdir("/src").
+		WithExec([]string{"sh", "-lc", "corepack enable && corepack prepare pnpm@" + pnpmVersion + " --activate"}).
+		WithExec([]string{"pnpm", "install", "--prefer-offline"}).
+		WithExec([]string{"pnpm", "run", "build"})
+
+	// Export to a temp dir first, then copy to embed/public
+	tmpDir, err := os.MkdirTemp("", "almanach-web-dist-")
+	if err != nil {
+		return fmt.Errorf("temp dir: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	if _, err := container.Directory("/src/dist").Export(ctx, tmpDir); err != nil {
+		return fmt.Errorf("export dist: %w", err)
+	}
+
+	dst := filepath.Join(repoRoot, "internal", "web", "embed", "public")
+	if err := recreate(dst); err != nil {
+		return fmt.Errorf("recreate dst: %w", err)
+	}
+	if err := copyTree(tmpDir, dst); err != nil {
+		return fmt.Errorf("copy to embed/public: %w", err)
+	}
+
+	log.Printf("Successfully exported web dist to %s (via Dagger)", dst)
+	return nil
+}
+
+func runLocal(repoRoot string) error {
+	webDir := filepath.Join(repoRoot, "web")
+	if err := runCmd(repoRoot, "pnpm", "--prefix", "web", "install", "--prefer-offline"); err != nil {
+		return fmt.Errorf("pnpm install (local): %w", err)
+	}
+	if err := runCmd(repoRoot, "pnpm", "--prefix", "web", "run", "build"); err != nil {
+		return fmt.Errorf("pnpm build (local): %w", err)
+	}
+
+	src := filepath.Join(webDir, "dist")
+	dst := filepath.Join(repoRoot, "internal", "web", "embed", "public")
+	if err := recreate(dst); err != nil {
+		return fmt.Errorf("recreate dst: %w", err)
+	}
+	if err := copyTree(src, dst); err != nil {
+		return fmt.Errorf("copy to embed/public: %w", err)
+	}
+
+	log.Printf("Successfully exported web dist to %s (local pnpm)", dst)
+	return nil
+}
+
+// readPNPMVersion reads "pnpm@x.y.z" from package.json's packageManager field.
+func readPNPMVersion(webDir string) string {
+	data, err := os.ReadFile(filepath.Join(webDir, "package.json"))
+	if err != nil {
+		return ""
+	}
+	prefix := `"packageManager": "pnpm@`
+	for i := 0; i < len(data)-len(prefix); i++ {
+		if string(data[i:i+len(prefix)]) == prefix {
+			j := i + len(prefix)
+			for j < len(data) && data[j] != '"' {
+				j++
+			}
+			return string(data[i+len(prefix) : j])
+		}
+	}
+	return ""
+}
+
+func findRepoRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for i := 0; i < 10; i++ {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("go.mod not found")
+}
+
+func getenv(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func runCmd(dir, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// recreate removes everything in dir (except .keep), then creates it.
+func recreate(dir string) error {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if e.Name() == ".keep" {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(dir, e.Name()))
+	}
+	return os.MkdirAll(dir, 0o750)
+}
+
+// copyTree recursively copies src/ to dst/.
+func copyTree(src, dst string) error {
+	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o750)
+		}
+		in, err := os.Open(p)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = in.Close() }()
+		out, err := os.Create(target)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = out.Close() }()
+		_, err = io.Copy(out, in)
+		return err
+	})
+}

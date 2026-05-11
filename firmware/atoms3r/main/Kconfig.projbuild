@@ -1,0 +1,146 @@
+menu "Almanach AtomS3R Display"
+
+config ALMANACH_ATOMS3R_DISPLAY_ENABLE
+    bool "Enable AtomS3R LCD status display"
+    default y
+
+config ALMANACH_ATOMS3R_LCD_HRES
+    int "LCD horizontal resolution"
+    range 1 1024
+    default 128
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_LCD_VRES
+    int "LCD vertical resolution"
+    range 1 1024
+    default 128
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_LCD_X_OFFSET
+    int "LCD X offset"
+    range 0 64
+    default 0
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_LCD_Y_OFFSET
+    int "LCD Y offset"
+    range 0 64
+    default 32
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+    help
+        AtomS3R GC9107 uses a 128x160 internal RAM window; the visible 128x128
+        square is normally at Y offset 32.
+
+config ALMANACH_ATOMS3R_LCD_INVERT
+    bool "Invert LCD colors"
+    default n
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_LCD_RGB_ORDER_RGB
+    bool "Use RGB color order"
+    default n
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_LCD_SPI_PCLK_HZ
+    int "LCD SPI pixel clock (Hz)"
+    range 1000000 80000000
+    default 40000000
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_CANVAS_USE_PSRAM
+    bool "Allocate display canvas in PSRAM"
+    default n
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+    help
+        Keep disabled initially so the sprite buffer is DMA-capable for full-frame presents.
+
+config ALMANACH_ATOMS3R_PRESENT_USE_DMA
+    bool "Wait for DMA completion after display present"
+    default y
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+endmenu
+
+menu "Almanach AtomS3R Backlight"
+    depends on ALMANACH_ATOMS3R_DISPLAY_ENABLE
+
+config ALMANACH_ATOMS3R_BACKLIGHT_GATE_ENABLE
+    bool "Drive backlight gate GPIO"
+    default n
+    help
+        Disabled by default because donor display firmware uses GPIO7 for this gate,
+        while the Almanach printer firmware has used GPIO7 in the printer UART mapping.
+        Enable only after the board-level pin conflict is resolved.
+
+config ALMANACH_ATOMS3R_BACKLIGHT_GATE_GPIO
+    int "Backlight gate GPIO"
+    range 0 48
+    default 7
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_GATE_ENABLE
+
+config ALMANACH_ATOMS3R_BACKLIGHT_GATE_ACTIVE_LOW
+    bool "Backlight gate is active-low"
+    default y
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_GATE_ENABLE
+
+config ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+    bool "Use AtomS3R I2C brightness device"
+    default y
+
+config ALMANACH_ATOMS3R_BL_I2C_SCL_GPIO
+    int "Backlight I2C SCL GPIO"
+    range 0 48
+    default 0
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+
+config ALMANACH_ATOMS3R_BL_I2C_SDA_GPIO
+    int "Backlight I2C SDA GPIO"
+    range 0 48
+    default 45
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+
+config ALMANACH_ATOMS3R_BL_I2C_ADDR
+    hex "Backlight I2C address"
+    default 0x30
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+
+config ALMANACH_ATOMS3R_BL_I2C_REG
+    hex "Backlight brightness register"
+    default 0x0e
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+
+config ALMANACH_ATOMS3R_BL_BRIGHTNESS_ON
+    int "Backlight brightness when display is on"
+    range 0 255
+    default 255
+    depends on ALMANACH_ATOMS3R_BACKLIGHT_I2C_ENABLE
+
+endmenu
+
+menu "Almanach AtomS3R Button"
+
+config ALMANACH_ATOMS3R_BUTTON_GPIO
+    int "Button GPIO"
+    range 0 48
+    default 41
+
+config ALMANACH_ATOMS3R_BUTTON_ACTIVE_LOW
+    bool "Button is active-low"
+    default y
+
+config ALMANACH_ATOMS3R_BUTTON_DEBOUNCE_MS
+    int "Button debounce window (ms)"
+    range 0 1000
+    default 50
+
+config ALMANACH_ATOMS3R_PAIRING_HOLD_MS
+    int "Hold duration to enter pairing mode (ms)"
+    range 500 10000
+    default 2500
+
+config ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS
+    int "Hold duration to reset credentials and reboot (ms)"
+    range 1000 20000
+    default 10000
+
+endmenu

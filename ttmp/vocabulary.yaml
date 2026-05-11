@@ -1,0 +1,58 @@
+topics:
+    - slug: chat
+      description: Chat backend and frontend surfaces
+    - slug: backend
+      description: Backend services
+    - slug: websocket
+      description: WebSocket lifecycle & events
+    - slug: almanach
+      description: almanach topic
+    - slug: ble
+      description: ble topic
+    - slug: esp-idf
+      description: esp-idf topic
+    - slug: firmware
+      description: firmware topic
+    - slug: thermal-printer
+      description: thermal-printer topic
+    - slug: wifi-provisioning
+      description: wifi-provisioning topic
+    - slug: atoms3r
+      description: M5Stack AtomS3R hardware and firmware topics
+    - slug: display
+      description: Embedded display, rendering, and screen status topics
+    - slug: cli
+      description: Command-line interfaces and CLI workflows
+    - slug: go
+      description: Go language implementation and libraries
+    - slug: protocomm
+      description: ESP-IDF protocomm protocol and endpoints
+docTypes:
+    - slug: design-doc
+      description: Structured rationale and architecture notes
+    - slug: reference
+      description: Reference docs and API contracts
+    - slug: playbook
+      description: Operational procedures and QA/Smoke steps
+    - slug: index
+      description: Ticket landing page
+    - slug: skill
+      description: Skill documentation (what it's for and when to use it)
+intent:
+    - slug: long-term
+      description: Likely to persist
+    - slug: short-term
+      description: Short-term documentation for active work
+    - slug: throwaway
+      description: Temporary/experimental documentation
+status:
+    - slug: draft
+      description: Initial draft state
+    - slug: active
+      description: Active work in progress
+    - slug: review
+      description: Ready for review
+    - slug: complete
+      description: Work completed
+    - slug: archived
+      description: Archived/completed work

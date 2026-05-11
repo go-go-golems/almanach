@@ -1,0 +1,39 @@
+# Almanach Render Service — Docker Compose
+#
+# Two containers:
+#   1. chrome — headless-shell (maintained by chromedp team, ~137 MB)
+#   2. render — Go server (our binary, ~12 MB)
+#
+# The Go server connects to Chrome via WebSocket at ws://chrome:9222.
+#
+# Usage:
+#   ALMANACH_PRINTER_IP=192.168.0.126 docker compose up
+#
+# Test:
+#   curl -X POST http://localhost:8199/api/render-and-print
+
+services:
+  chrome:
+    image: chromedp/headless-shell:latest
+    ports:
+      - "9222:9222"
+    # headless-shell listens on 0.0.0.0:9222 by default
+    shm_size: '2gb'  # Chrome needs shared memory
+    restart: unless-stopped
+
+  render:
+    build: .
+    ports:
+      - "8199:8199"
+    environment:
+      - CHROME_WS_URL=ws://chrome:9222
+      - ALMANACH_PORT=8199
+      - ALMANACH_PRINTER_IP=${ALMANACH_PRINTER_IP:-}
+      - ALMANACH_WEB_DIR=/opt/almanach/web/dist
+      - ALMANACH_DEFAULT_THEME=minimal
+      - ALMANACH_DEFAULT_FEED=3
+      - ALMANACH_FONT_SCALE=1.6
+      - ALMANACH_PAPER_WIDTH=384
+    depends_on:
+      - chrome
+    restart: unless-stopped

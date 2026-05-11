@@ -1,0 +1,222 @@
+--- session.proto
+     1	syntax = "proto3";
+     2	
+     3	import "sec0.proto";
+     4	import "sec1.proto";
+     5	import "sec2.proto";
+     6	
+     7	/* Allowed values for the type of security
+     8	 * being used in a protocomm session */
+     9	enum SecSchemeVersion {
+    10	    SecScheme0 = 0;  /*!< Unsecured - plaintext communication */
+    11	    SecScheme1 = 1;  /*!< Security scheme 1 - Curve25519 + AES-256-CTR*/
+    12	    SecScheme2 = 2;  /*!< Security scheme 2 - SRP6a + AES-256-GCM*/
+    13	
+    14	}
+    15	
+    16	/* Data structure exchanged when establishing
+    17	 * secure session between Host and Client */
+    18	message SessionData {
+    19	    SecSchemeVersion sec_ver = 2;   /*!< Type of security */
+    20	    oneof proto {
+    21	        Sec0Payload sec0 = 10;      /*!< Payload data in case of security 0 */
+    22	        Sec1Payload sec1 = 11;      /*!< Payload data in case of security 1 */
+    23	        Sec2Payload sec2 = 12;      /*!< Payload data in case of security 2 */
+    24	    }
+    25	}
+--- sec1.proto
+     1	syntax = "proto3";
+     2	
+     3	import "constants.proto";
+     4	
+     5	/* Data structure of Session command1 packet */
+     6	message SessionCmd1 {
+     7	    bytes client_verify_data = 2;
+     8	}
+     9	
+    10	/* Data structure of Session response1 packet */
+    11	message SessionResp1 {
+    12	    Status status = 1;
+    13	    bytes device_verify_data = 3;
+    14	}
+    15	
+    16	/* Data structure of Session command0 packet */
+    17	message SessionCmd0 {
+    18	    bytes client_pubkey = 1;
+    19	}
+    20	
+    21	/* Data structure of Session response0 packet */
+    22	message SessionResp0 {
+    23	    Status status = 1;
+    24	    bytes device_pubkey = 2;
+    25	    bytes device_random = 3;
+    26	}
+    27	
+    28	/* A message must be of type Cmd0 / Cmd1 / Resp0 / Resp1 */
+    29	enum Sec1MsgType {
+    30	    Session_Command0 = 0;
+    31	    Session_Response0 = 1;
+    32	    Session_Command1 = 2;
+    33	    Session_Response1 = 3;
+    34	}
+    35	
+    36	/* Payload structure of session data */
+    37	message Sec1Payload {
+    38	    Sec1MsgType msg = 1;        /*!< Type of message */
+    39	    oneof payload {
+    40	        SessionCmd0 sc0 = 20;   /*!< Payload data interpreted as Cmd0 */
+    41	        SessionResp0 sr0 = 21;  /*!< Payload data interpreted as Resp0 */
+    42	        SessionCmd1 sc1 = 22;   /*!< Payload data interpreted as Cmd1 */
+    43	        SessionResp1 sr1 = 23;  /*!< Payload data interpreted as Resp1 */
+    44	    }
+    45	}
+--- constants.proto
+     1	syntax = "proto3";
+     2	
+     3	/* Allowed values for the status
+     4	 * of a protocomm instance */
+     5	enum Status {
+     6	    Success = 0;
+     7	    InvalidSecScheme = 1;
+     8	    InvalidProto = 2;
+     9	    TooManySessions = 3;
+    10	    InvalidArgument = 4;
+    11	    InternalError = 5;
+    12	    CryptoError = 6;
+    13	    InvalidSession = 7;
+    14	}
+--- wifi_config.proto
+     1	syntax = "proto3";
+     2	
+     3	import "constants.proto";
+     4	import "wifi_constants.proto";
+     5	
+     6	message CmdGetStatus {
+     7	
+     8	}
+     9	
+    10	message RespGetStatus {
+    11	    Status status = 1;
+    12	    WifiStationState sta_state = 2;
+    13	    oneof state {
+    14	        WifiConnectFailedReason fail_reason = 10;
+    15	        WifiConnectedState connected = 11;
+    16	        WifiAttemptFailed attempt_failed = 12;
+    17	    }
+    18	}
+    19	
+    20	message CmdSetConfig {
+    21	    bytes ssid = 1;
+    22	    bytes passphrase = 2;
+    23	    bytes bssid = 3;
+    24	    int32 channel = 4;
+    25	}
+    26	
+    27	message RespSetConfig {
+    28	    Status status = 1;
+    29	}
+    30	
+    31	message CmdApplyConfig {
+    32	
+    33	}
+    34	
+    35	message RespApplyConfig {
+    36	    Status status = 1;
+    37	}
+    38	
+    39	enum WiFiConfigMsgType {
+    40	    TypeCmdGetStatus = 0;
+    41	    TypeRespGetStatus = 1;
+    42	    TypeCmdSetConfig = 2;
+    43	    TypeRespSetConfig = 3;
+    44	    TypeCmdApplyConfig = 4;
+    45	    TypeRespApplyConfig = 5;
+    46	}
+    47	
+    48	message WiFiConfigPayload {
+    49	    WiFiConfigMsgType msg = 1;
+    50	    oneof payload {
+    51	        CmdGetStatus cmd_get_status = 10;
+    52	        RespGetStatus resp_get_status = 11;
+    53	        CmdSetConfig cmd_set_config = 12;
+    54	        RespSetConfig resp_set_config = 13;
+    55	        CmdApplyConfig cmd_apply_config = 14;
+    56	        RespApplyConfig resp_apply_config = 15;
+    57	    }
+    58	}
+--- wifi_constants.proto
+     1	syntax = "proto3";
+     2	
+     3	enum WifiStationState {
+     4	    Connected = 0;
+     5	    Connecting = 1;
+     6	    Disconnected = 2;
+     7	    ConnectionFailed = 3;
+     8	}
+     9	
+    10	enum WifiConnectFailedReason {
+    11	    AuthError = 0;
+    12	    NetworkNotFound = 1;
+    13	}
+    14	
+    15	message WifiAttemptFailed {
+    16	    uint32 attempts_remaining = 1;
+    17	}
+    18	
+    19	enum WifiAuthMode {
+    20	    Open = 0;
+    21	    WEP  = 1;
+    22	    WPA_PSK = 2;
+    23	    WPA2_PSK = 3;
+    24	    WPA_WPA2_PSK = 4;
+    25	    WPA2_ENTERPRISE = 5;
+    26	    WPA3_PSK = 6;
+    27	    WPA2_WPA3_PSK = 7;
+    28	}
+    29	
+    30	message WifiConnectedState {
+    31	    string ip4_addr = 1;
+    32	    WifiAuthMode auth_mode = 2;
+    33	    bytes ssid = 3;
+    34	    bytes bssid = 4;
+    35	    int32 channel = 5;
+    36	}
+--- wifi_ctrl.proto
+     1	syntax = "proto3";
+     2	
+     3	import "constants.proto";
+     4	
+     5	message CmdCtrlReset {
+     6	
+     7	}
+     8	
+     9	message RespCtrlReset {
+    10	
+    11	}
+    12	
+    13	message CmdCtrlReprov {
+    14	
+    15	}
+    16	
+    17	message RespCtrlReprov{
+    18	
+    19	}
+    20	
+    21	enum WiFiCtrlMsgType {
+    22	    TypeCtrlReserved = 0;
+    23	    TypeCmdCtrlReset = 1;
+    24	    TypeRespCtrlReset = 2;
+    25	    TypeCmdCtrlReprov = 3;
+    26	    TypeRespCtrlReprov = 4;
+    27	}
+    28	
+    29	message WiFiCtrlPayload {
+    30	    WiFiCtrlMsgType msg = 1;
+    31	    Status status = 2;
+    32	    oneof payload {
+    33	        CmdCtrlReset cmd_ctrl_reset = 11;
+    34	        RespCtrlReset resp_ctrl_reset = 12;
+    35	        CmdCtrlReprov cmd_ctrl_reprov = 13;
+    36	        RespCtrlReprov resp_ctrl_reprov = 14;
+    37	    }
+    38	}

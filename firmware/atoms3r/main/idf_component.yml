@@ -1,0 +1,2 @@
+dependencies:
+  m5stack/M5GFX: "^0.2.8"

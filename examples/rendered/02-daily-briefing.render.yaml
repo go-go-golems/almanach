@@ -1,0 +1,12 @@
+artifact: examples/rendered/02-daily-briefing.png
+bytes: 64307
+debug_dir: ""
+format: png
+height: 829
+rendered_at: "2026-05-08T10:28:20Z"
+selector: .paper-body
+threshold: 128
+width: 384
+
+---
+

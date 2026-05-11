@@ -1,0 +1,39 @@
+# SToMS3R defaults (ESP-IDF 5.4.x)
+# Target: M5Stack AtomS3R Lite (ESP32-S3-PICO-1-N8R8)
+#
+# Flash size: 8 MB embedded
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+
+# Console: USB Serial/JTAG — frees all UART pins for the printer
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# PSRAM: 8 MB octal SPI on AtomS3R Lite
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=16384
+
+# Partition table: project-local
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# CPU: 240 MHz
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+
+# BLE WiFi provisioning transport. Use NimBLE for the ESP-IDF wifi_prov_mgr
+# BLE scheme. Classic Bluetooth controller mode symbols used by older ESP-IDF
+# releases are not present for this ESP32-S3 / ESP-IDF 5.4 target.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
+# WiFi provisioning security 1 provides Proof-of-Possession protected
+# protocomm sessions for the standard Espressif provisioning clients.
+CONFIG_ESP_PROTOCOMM_SUPPORT_SECURITY_VERSION_1=y
+
+# AtomS3R button UX: pairing should be easy to trigger, credential reset should
+# require a much more deliberate hold.
+CONFIG_ALMANACH_ATOMS3R_PAIRING_HOLD_MS=3000
+CONFIG_ALMANACH_ATOMS3R_PAIRING_RESET_HOLD_MS=10000
