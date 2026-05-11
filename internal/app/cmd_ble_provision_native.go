@@ -44,7 +44,7 @@ func runNativeBLEProvision(ctx context.Context, s *BLEProvisionSettings, gp midd
 	if err := transport.Connect(runCtx, s.ServiceName); err != nil {
 		return fmt.Errorf("native BLE connect: %w", err)
 	}
-	defer transport.Disconnect(context.Background())
+	defer func() { _ = transport.Disconnect(context.Background()) }()
 
 	client := nativeprov.NewClient(transport)
 	info, err := client.VerifyVersion(runCtx, protoVer)

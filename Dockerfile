@@ -31,7 +31,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /almanach-render-service .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /almanach-render-service ./cmd/almanach-render-service
 
 # ---- Stage 2: Runtime with Chrome headless-shell ----
 FROM chromedp/headless-shell:latest

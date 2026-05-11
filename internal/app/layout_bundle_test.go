@@ -130,7 +130,7 @@ func writeTestZip(t *testing.T, zipPath string, files map[string]string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	zw := zip.NewWriter(out)
 	for name, data := range files {
 		w, err := zw.Create(name)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -73,10 +74,10 @@ func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("X-Width", fmt.Sprintf("%d", result.Bitmap.Width))
 		w.Header().Set("X-Height", fmt.Sprintf("%d", result.Bitmap.Height))
-		w.Write(result.Bitmap.Data)
+		_, _ = w.Write(result.Bitmap.Data)
 	case contains(accept, "image/png"):
 		w.Header().Set("Content-Type", "image/png")
-		w.Write(result.PNG)
+		_, _ = w.Write(result.PNG)
 	default:
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok":         true,
@@ -154,7 +155,9 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("writeJSON encode error: %v", err)
+	}
 }
 
 func contains(s, substr string) bool {

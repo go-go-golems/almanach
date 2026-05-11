@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	almanachweb "github.com/go-go-golems/almanach/internal/web"
 )
@@ -92,13 +91,4 @@ func bytesTrimTrailingNUL(data []byte) []byte {
 		data = data[:len(data)-1]
 	}
 	return data
-}
-
-// sanitizePath prevents directory traversal.
-func sanitizePath(p string) string {
-	p = filepath.Clean(p)
-	for strings.HasPrefix(p, "../") {
-		p = strings.TrimPrefix(p, "../")
-	}
-	return p
 }

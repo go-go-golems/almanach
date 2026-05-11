@@ -91,7 +91,7 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 
 	opts := RenderOptions{
 		Selector:       stringFromRenderOptions(layoutSource.RenderOptions, "selector", s.Selector),
-		Threshold:      uint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
+		Threshold:      clampToUint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
 		ViewportWidth:  intFromRenderOptions(layoutSource.RenderOptions, "viewportWidth", s.ViewportWidth),
 		ViewportHeight: intFromRenderOptions(layoutSource.RenderOptions, "viewportHeight", s.ViewportHeight),
 		WaitAfterLoad:  time.Duration(s.WaitMS) * time.Millisecond,

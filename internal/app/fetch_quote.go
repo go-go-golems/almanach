@@ -1,7 +1,7 @@
 package app
 
 import (
-	"math/rand"
+	"math/rand/v2"
 )
 
 // quotePool is a local pool of quotes for offline operation.
@@ -22,5 +22,5 @@ func fetchQuote() *QuoteData {
 	if len(quotePool) == 0 {
 		return nil
 	}
-	return &quotePool[rand.Intn(len(quotePool))]
+	return &quotePool[rand.IntN(len(quotePool))]
 }

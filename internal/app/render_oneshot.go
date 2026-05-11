@@ -30,9 +30,12 @@ func renderOneShot(ctx context.Context, req oneShotRenderRequest) (*RenderResult
 	if err != nil {
 		return nil, fmt.Errorf("listen ephemeral render server: %w", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
-	httpServer := &http.Server{Handler: mux}
+	httpServer := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	errCh := make(chan error, 1)
 	go func() {
 		if err := httpServer.Serve(ln); err != nil && err != http.ErrServerClosed {

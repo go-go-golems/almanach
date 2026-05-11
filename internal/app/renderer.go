@@ -243,7 +243,7 @@ func injectCaptureCSSJS(css string) (string, error) {
 	document.querySelectorAll('.block-wrap').forEach(function(el) {
 		el.classList.remove('selected');
 	});
-})();`, cssJSON), nil
+})();`, string(cssJSON)), nil
 }
 
 func captureCSS() string {
@@ -341,13 +341,13 @@ func collectMetricsJS() string {
 }
 
 func writeRenderDebugArtifacts(debugDir string, result *RenderResult) error {
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
+	if err := os.MkdirAll(debugDir, 0o750); err != nil {
 		return fmt.Errorf("create debug dir: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(debugDir, "screenshot.png"), result.PNG, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(debugDir, "screenshot.png"), result.PNG, 0o600); err != nil {
 		return fmt.Errorf("write debug screenshot: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(debugDir, "bitmap.bin"), result.Bitmap.Data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(debugDir, "bitmap.bin"), result.Bitmap.Data, 0o600); err != nil {
 		return fmt.Errorf("write debug bitmap: %w", err)
 	}
 	if err := writePrettyJSON(filepath.Join(debugDir, "layout.json"), json.RawMessage(result.LayoutJSON)); err != nil {
@@ -367,7 +367,7 @@ func writePrettyJSON(path string, v any) error {
 		return fmt.Errorf("marshal %s: %w", path, err)
 	}
 	b = append(b, '\n')
-	if err := os.WriteFile(path, b, 0o644); err != nil {
+	if err := os.WriteFile(path, b, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil

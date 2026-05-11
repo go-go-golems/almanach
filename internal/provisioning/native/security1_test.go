@@ -135,6 +135,8 @@ func (t *fakeSecurity1Transport) Send(ctx context.Context, endpoint string, requ
 			return t.handleSetup0(sec1.GetSc0())
 		case espidf.Sec1MsgType_Session_Command1:
 			return t.handleSetup1(sec1.GetSc1())
+		case espidf.Sec1MsgType_Session_Response0, espidf.Sec1MsgType_Session_Response1:
+			return nil, fmt.Errorf("unexpected security1 response type %s", sec1.GetMsg())
 		default:
 			return nil, fmt.Errorf("unexpected security1 message type %s", sec1.GetMsg())
 		}
@@ -242,6 +244,10 @@ func (t *fakeSecurity1Transport) handleConfig(request []byte) ([]byte, error) {
 			Msg:     espidf.WiFiConfigMsgType_TypeRespGetStatus,
 			Payload: &espidf.WiFiConfigPayload_RespGetStatus{RespGetStatus: status},
 		}
+	case espidf.WiFiConfigMsgType_TypeRespGetStatus,
+		espidf.WiFiConfigMsgType_TypeRespSetConfig,
+		espidf.WiFiConfigMsgType_TypeRespApplyConfig:
+		return nil, fmt.Errorf("unexpected config response type %s", msg.GetMsg())
 	default:
 		return nil, fmt.Errorf("unexpected config message type %s", msg.GetMsg())
 	}
@@ -274,6 +280,10 @@ func (t *fakeSecurity1Transport) handleControl(request []byte) ([]byte, error) {
 			Status:  espidf.Status_Success,
 			Payload: &espidf.WiFiCtrlPayload_RespCtrlReprov{RespCtrlReprov: &espidf.RespCtrlReprov{}},
 		}
+	case espidf.WiFiCtrlMsgType_TypeCtrlReserved,
+		espidf.WiFiCtrlMsgType_TypeRespCtrlReset,
+		espidf.WiFiCtrlMsgType_TypeRespCtrlReprov:
+		return nil, fmt.Errorf("unexpected control response type %s", msg.GetMsg())
 	default:
 		return nil, fmt.Errorf("unexpected control message type %s", msg.GetMsg())
 	}

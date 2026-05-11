@@ -10,8 +10,11 @@ import (
 )
 
 const (
-	printerFeedLinePixels = 24
+	printerFeedLinePixels     = 24
 	maxPrinterBitmapBodyBytes = 90 * 1024
+	// At 9600 baud, a 90 KiB bitmap can take ~77 s to UART-transfer.
+	// Allow generous headroom so large prints outlive the transfer.
+	printerHTTPTimeout = 120 * time.Second
 )
 
 // sendBitmapToPrinter sends a 1-bit bitmap to the ESP32's /api/print/bitmap endpoint.
@@ -35,7 +38,7 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	// bitmap was not visually reliable on this mechanism.
 	req.Header.Set("X-Feed", "0")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: printerHTTPTimeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("printer request failed: %w", err)

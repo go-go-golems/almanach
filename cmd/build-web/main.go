@@ -92,7 +92,7 @@ func runDagger(ctx context.Context, repoRoot string) error {
 	if err != nil {
 		return fmt.Errorf("temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	if _, err := container.Directory("/src/dist").Export(ctx, tmpDir); err != nil {
 		return fmt.Errorf("export dist: %w", err)
@@ -191,9 +191,9 @@ func recreate(dir string) error {
 		if e.Name() == ".keep" {
 			continue
 		}
-		os.RemoveAll(filepath.Join(dir, e.Name()))
+		_ = os.RemoveAll(filepath.Join(dir, e.Name()))
 	}
-	return os.MkdirAll(dir, 0755)
+	return os.MkdirAll(dir, 0o750)
 }
 
 // copyTree recursively copies src/ to dst/.
@@ -205,18 +205,18 @@ func copyTree(src, dst string) error {
 		rel, _ := filepath.Rel(src, p)
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0755)
+			return os.MkdirAll(target, 0o750)
 		}
 		in, err := os.Open(p)
 		if err != nil {
 			return err
 		}
-		defer in.Close()
+		defer func() { _ = in.Close() }()
 		out, err := os.Create(target)
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer func() { _ = out.Close() }()
 		_, err = io.Copy(out, in)
 		return err
 	})

@@ -29,35 +29,11 @@ type serveSettings struct {
 }
 
 func serveSettingsFromConfig(cfg Config) serveSettings {
-	return serveSettings{
-		Port:         cfg.Port,
-		WebDir:       cfg.WebDir,
-		PrinterIP:    cfg.PrinterIP,
-		ChromePath:   cfg.ChromePath,
-		ChromeWSURL:  cfg.ChromeWSURL,
-		PaperWidth:   cfg.PaperWidth,
-		BodyScale:    cfg.BodyScale,
-		FeedLines:    cfg.FeedLines,
-		DefaultTheme: cfg.DefaultTheme,
-		LogLevel:     cfg.LogLevel,
-		StateFile:    cfg.StateFile,
-	}
+	return serveSettings(cfg)
 }
 
 func configFromServeSettings(s serveSettings) Config {
-	return Config{
-		Port:         s.Port,
-		WebDir:       s.WebDir,
-		PrinterIP:    s.PrinterIP,
-		ChromePath:   s.ChromePath,
-		ChromeWSURL:  s.ChromeWSURL,
-		PaperWidth:   s.PaperWidth,
-		BodyScale:    s.BodyScale,
-		FeedLines:    s.FeedLines,
-		DefaultTheme: s.DefaultTheme,
-		LogLevel:     s.LogLevel,
-		StateFile:    s.StateFile,
-	}
+	return Config(s)
 }
 
 func NewServeCommand() *cobra.Command {
@@ -114,7 +90,7 @@ func runHTTPServer(ctx context.Context, cfg Config, addr, serviceName string) er
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", addr, err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	log.Printf("  Listening:   http://%s", listener.Addr().String())
 
 	httpServer := &http.Server{

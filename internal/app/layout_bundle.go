@@ -83,7 +83,7 @@ func layoutJSONFromZipBundle(zipPath string, cfg Config) (*layoutLoadResult, err
 	if err != nil {
 		return nil, fmt.Errorf("open layout zip %s: %w", zipPath, err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 
 	files := map[string]*zip.File{}
 	for _, f := range zr.File {
@@ -218,9 +218,7 @@ func shouldInlineBundleSrc(src string) bool {
 
 func resolveZipAsset(layoutDir, src string) (string, error) {
 	s := strings.ReplaceAll(strings.TrimSpace(src), "\\", "/")
-	if strings.HasPrefix(s, "./") {
-		s = strings.TrimPrefix(s, "./")
-	}
+	s = strings.TrimPrefix(s, "./")
 	base := layoutDir
 	if base == "." || base == "/" {
 		base = ""

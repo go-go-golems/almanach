@@ -113,7 +113,7 @@ func (c *RenderCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.
 	default:
 		return fmt.Errorf("unsupported format %q", s.Format)
 	}
-	if err := os.WriteFile(s.Out, data, 0o644); err != nil {
+	if err := os.WriteFile(s.Out, data, 0o600); err != nil {
 		return fmt.Errorf("write output %s: %w", s.Out, err)
 	}
 
@@ -138,11 +138,22 @@ func renderOptionsFromSettings(s *RenderSettings, fileOptions map[string]interfa
 
 	return RenderOptions{
 		Selector:       selector,
-		Threshold:      uint8(threshold),
+		Threshold:      clampToUint8(threshold),
 		ViewportWidth:  viewportWidth,
 		ViewportHeight: viewportHeight,
 		WaitAfterLoad:  time.Duration(s.WaitMS) * time.Millisecond,
 		DebugDir:       s.DebugDir,
 		CollectMetrics: s.DebugDir != "",
 	}
+}
+
+// clampToUint8 clamps val to [0, 255] to prevent integer overflow on int→uint8 conversion.
+func clampToUint8(val int) uint8 {
+	if val < 0 {
+		return 0
+	}
+	if val > 255 {
+		return 255
+	}
+	return uint8(val)
 }

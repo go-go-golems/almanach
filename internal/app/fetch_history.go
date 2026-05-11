@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"time"
 )
@@ -56,7 +56,7 @@ func fetchHistory(t time.Time) *HistoryData {
 		}
 	}
 
-	pick := evts[rand.Intn(len(evts))]
+	pick := evts[rand.IntN(len(evts))]
 	return &HistoryData{
 		Label: "Today in History",
 		Items: []HistoryItem{{
@@ -75,6 +75,6 @@ var fallbackHistories = []HistoryItem{
 func fallbackHistory(t time.Time) *HistoryData {
 	return &HistoryData{
 		Label: "Today in History",
-		Items: []HistoryItem{fallbackHistories[rand.Intn(len(fallbackHistories))]},
+		Items: []HistoryItem{fallbackHistories[rand.IntN(len(fallbackHistories))]},
 	}
 }

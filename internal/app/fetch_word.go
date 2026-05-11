@@ -1,7 +1,7 @@
 package app
 
 import (
-	"math/rand"
+	"math/rand/v2"
 )
 
 var wordPool = []WordData{
@@ -19,5 +19,5 @@ func fetchWord() *WordData {
 	if len(wordPool) == 0 {
 		return nil
 	}
-	return &wordPool[rand.Intn(len(wordPool))]
+	return &wordPool[rand.IntN(len(wordPool))]
 }

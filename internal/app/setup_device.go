@@ -40,8 +40,8 @@ func newSetupDeviceStore(stateFile string) (*setupDeviceStore, error) {
 		return nil, err
 	}
 	if state.ProvisionedDevice != nil {
-		copy := *state.ProvisionedDevice
-		store.device = &copy
+		dev := *state.ProvisionedDevice
+		store.device = &dev
 	}
 	return store, nil
 }
@@ -49,12 +49,12 @@ func newSetupDeviceStore(stateFile string) (*setupDeviceStore, error) {
 func (s *setupDeviceStore) set(device ProvisionedDevice) (ProvisionedDevice, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	copy := device
-	s.device = &copy
+	dev := device
+	s.device = &dev
 	if err := s.saveLocked(); err != nil {
-		return copy, err
+		return dev, err
 	}
-	return copy, nil
+	return dev, nil
 }
 
 func (s *setupDeviceStore) clear() error {
@@ -70,8 +70,8 @@ func (s *setupDeviceStore) get() (*ProvisionedDevice, bool) {
 	if s.device == nil {
 		return nil, false
 	}
-	copy := *s.device
-	return &copy, true
+	dev := *s.device
+	return &dev, true
 }
 
 func (s *setupDeviceStore) saveLocked() error {
@@ -80,8 +80,8 @@ func (s *setupDeviceStore) saveLocked() error {
 	}
 	state := serverState{}
 	if s.device != nil {
-		copy := *s.device
-		state.ProvisionedDevice = &copy
+		dev := *s.device
+		state.ProvisionedDevice = &dev
 	}
 	return saveServerStateAtomic(s.stateFile, state)
 }
@@ -105,7 +105,7 @@ func loadServerState(path string) (serverState, error) {
 }
 
 func saveServerStateAtomic(path string, state serverState) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("create state dir: %w", err)
 	}
 	data, err := json.MarshalIndent(state, "", "  ")
@@ -118,7 +118,7 @@ func saveServerStateAtomic(path string, state serverState) error {
 		return fmt.Errorf("create temp state file: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("write temp state file: %w", err)
