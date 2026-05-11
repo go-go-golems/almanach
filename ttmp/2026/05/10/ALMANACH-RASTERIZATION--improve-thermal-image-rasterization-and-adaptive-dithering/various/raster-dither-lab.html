@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Almanach Raster Dither Lab</title>
+<style>
+  :root { --paper:#fff; --ink:#000; --gray:#bbb; --mid:#777; --light:#eee; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; min-height:100%; background:#9a9a9a; color:var(--ink); font-family: Monaco, Menlo, Consolas, "Courier New", monospace; font-size:12px; }
+  body { background-image: radial-gradient(#777 1px, transparent 1px); background-size: 4px 4px; padding:18px; }
+  button, select, input { font: inherit; color:#000; background:#fff; border:2px solid #000; border-radius:0; }
+  button { padding:4px 8px; box-shadow:2px 2px 0 #000; cursor:pointer; }
+  button:active { transform:translate(2px,2px); box-shadow:none; }
+  input[type="range"] { accent-color:#000; width:100%; border:0; }
+  .desktop { max-width: 1320px; margin: 0 auto; }
+  .menubar { height:24px; background:#fff; border:2px solid #000; display:flex; align-items:center; gap:18px; padding:0 8px; margin-bottom:12px; box-shadow:4px 4px 0 #000; font-weight:bold; }
+  .apple { font-size:15px; }
+  .grid { display:grid; grid-template-columns: 360px 1fr; gap:14px; align-items:start; }
+  .window { background:#fff; border:2px solid #000; box-shadow:5px 5px 0 #000; }
+  .titlebar { height:25px; border-bottom:2px solid #000; display:flex; align-items:center; justify-content:center; position:relative; font-weight:bold; background:repeating-linear-gradient(0deg,#fff 0,#fff 2px,#000 2px,#000 3px); }
+  .titlebar span { background:#fff; padding:0 8px; }
+  .close { position:absolute; left:5px; width:13px; height:13px; border:2px solid #000; background:#fff; }
+  .content { padding:12px; }
+  .field { margin-bottom:11px; }
+  .field label { display:flex; justify-content:space-between; align-items:baseline; font-weight:bold; margin-bottom:4px; }
+  .field small { font-weight:normal; color:#333; }
+  .row { display:grid; grid-template-columns:1fr 70px; gap:8px; align-items:center; }
+  .twocol { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .drop { border:2px dashed #000; padding:14px; text-align:center; background:#eee; margin-bottom:10px; }
+  .drop.drag { background:#000; color:#fff; }
+  .presetGrid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; max-height:300px; overflow:auto; border:2px solid #000; padding:6px; background:#eee; }
+  .preset { border:2px solid #000; background:#fff; padding:3px; text-align:center; cursor:pointer; }
+  .preset.active { outline:3px solid #000; background:#ddd; }
+  .preset img { width:100%; image-rendering:auto; display:block; filter:grayscale(100%); }
+  .preset div { font-size:9px; margin-top:2px; white-space:nowrap; overflow:hidden; }
+  .canvases { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .canvasBox { background:#fff; border:2px solid #000; padding:8px; min-width:0; }
+  .canvasBox h3 { margin:0 0 7px; font-size:12px; display:flex; justify-content:space-between; }
+  canvas { max-width:100%; height:auto; border:2px solid #000; background:#fff; image-rendering: pixelated; display:block; margin:auto; }
+  .stats { margin-top:8px; padding:8px; border:2px solid #000; background:#eee; white-space:pre-wrap; line-height:1.35; }
+  .help { line-height:1.45; }
+  .help code { background:#eee; padding:1px 3px; }
+  .algoNote { min-height:56px; border:2px solid #000; background:#eee; padding:8px; line-height:1.35; }
+  @media (max-width: 980px) { .grid { grid-template-columns:1fr; } .canvases { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="desktop">
+  <div class="menubar"><span class="apple">◆</span><span>File</span><span>Edit</span><span>Raster</span><span>Special</span><span style="margin-left:auto">Almanach Dither Lab</span></div>
+  <div class="grid">
+    <div class="window">
+      <div class="titlebar"><div class="close"></div><span>Control Panel</span></div>
+      <div class="content">
+        <div id="drop" class="drop">Drop a PNG/JPEG/WebP here<br/>or <input id="file" type="file" accept="image/*" /></div>
+        <div class="field"><label>Cat presets <small>ticket-local crops</small></label><div id="presets" class="presetGrid"></div></div>
+        <div class="field"><label>Algorithm</label><select id="algorithm" style="width:100%">
+          <option value="threshold">Fixed threshold</option>
+          <option value="adaptive-mean">Adaptive mean threshold</option>
+          <option value="bayer4">Ordered Bayer 4x4</option>
+          <option value="bayer8">Ordered Bayer 8x8</option>
+          <option value="blue-noise">Hash blue-noise-ish mask</option>
+          <option value="floyd">Floyd-Steinberg</option>
+          <option value="atkinson" selected>Atkinson</option>
+          <option value="stucki">Stucki</option>
+          <option value="burkes">Burkes</option>
+          <option value="sierra2">Sierra 2-row</option>
+          <option value="sierra-lite">Sierra Lite</option>
+          <option value="edge-hybrid">Edge hybrid: Atkinson + Sobel</option>
+        </select></div>
+        <div class="field"><label>Max output width <small id="wVal"></small></label><input id="maxWidth" type="range" min="128" max="768" step="8" value="384" /></div>
+        <div class="field"><label>Threshold <small id="tVal"></small></label><input id="threshold" type="range" min="0" max="255" value="128" /></div>
+        <div class="field"><label>Brightness <small id="bVal"></small></label><input id="brightness" type="range" min="-80" max="80" value="24" /></div>
+        <div class="field"><label>Contrast <small id="cVal"></small></label><input id="contrast" type="range" min="40" max="180" value="82" /></div>
+        <div class="field"><label>Gamma <small id="gVal"></small></label><input id="gamma" type="range" min="40" max="220" value="90" /></div>
+        <div class="field"><label>Dither strength <small id="sVal"></small></label><input id="strength" type="range" min="0" max="160" value="100" /></div>
+        <div class="field"><label>Edge threshold <small id="eVal"></small></label><input id="edgeThreshold" type="range" min="0" max="180" value="32" /></div>
+        <div class="field"><label>Printer URL <small>bitmap endpoint</small></label><input id="printerUrl" type="text" value="/api/print/bitmap" style="width:100%; padding:4px" /></div>
+        <div class="field"><label>Feed lines <small id="fVal"></small></label><input id="feedLines" type="range" min="0" max="10" value="3" /></div>
+        <div class="twocol"><button id="apply">Rasterize</button><button id="download">Save PNG</button></div>
+        <div style="margin-top:9px"><button id="print" style="width:100%">Print to Printer</button></div>
+      </div>
+    </div>
+    <div class="window">
+      <div class="titlebar"><div class="close"></div><span>Preview Window</span></div>
+      <div class="content">
+        <div class="canvases">
+          <div class="canvasBox"><h3><span>Source</span><span id="srcSize"></span></h3><canvas id="srcCanvas"></canvas></div>
+          <div class="canvasBox"><h3><span>1-bit output</span><span id="outSize"></span></h3><canvas id="outCanvas"></canvas></div>
+        </div>
+        <div class="stats" id="stats">Drop an image or choose a cat portrait.</div>
+        <div class="algoNote" id="algoNote"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="raster-dither-lab.js"></script>
+
+</body>
+</html>

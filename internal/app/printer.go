@@ -9,11 +9,17 @@ import (
 	"time"
 )
 
-const printerFeedLinePixels = 24
+const (
+	printerFeedLinePixels = 24
+	maxPrinterBitmapBodyBytes = 90 * 1024
+)
 
 // sendBitmapToPrinter sends a 1-bit bitmap to the ESP32's /api/print/bitmap endpoint.
 func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[string]any, error) {
 	bitmapToSend := bitmapWithTrailingBlankRows(bitmap, feedLines)
+	if len(bitmapToSend.Data) > maxPrinterBitmapBodyBytes {
+		return nil, fmt.Errorf("bitmap too large: got %d bytes, max %d bytes; use a shorter layout or future segmented print endpoint", len(bitmapToSend.Data), maxPrinterBitmapBodyBytes)
+	}
 	body := bytes.NewReader(bitmapToSend.Data)
 
 	req, err := http.NewRequest("POST", printerURL, body)

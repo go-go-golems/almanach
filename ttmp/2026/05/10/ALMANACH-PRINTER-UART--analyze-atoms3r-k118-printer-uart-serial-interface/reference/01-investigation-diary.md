@@ -733,3 +733,482 @@ This does not change printer density and does not reduce the final bitmap byte s
   - print/render: `grayscale(100%) brightness(1.28) contrast(0.82)`
 - Successful print artifact:
   - `/tmp/foo-cat-6-light-bundle-print-response.json`
+
+
+## Step 8: Create chunked-print issue, add 90 KiB rejection, and print large corrected cat portraits
+
+The user asked to capture the chunked/segmented endpoint work as a GitHub issue, add immediate rejection for oversized single bitmap jobs, and then split a cat collage into individual portraits for a larger portrait story print. I created the GitHub issue, implemented the 90 KiB guard, saved the helper scripts in the ticket `scripts/` directory, and printed the corrected large portrait story successfully.
+
+The first portrait split was wrong because I assumed a 3x3 grid. Looking at the image showed it is a 4x4 collage with red guide lines. I corrected the splitter to use a 4x4 grid, crop inside each cell to remove the red borders, and produce square portraits.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Create a gh issue with all the details, so we can address the chunked endpoint later.
+
+Then do the reject at 90kb.
+
+THen, split the image /tmp/pi-clipboard-684daa14-7016-4dfe-bdf6-432e3fc0d1b1.png into individual square cat portraits and then print a little story about cats and their owners, using portraits."
+
+**Assistant interpretation:** Track the future long-print protocol on GitHub, add a short-term guardrail for oversized bitmap requests, and create/print a cat-owner story layout using cropped portraits from the supplied collage.
+
+**Inferred user intent:** Avoid losing the chunked endpoint design, make current large-print failures deterministic, and produce a nice physical cat story print using the supplied image.
+
+**Commit (code):** N/A at diary write time; commit follows this step.
+
+### What I did
+- Created GitHub issue:
+  - `https://github.com/go-go-golems/almanach/issues/1`
+  - title: `Add chunked or segmented bitmap print endpoint for long Almanachs`
+- Added 90 KiB guards:
+  - firmware `/api/print/bitmap` rejects expected bitmap bodies over `90 * 1024` bytes,
+  - host `sendBitmapToPrinter` rejects oversized bitmap bodies before POSTing.
+- Built and flashed firmware with the rejection change.
+- Verified host-side rejection on `/tmp/foo-cat-7-bundle.zip`:
+  - `bitmap too large: got 100032 bytes, max 92160 bytes; use a shorter layout or future segmented print endpoint`
+- Saved helper scripts in the ticket scripts directory:
+  - `scripts/01-create-foo-cat-bundles.py`
+  - `scripts/02-create-cat-owner-story-bundle.py`
+- Inspected the supplied collage and corrected the splitter from 3x3 to 4x4.
+- Generated corrected portraits:
+  - `/tmp/pi-cat-portraits/cat-portrait-R-C.png`
+  - contact sheet: `/tmp/pi-cat-portraits-contact.png`
+- Printed the corrected large portrait story bundle:
+  - `/tmp/cat-owner-story-bundle.zip`
+
+### Why
+- A future segmented/chunked endpoint is the right long-term answer for long Almanachs, but the current endpoint should fail clearly instead of resetting the connection.
+- The host guard avoids sending a body that the current firmware cannot reliably accept.
+- The corrected 4x4 crop produces actual individual cat portraits without mixing adjacent cells.
+
+### What worked
+- GitHub issue created successfully.
+- Firmware build and flash succeeded.
+- Host rejection works deterministically for 7-image long jobs.
+- Corrected portrait split produced 16 clean square portraits, e.g. `cat-portrait-2-2.png` looked good when inspected.
+- Corrected large portrait story printed successfully:
+  - rendered bitmap `384x1806`
+  - sent bitmap `height=1878`
+  - sent bytes `90144`, under the 90 KiB limit (`92160`)
+  - `printer_ok=true`
+  - `printer_response={"ok":true}`
+
+### What didn't work
+- Firmware-side rejection was added and flashed, but the first live oversized print attempt still closed the connection before returning the firmware JSON. Host-side rejection now prevents that path for CLI/server calls that use `sendBitmapToPrinter`.
+- The first collage split assumed 3x3 and was visually wrong; it had to be corrected after inspecting the image.
+
+### What I learned
+- The supplied collage is 4x4, 1254x1254, with thin red guides; cropping with an inset removes guide lines and keeps each portrait square.
+- The practical safe body limit is tight: the successful large portrait story was `90144` bytes, just below `92160`.
+- Host-side rejection is important even if firmware also rejects, because it avoids WiFi/httpd connection behavior for known-too-large jobs.
+
+### What was tricky to build
+- The ZIP file can be large due to source PNG portraits, but the relevant print limit is the final rendered 1-bit bitmap body, not the ZIP size.
+- Making portraits “large” increases page height quickly, so the layout must balance portrait size against the 90 KiB single-bitmap limit.
+
+### What warrants a second pair of eyes
+- Firmware rejection currently returns the same `send_json_error` shape as other errors; review whether it should set HTTP 413 Payload Too Large.
+- Confirm whether `MAX_BITMAP_BODY_BYTES` should be 90 KiB exactly or slightly lower for safety.
+- Review the issue body and acceptance criteria for the future segmented endpoint.
+
+### What should be done in the future
+- Implement GitHub issue #1 with segmented or buffered chunk upload.
+- Add automated tests for host-side max bitmap body rejection.
+- Add a visible UI warning when rendered bitmap size exceeds the single-request limit.
+
+### Code review instructions
+- Review:
+  - `firmware/atoms3r/main/web_server.c` for `MAX_BITMAP_BODY_BYTES` and early reject.
+  - `internal/app/printer.go` for host-side oversized bitmap rejection.
+  - ticket scripts `01-create-foo-cat-bundles.py` and `02-create-cat-owner-story-bundle.py`.
+- Validate with:
+  - `go test ./...`
+  - firmware build/flash
+  - `/tmp/foo-cat-7-bundle.zip` should reject on host side
+  - `/tmp/cat-owner-story-bundle.zip` should print successfully.
+
+### Technical details
+- GitHub issue:
+  - `https://github.com/go-go-golems/almanach/issues/1`
+- Corrected collage input:
+  - `/tmp/pi-clipboard-684daa14-7016-4dfe-bdf6-432e3fc0d1b1.png`
+- Generated portraits:
+  - `/tmp/pi-cat-portraits/`
+- Generated story bundle:
+  - `/tmp/cat-owner-story-bundle.zip`
+- Successful print response:
+  - `/tmp/cat-owner-story-large-print-response.json`
+
+
+## Step 9: Reprint cat-owner story with larger font and borderless minimal portraits
+
+The user asked for a larger font and a minimal layout without image borders. I adjusted the cat-owner story generator to keep the minimal theme, remove portrait borders, increase body scale, and slightly reduce portrait height so the final single bitmap still stays under the current 90 KiB guard.
+
+The updated story printed successfully, but it is very close to the current single-request limit. This is a good example of why the future segmented endpoint remains useful even after the immediate 90 KiB guard.
+
+### Prompt Context
+
+**User prompt (verbatim):** "make the font larger, use minimal layout for no borders"
+
+**Assistant interpretation:** Adjust the generated cat-owner portrait story to prioritize readability and a cleaner minimal aesthetic, then print it again.
+
+**Inferred user intent:** Improve the physical print composition based on the first output: larger text and less visual clutter around portraits.
+
+**Commit (code):** N/A at diary write time; commit follows this step.
+
+### What I did
+- Updated `scripts/02-create-cat-owner-story-bundle.py`:
+  - image `border: false`,
+  - `bodyScale: 1.32`,
+  - portrait height adjusted to `154` to stay under the 90 KiB bitmap limit.
+- Regenerated bundle:
+  - `/tmp/cat-owner-story-largefont-bundle.zip`
+- Printed it with:
+  - `go run ./cmd/almanach-render-service print --layout /tmp/cat-owner-story-largefont-bundle.zip --printer-ip 192.168.1.242 --output json`
+
+### What worked
+- Print succeeded:
+  - rendered bitmap `384x1843`,
+  - sent bitmap `height=1915`,
+  - sent bytes `91920`,
+  - `printer_ok=true`,
+  - `printer_response={"ok":true}`.
+
+### What didn't work
+- The output is only `240` bytes below the 90 KiB limit (`92160`), so further font or height increases will likely trip the host-side guard.
+
+### What I learned
+- Larger text plus large portraits can still fit in the current single-bitmap endpoint, but only barely.
+- Borderless images help the minimal look and save a little visual darkness/clutter, but they do not materially reduce bitmap byte size because byte size is driven by page dimensions.
+
+### What should be done in the future
+- Use segmented printing for any longer story or larger portrait set.
+- If the user wants still larger text, reduce from four portraits to three or move to segmented print.
+
+### Code review instructions
+- Review `scripts/02-create-cat-owner-story-bundle.py` for layout defaults.
+- Validate with `/tmp/cat-owner-story-largefont-print-response.json`.
+
+
+## Step 10: Reprint with fewer, larger portraits
+
+The user clarified that the portraits can be larger. I changed the story generator from four medium portraits to three larger portraits, keeping the minimal/no-border layout and large text. This gives each cat more vertical space while staying comfortably under the current 90 KiB single-bitmap limit.
+
+### Prompt Context
+
+**User prompt (verbatim):** "you can print the portraits larger"
+
+**Assistant interpretation:** Increase the portrait size even if that means using fewer portraits in the story print.
+
+**Inferred user intent:** Improve the visual impact/readability of the cat portrait print rather than maximizing the number of portraits.
+
+**Commit (code):** N/A at diary write time; commit follows this step.
+
+### What I did
+- Updated `scripts/02-create-cat-owner-story-bundle.py`:
+  - selected three diagonal portraits instead of four,
+  - changed subtitle to “three large portraits”,
+  - increased image height from `154` to `218`,
+  - kept `border: false`, `theme: minimal`, and `bodyScale: 1.32`.
+- Generated:
+  - `/tmp/cat-owner-story-3-largeportraits-bundle.zip`
+- Printed it with:
+  - `go run ./cmd/almanach-render-service print --layout /tmp/cat-owner-story-3-largeportraits-bundle.zip --printer-ip 192.168.1.242 --output json`
+
+### What worked
+- Print succeeded:
+  - rendered bitmap `384x1652`,
+  - sent bitmap `height=1724`,
+  - sent bytes `82752`,
+  - `printer_ok=true`,
+  - `printer_response={"ok":true}`.
+
+### What didn't work
+- N/A. This version has more safety margin than the four-portrait large-font version.
+
+### What I learned
+- Three large portraits is a better fit for the current single-request limit than four medium-large portraits.
+- The story still fits comfortably while leaving roughly 9 KiB below the 90 KiB guard.
+
+### What should be done in the future
+- If the user wants all 16 portraits large, implement segmented printing from GitHub issue #1.
+- If using single-request printing, keep pages below about 82-88 KiB for safety rather than targeting the absolute limit.
+
+### Code review instructions
+- Review `scripts/02-create-cat-owner-story-bundle.py` for current defaults.
+- Validation artifact:
+  - `/tmp/cat-owner-story-3-largeportraits-print-response.json`
+
+
+## Step 11: Increase story font again while staying under the single-bitmap limit
+
+The user asked for an even bigger font. I increased the body scale again and reduced portrait height slightly to keep the overall bitmap safely below the 90 KiB single-request guard.
+
+### Prompt Context
+
+**User prompt (verbatim):** "bigger font still"
+
+**Assistant interpretation:** Prioritize text readability further, even if portrait size needs a small reduction.
+
+**Inferred user intent:** Make the printed cat-owner story easier to read on thermal paper.
+
+**Commit (code):** N/A at diary write time; commit follows this step.
+
+### What I did
+- Updated `scripts/02-create-cat-owner-story-bundle.py`:
+  - `bodyScale` from `1.32` to `1.52`,
+  - portrait height from `218` to `196`.
+- Generated:
+  - `/tmp/cat-owner-story-biggerfont-bundle.zip`
+- Printed with:
+  - `go run ./cmd/almanach-render-service print --layout /tmp/cat-owner-story-biggerfont-bundle.zip --printer-ip 192.168.1.242 --output json`
+
+### What worked
+- Print succeeded:
+  - rendered bitmap `384x1711`,
+  - sent bitmap `height=1783`,
+  - sent bytes `85584`,
+  - `printer_ok=true`,
+  - `printer_response={"ok":true}`.
+
+### What didn't work
+- N/A. The print remains below the 90 KiB guard.
+
+### What I learned
+- Increasing font size can be balanced against portrait height while remaining under the current single-request limit.
+- The three-portrait layout is flexible enough for larger type without needing segmented printing yet.
+
+### What should be done in the future
+- If the font still needs to be larger, reduce story text length or move to a two-portrait layout.
+
+### Code review instructions
+- Review current defaults in `scripts/02-create-cat-owner-story-bundle.py`.
+- Validation artifact:
+  - `/tmp/cat-owner-story-biggerfont-print-response.json`
+
+
+## Step 12: Recover after crash and restart the localhost setup server
+
+The user reported that the session crashed and asked me to restart the server and keep the diary current. I first checked whether the localhost setup server was still alive, confirmed that port `18299` was down, rebuilt the embedded web assets after the default-layout text cleanup, and restarted the setup server.
+
+The restarted server picked up the persisted setup-discovered printer endpoint, so `/health` again reports the printer at `192.168.1.242`. I also verified the printer's direct firmware status endpoint after restart.
+
+### Prompt Context
+
+**User prompt (verbatim):** "we just crashed so you will have to restart the server and all. Keep a diary as you go."
+
+**Assistant interpretation:** Restore the local Almanach setup/print server after the crash, verify it is connected to the known printer, and record the recovery work in the ticket diary.
+
+**Inferred user intent:** Get the working local setup/printing environment back into a known-good state without losing the investigation trail.
+
+**Commit (code):** N/A at diary write time; commit follows after the pending recovery/docs/code changes are reviewed.
+
+### What I did
+- Checked repo status and confirmed there are pending changes from the printer/print-layout work.
+- Checked for any running `almanach-render-service` process.
+- Confirmed `http://localhost:18299/health` was unavailable:
+  - `curl: (7) Failed to connect to localhost port 18299 after 0 ms: Couldn't connect to server`
+- Rebuilt embedded web assets after removing the Cal Newport sample text from the studio defaults:
+  - `BUILD_WEB_LOCAL=1 go run ./cmd/build-web`
+- Restarted the setup server:
+  - `nohup go run ./cmd/almanach-render-service setup --port 18299 > /tmp/almanach-logs/setup-server-18299.log 2>&1 &`
+  - PID file: `/tmp/almanach-logs/setup-server-18299.pid`
+- Verified localhost server health:
+  - `{"ok":true,"printer":"192.168.1.242","version":"dev"}`
+- Verified persisted setup-discovered printer state:
+  - service name `ALM_0F2320`
+  - IP `192.168.1.242`
+  - SSID `Verizon_9DNVB9`
+- Verified direct printer firmware status:
+  - `{"ok":true,"wifi":{"connected":true,"ip":"192.168.1.242"},"printer":{"baud":460800,"swapped":true}}`
+- Confirmed no `Cal Newport` or `Deep Work — Cal Newport` strings remain in `web/src/almanach-studio.jsx` or regenerated `internal/web/embed/public/almanach-bundle.js`.
+
+### Why
+- The crash stopped the local setup server, so browser/setup workflows and localhost print routing needed to be restored.
+- Rebuilding embedded assets makes the source cleanup visible from the Go-served UI, not just in the source file.
+- Verifying both localhost and direct printer endpoints distinguishes server recovery from printer WiFi/firmware health.
+
+### What worked
+- The server restarted cleanly on port `18299`.
+- Persisted printer endpoint state was loaded successfully.
+- Direct printer status remained healthy with the known working K118 settings: baud `460800`, swapped pins enabled.
+- The generated embedded studio bundle no longer contains the Cal Newport sample strings.
+
+### What didn't work
+- The pre-crash localhost server was gone; there was no live process to reuse.
+
+### What I learned
+- The state file recovery path is doing its job: after restart, the server immediately knows about `192.168.1.242` without needing a new BLE provisioning pass.
+- Source-only text changes need `BUILD_WEB_LOCAL=1 go run ./cmd/build-web` before the self-contained Go server reflects them.
+
+### What was tricky to build
+- The relevant web UI is embedded in `internal/web/embed/public`, so a simple source edit in `web/src/almanach-studio.jsx` is insufficient for the running Go binary path.
+- Crash recovery has two health checks: localhost server health and direct printer firmware health.
+
+### What warrants a second pair of eyes
+- Review whether generated embedded bundles should be committed with the source edit in this branch.
+- Confirm whether the setup server should be supervised by a dev script instead of ad hoc `nohup` during hardware sessions.
+
+### What should be done in the future
+- Add a `make setup-server` or devctl command that restarts this exact localhost setup server and tails logs.
+- Commit the pending recovery/docs/code changes once reviewed.
+
+### Code review instructions
+- Review:
+  - `web/src/almanach-studio.jsx` for default sample text cleanup.
+  - `internal/web/embed/public/almanach-bundle.js` for regenerated embedded output.
+  - this diary step and changelog for recovery notes.
+- Validate with:
+  - `curl -sS http://localhost:18299/health`
+  - `curl -sS http://localhost:18299/api/setup/provisioned-device`
+  - `curl -sS http://192.168.1.242/api/status`
+
+### Technical details
+- Restarted server PID:
+  - `/tmp/almanach-logs/setup-server-18299.pid`
+- Restarted server log:
+  - `/tmp/almanach-logs/setup-server-18299.log`
+- Setup URL:
+  - `http://localhost:18299/setup`
+- Health response after restart:
+  - `{"ok":true,"printer":"192.168.1.242","version":"dev"}`
+
+
+## Step 13: Re-extract cat portraits into the ticket and print one large portrait
+
+After the crash, the `/tmp` portrait outputs were gone. The user provided the refreshed clipboard image and asked me to extract the cats again, verify the crop visually, and store the results in the ticket so they survive future session resets.
+
+I copied the source collage into the ticket, extracted all sixteen 4x4 cells with a small inset to remove the red guide lines, generated a labeled contact sheet for verification, and then printed one large single-cat portrait from the stored ticket asset.
+
+### Prompt Context
+
+**User prompt (verbatim):** "you will have to extract them again and store them in the ticket, we crashed.
+/tmp/pi-clipboard-bcf0fca6-54a3-4349-a272-570e6afe0793.png
+
+Here they are, extract the cats and verify you cut them out correctly and store them in the ticket."
+
+**Assistant interpretation:** Recreate the cat portrait crops from the new clipboard file, persist the source/crops/verification sheet under the ticket, and ensure the crops look correct before using them.
+
+**Inferred user intent:** Avoid losing generated assets to `/tmp` cleanup and make the portrait extraction reproducible and reviewable.
+
+**Commit (code):** N/A at diary write time; commit follows after pending changes are reviewed.
+
+### What I did
+- Inspected `/tmp/pi-clipboard-bcf0fca6-54a3-4349-a272-570e6afe0793.png`; it is the same 4x4 cat collage with red guide lines.
+- Stored the source image in the ticket:
+  - `assets/cat-portraits/source-4x4-cat-collage.png`
+- Extracted 16 square portraits to:
+  - `assets/cat-portraits/portraits/cat-portrait-rRR-cCC.png`
+- Generated verification artifacts:
+  - `assets/cat-portraits/contact-sheet.png`
+  - `assets/cat-portraits/manifest.md`
+- Saved the extraction script:
+  - `scripts/04-extract-cat-portraits.py`
+- Updated the single-large-cat bundle script to default to the stored ticket asset:
+  - `scripts/03-create-single-large-cat-bundle.py`
+- Printed one large portrait from `cat-portrait-r02-c02.png`.
+
+### Why
+- `/tmp` artifacts were lost after the crash, so the source and derived portrait crops need to live under the ticket.
+- A contact sheet makes it easy to verify at a glance that each crop contains exactly one cat and not adjacent cells.
+- Updating the print script to use ticket assets avoids depending on ephemeral `/tmp/pi-cat-portraits` paths.
+
+### What worked
+- Extraction succeeded:
+  - 16 portraits generated.
+  - all portraits are `313x313`.
+  - contact sheet size is `720x800`.
+- Visual verification of `contact-sheet.png` showed the 4x4 crop is correct: each cell contains one cat portrait, and the red grid lines are removed.
+- Single large portrait print succeeded:
+  - bundle: `/tmp/single-large-cat-bundle.zip`
+  - rendered bitmap `384x439`
+  - sent bitmap `height=511`
+  - sent bytes `24528`
+  - `printer_ok=true`
+  - `printer_response={"ok":true}`
+
+### What didn't work
+- The first single-large-cat attempt failed because it still referenced `/tmp/pi-cat-portraits/cat-portrait-2-2.png`, which was gone after the crash.
+- Re-running the old story splitter also failed because the original `/tmp/pi-clipboard-684daa14-7016-4dfe-bdf6-432e3fc0d1b1.png` was gone.
+
+### What I learned
+- Any generated asset that matters for follow-up should live under the ticket, not only in `/tmp`.
+- The refreshed clipboard image has the same dimensions and grid layout: `1254x1254`, `4x4` cells.
+
+### What was tricky to build
+- The crop needs a small inset (`10px`) to remove red guide lines without cutting into the cat illustrations too much.
+- The single-large-cat script needed to be made independent of `/tmp` portrait state.
+
+### What warrants a second pair of eyes
+- Review `contact-sheet.png` to confirm the chosen inset is visually acceptable.
+- Review whether binary assets under the ticket should be committed or whether only scripts/manifest should be committed and source assets stored elsewhere.
+
+### What should be done in the future
+- Prefer ticket-local assets for all future hardware print experiments.
+- If the assets are too large for git history, move them to a documented artifact store and keep the manifest in the ticket.
+
+### Code review instructions
+- Review:
+  - `assets/cat-portraits/contact-sheet.png`
+  - `assets/cat-portraits/manifest.md`
+  - `scripts/04-extract-cat-portraits.py`
+  - `scripts/03-create-single-large-cat-bundle.py`
+- Validate with:
+  - `python scripts/04-extract-cat-portraits.py --input /tmp/pi-clipboard-bcf0fca6-54a3-4349-a272-570e6afe0793.png`
+  - `python scripts/03-create-single-large-cat-bundle.py --height 360`
+  - `go run ./cmd/almanach-render-service print --layout /tmp/single-large-cat-bundle.zip --printer-ip 192.168.1.242 --output json`
+
+### Technical details
+- Stored source:
+  - `ttmp/2026/05/10/ALMANACH-PRINTER-UART--analyze-atoms3r-k118-printer-uart-serial-interface/assets/cat-portraits/source-4x4-cat-collage.png`
+- Stored portraits:
+  - `ttmp/2026/05/10/ALMANACH-PRINTER-UART--analyze-atoms3r-k118-printer-uart-serial-interface/assets/cat-portraits/portraits/`
+- Contact sheet:
+  - `ttmp/2026/05/10/ALMANACH-PRINTER-UART--analyze-atoms3r-k118-printer-uart-serial-interface/assets/cat-portraits/contact-sheet.png`
+- Print response:
+  - `/tmp/single-large-cat-print-response.json`
+
+
+## Step 14: Print additional large cat portraits
+
+The user asked to print some more portraits after the ticket-local extraction was restored. I used the stored ticket assets rather than `/tmp` crops and printed four additional large single-cat portraits.
+
+### Prompt Context
+
+**User prompt (verbatim):** "print out some more portraits"
+
+**Assistant interpretation:** Use the verified ticket-local cat crops and produce additional physical large portrait prints.
+
+**Inferred user intent:** Continue evaluating the visual quality of individual cat portrait prints on the thermal printer.
+
+**Commit (code):** N/A at diary write time; commit follows after pending changes are reviewed.
+
+### What I did
+- Used `scripts/03-create-single-large-cat-bundle.py` with `--height 360` for four stored portraits:
+  - `cat-portrait-r01-c01.png`
+  - `cat-portrait-r01-c03.png`
+  - `cat-portrait-r04-c03.png`
+  - `cat-portrait-r04-c04.png`
+- Generated temporary bundles/responses under `/tmp` for each portrait.
+- Printed each bundle to `http://192.168.1.242/api/print/bitmap` via `almanach-render-service print`.
+
+### What worked
+- All four additional portraits printed successfully.
+- Each rendered as `384x439`, sent as `height=511`, `24528` bytes, with `printer_ok=true` and `printer_response={"ok":true}`.
+
+### What didn't work
+- N/A.
+
+### What I learned
+- Single 360px portrait prints are comfortably small for the current endpoint and are reliable for quick visual checks.
+- The ticket-local asset path now works as intended after crash recovery.
+
+### What should be done in the future
+- If many portraits need printing, add a small batch-print script that records selected portrait IDs and response paths automatically.
+
+### Code review instructions
+- Review `scripts/03-create-single-large-cat-bundle.py` for the reusable single-portrait print bundle flow.
+- Response artifacts:
+  - `/tmp/single-large-cat-r01-c01-print-response.json`
+  - `/tmp/single-large-cat-r01-c03-print-response.json`
+  - `/tmp/single-large-cat-r04-c03-print-response.json`
+  - `/tmp/single-large-cat-r04-c04-print-response.json`

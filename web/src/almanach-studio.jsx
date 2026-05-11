@@ -147,7 +147,7 @@ const DEFAULTS = {
     ],
   },
   weather: { temp: "22°C", condition: "Partly cloudy", high: "24°C", low: "15°C", sunrise: "05:47", sunset: "20:32" },
-  note: { label: "Daily Note", text: "Focus is a superpower.", author: "Cal Newport" },
+  note: { label: "Daily Note", text: "Make something small, useful, and a little delightful.", author: "Almanach" },
   habits: {
     label: "Habit Tracker",
     range: "May 18 — May 24",
@@ -186,7 +186,7 @@ const DEFAULTS = {
   reading: {
     label: "Reading List",
     current: { title: "Atomic Habits", author: "James Clear", progress: 52 },
-    next: ["The Almanack of Naval Ravikant", "Deep Work — Cal Newport", "The Daily Stoic — Ryan Holiday", "Thinking, Fast and Slow — Daniel Kahneman"],
+    next: ["The Almanack of Naval Ravikant", "A Pattern Language — Christopher Alexander", "The Daily Stoic — Ryan Holiday", "Thinking, Fast and Slow — Daniel Kahneman"],
   },
   reflection: {
     label: "Daily Reflection",

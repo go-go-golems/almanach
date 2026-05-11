@@ -36,10 +36,12 @@ extern const uint8_t almanach_bundle_js_end[]   asm("_binary_almanach_bundle_js_
 
 /* ---- Helper: read full body ------------------------------------------ */
 
+#define MAX_BITMAP_BODY_BYTES (90 * 1024)
+
 static char *read_body(httpd_req_t *req, size_t *out_len)
 {
     size_t len = (size_t)req->content_len;
-    if (len == 0 || len > 256 * 1024) return NULL;
+    if (len == 0 || len > MAX_BITMAP_BODY_BYTES) return NULL;
 
     char *buf = malloc(len + 1);
     if (!buf) return NULL;
@@ -289,6 +291,15 @@ static esp_err_t api_print_bitmap_post(httpd_req_t *req)
         snprintf(msg, sizeof(msg),
                  "content-length %ld != expected %zu",
                  (long)req->content_len, expected);
+        send_json_error(req, msg);
+        return ESP_FAIL;
+    }
+
+    if (expected > MAX_BITMAP_BODY_BYTES) {
+        char msg[128];
+        snprintf(msg, sizeof(msg),
+                 "bitmap too large: got %zu bytes, max %d bytes",
+                 expected, MAX_BITMAP_BODY_BYTES);
         send_json_error(req, msg);
         return ESP_FAIL;
     }
