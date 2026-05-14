@@ -29,7 +29,7 @@ func LoadConfig() Config {
 		ChromePath:   envStr("ALMANACH_CHROME_PATH", ""),
 		ChromeWSURL:  envStr("CHROME_WS_URL", ""),
 		PaperWidth:   envInt("ALMANACH_PAPER_WIDTH", 384),
-		BodyScale:    envFloat("ALMANACH_FONT_SCALE", 1.3),
+		BodyScale:    envFloat("ALMANACH_FONT_SCALE", 1.4),
 		FeedLines:    envInt("ALMANACH_DEFAULT_FEED", 3),
 		DefaultTheme: envStr("ALMANACH_DEFAULT_THEME", "minimal"),
 		LogLevel:     envStr("ALMANACH_LOG_LEVEL", "info"),
