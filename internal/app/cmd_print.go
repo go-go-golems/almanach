@@ -120,10 +120,9 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 
 	printed := false
 	printerOK := false
-	printerBitmap := bitmapWithTrailingBlankRows(result.Bitmap, s.FeedLines)
 	var printerResponse map[string]any
 	if !s.DryRun {
-		printerResponse, err = sendBitmapToPrinter(printerURL, printerBitmap, 0)
+		printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
 		if err != nil {
 			return err
 		}
@@ -135,9 +134,9 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 		types.MRP("printed", printed),
 		types.MRP("dry_run", s.DryRun),
 		types.MRP("printer_url", printerURL),
-		types.MRP("width", printerBitmap.Width),
-		types.MRP("height", printerBitmap.Height),
-		types.MRP("bytes", len(printerBitmap.Data)),
+		types.MRP("width", result.Bitmap.Width),
+		types.MRP("height", result.Bitmap.Height),
+		types.MRP("bytes", len(result.Bitmap.Data)),
 		types.MRP("feed_lines", s.FeedLines),
 		types.MRP("selector", result.Selector),
 		types.MRP("printer_ok", printerOK),

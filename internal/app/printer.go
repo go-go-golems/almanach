@@ -10,20 +10,56 @@ import (
 )
 
 const (
-	printerFeedLinePixels     = 24
-	maxPrinterBitmapBodyBytes = 90 * 1024
+	printerFeedLinePixels        = 24
+	maxPrinterBitmapBodyBytes    = 90 * 1024
+	maxSafePrinterBitmapBodyBytes = 36 * 1024 // ESP32 httpd cannot reliably receive > ~38 KiB
 	// At 9600 baud, a 90 KiB bitmap can take ~77 s to UART-transfer.
 	// Allow generous headroom so large prints outlive the transfer.
 	printerHTTPTimeout = 120 * time.Second
 )
 
 // sendBitmapToPrinter sends a 1-bit bitmap to the ESP32's /api/print/bitmap endpoint.
+// If the bitmap exceeds the ESP32's safe receive limit (~38 KiB), it is split into
+// segments that are sent as sequential print commands. Only the final segment carries
+// the paper feed (X-Feed).
 func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[string]any, error) {
-	bitmapToSend := bitmapWithTrailingBlankRows(bitmap, feedLines)
-	if len(bitmapToSend.Data) > maxPrinterBitmapBodyBytes {
-		return nil, fmt.Errorf("bitmap too large: got %d bytes, max %d bytes; use a shorter layout or future segmented print endpoint", len(bitmapToSend.Data), maxPrinterBitmapBodyBytes)
+	if bitmap == nil {
+		return nil, fmt.Errorf("bitmap is nil")
 	}
-	body := bytes.NewReader(bitmapToSend.Data)
+	if len(bitmap.Data) > maxPrinterBitmapBodyBytes {
+		return nil, fmt.Errorf("bitmap too large: got %d bytes, max %d bytes; use a shorter layout or future segmented print endpoint", len(bitmap.Data), maxPrinterBitmapBodyBytes)
+	}
+
+	if feedLines > 20 {
+		feedLines = 20
+	}
+
+	// If the bitmap fits in a single safe request, send it directly.
+	if len(bitmap.Data) <= maxSafePrinterBitmapBodyBytes {
+		return sendSingleBitmap(printerURL, bitmap, feedLines)
+	}
+
+	// Split into segments that each fit under the safe limit.
+	segments := splitBitmap(bitmap, maxSafePrinterBitmapBodyBytes)
+	var lastResp map[string]any
+	for i, seg := range segments {
+		segFeed := 0
+		if i == len(segments)-1 {
+			segFeed = feedLines
+		}
+		resp, err := sendSingleBitmap(printerURL, seg, segFeed)
+		if err != nil {
+			return nil, fmt.Errorf("segment %d/%d failed: %w", i+1, len(segments), err)
+		}
+		lastResp = resp
+	}
+	lastResp["segments"] = len(segments)
+	return lastResp, nil
+}
+
+// sendSingleBitmap sends one bitmap chunk to the printer.
+func sendSingleBitmap(printerURL string, bitmap *Bitmap, feedLines int) (map[string]any, error) {
+	body := bytes.NewReader(bitmap.Data)
 
 	req, err := http.NewRequest("POST", printerURL, body)
 	if err != nil {
@@ -31,14 +67,28 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	}
 
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("X-Width", fmt.Sprintf("%d", bitmapToSend.Width))
-	req.Header.Set("X-Height", fmt.Sprintf("%d", bitmapToSend.Height))
-	// Feed is baked into the bitmap as trailing blank raster rows. The firmware
-	// still supports X-Feed, but several printer runs showed ESC d n after a
-	// bitmap was not visually reliable on this mechanism.
-	req.Header.Set("X-Feed", "0")
+	req.Header.Set("X-Width", fmt.Sprintf("%d", bitmap.Width))
+	req.Header.Set("X-Height", fmt.Sprintf("%d", bitmap.Height))
+	// Use X-Feed for post-print paper feed instead of baking trailing blank
+	// rows into the bitmap body. Baking feed rows inflates the payload
+	// (3 feed lines adds ~3.4 KiB for 384px width) and the ESP32 httpd
+	// cannot reliably receive bodies beyond ~38 KiB due to TCP buffer limits
+	// in the ESP-IDF httpd stack. The firmware's printer_drv_feed() (ESC d n)
+	// handles feed correctly via the X-Feed header.
+	req.Header.Set("X-Feed", fmt.Sprintf("%d", feedLines))
+	req.Header.Set("Connection", "close")
 
-	client := &http.Client{Timeout: printerHTTPTimeout}
+	// Use a fresh connection per request. The ESP32 httpd has short
+	// recv/send timeouts and the UART bitmap transfer can take seconds,
+	// so reusing a stale connection causes unexpected EOF.
+	transport := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   printerHTTPTimeout,
+	}
+	client := &http.Client{
+		Timeout:   printerHTTPTimeout,
+		Transport: transport,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("printer request failed: %w", err)
@@ -58,6 +108,47 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	return result, nil
 }
 
+// splitBitmap divides a bitmap into horizontal segments that each fit under maxBytes.
+// Each segment has the same width and BytesPerRow; only the height and data are sliced.
+func splitBitmap(bitmap *Bitmap, maxBytes int) []*Bitmap {
+	if len(bitmap.Data) <= maxBytes || bitmap.BytesPerRow == 0 {
+		return []*Bitmap{bitmap}
+	}
+
+	// Calculate max rows per segment.
+	maxRows := maxBytes / bitmap.BytesPerRow
+	if maxRows <= 0 {
+		maxRows = 1
+	}
+
+	var segments []*Bitmap
+	remaining := bitmap.Height
+	offset := 0
+	for remaining > 0 {
+		rows := remaining
+		if rows > maxRows {
+			rows = maxRows
+		}
+		start := offset * bitmap.BytesPerRow
+		end := start + rows*bitmap.BytesPerRow
+		if end > len(bitmap.Data) {
+			end = len(bitmap.Data)
+		}
+		segments = append(segments, &Bitmap{
+			Width:       bitmap.Width,
+			Height:      rows,
+			BytesPerRow: bitmap.BytesPerRow,
+			Data:        bitmap.Data[start:end],
+		})
+		offset += rows
+		remaining -= rows
+	}
+	return segments
+}
+
+// bitmapWithTrailingBlankRows appends blank raster rows to a bitmap for feed.
+// Kept for compatibility with tests and the dry-run path, but the actual
+// sendBitmapToPrinter now uses X-Feed instead of baked rows.
 func bitmapWithTrailingBlankRows(bitmap *Bitmap, feedLines int) *Bitmap {
 	if bitmap == nil || feedLines <= 0 || bitmap.BytesPerRow <= 0 {
 		return bitmap
