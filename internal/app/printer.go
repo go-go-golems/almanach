@@ -21,7 +21,12 @@ const (
 // sendBitmapToPrinter sends a 1-bit bitmap to the ESP32's /api/print/bitmap endpoint.
 // If the bitmap exceeds the ESP32's safe receive limit (~38 KiB), it is split into
 // segments that are sent as sequential print commands. Only the final segment carries
-// the paper feed (X-Feed).
+// the paper feed (baked as trailing blank rows + X-Feed header).
+//
+// Note: ESC d n (X-Feed) alone is not visually reliable on the K118 mechanism —
+// the paper may not actually advance. Baking blank raster rows into the bitmap
+// ensures the printer physically prints the feed gap. We set X-Feed as a fallback
+// so the firmware can issue ESC d n too, but the baked rows are the primary feed.
 func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[string]any, error) {
 	if bitmap == nil {
 		return nil, fmt.Errorf("bitmap is nil")
@@ -34,13 +39,18 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 		feedLines = 20
 	}
 
-	// If the bitmap fits in a single safe request, send it directly.
-	if len(bitmap.Data) <= maxSafePrinterBitmapBodyBytes {
-		return sendSingleBitmap(printerURL, bitmap, feedLines)
+	// Bake feed rows into the bitmap for reliable paper advance.
+	// ESC d n (X-Feed) alone is not reliable on this printer mechanism.
+	bitmapWithFeed := bitmapWithTrailingBlankRows(bitmap, feedLines)
+
+	// If the bitmap (with feed) fits in a single safe request, send it directly.
+	if len(bitmapWithFeed.Data) <= maxSafePrinterBitmapBodyBytes {
+		return sendSingleBitmap(printerURL, bitmapWithFeed, feedLines)
 	}
 
 	// Split into segments that each fit under the safe limit.
-	segments := splitBitmap(bitmap, maxSafePrinterBitmapBodyBytes)
+	// Feed rows are baked into the last segment.
+	segments := splitBitmap(bitmapWithFeed, maxSafePrinterBitmapBodyBytes)
 	var lastResp map[string]any
 	for i, seg := range segments {
 		segFeed := 0
@@ -69,12 +79,8 @@ func sendSingleBitmap(printerURL string, bitmap *Bitmap, feedLines int) (map[str
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("X-Width", fmt.Sprintf("%d", bitmap.Width))
 	req.Header.Set("X-Height", fmt.Sprintf("%d", bitmap.Height))
-	// Use X-Feed for post-print paper feed instead of baking trailing blank
-	// rows into the bitmap body. Baking feed rows inflates the payload
-	// (3 feed lines adds ~3.4 KiB for 384px width) and the ESP32 httpd
-	// cannot reliably receive bodies beyond ~38 KiB due to TCP buffer limits
-	// in the ESP-IDF httpd stack. The firmware's printer_drv_feed() (ESC d n)
-	// handles feed correctly via the X-Feed header.
+	// Use X-Feed as a supplementary feed signal. The primary feed is the baked
+	// blank rows in the bitmap, but the firmware also issues ESC d n as backup.
 	req.Header.Set("X-Feed", fmt.Sprintf("%d", feedLines))
 	req.Header.Set("Connection", "close")
 
