@@ -11,7 +11,7 @@ import (
 
 const (
 	printerFeedLinePixels        = 24
-	maxPrinterBitmapBodyBytes    = 90 * 1024
+	maxPrinterBitmapBodyBytes    = 1024 * 1024 // 1MB hard limit; anything above maxSafePrinterBitmapBodyBytes gets segmented
 	maxSafePrinterBitmapBodyBytes = 36 * 1024 // ESP32 httpd cannot reliably receive > ~38 KiB
 	// At 9600 baud, a 90 KiB bitmap can take ~77 s to UART-transfer.
 	// Allow generous headroom so large prints outlive the transfer.
