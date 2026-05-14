@@ -1,0 +1,67 @@
+almanach_studio_version: 1
+theme: minimal
+paperWidth: 384
+bodyScale: 1.45
+feedLines: 3
+blocks:
+  - id: title-1
+    type: title
+    data:
+      text: DAILY BRIEFING
+      subtitle: Thursday, May 14, 2026
+
+  - id: date-1
+    type: date
+    data:
+      date: May 14, 2026
+      day: Thursday
+
+  - id: weather-1
+    type: weather
+    data:
+      temp: 22°C
+      condition: Partly cloudy, light wind
+      high: 26°C
+      low: 14°C
+      sunrise: "05:42"
+      sunset: "20:18"
+
+  - id: divider-1
+    type: divider
+
+  - id: plan-1
+    type: plan
+    data:
+      label: Today
+      items:
+        - time: "09:00"
+          text: Pair the almanach printer over BLE
+          done: true
+        - time: "10:00"
+          text: Render and print test layouts
+          done: true
+        - time: "11:00"
+          text: Write the pi printing skill SKILL.md
+          done: false
+        - time: "14:00"
+          text: Print daily briefing via HTTP API
+          done: false
+        - time: "17:00"
+          text: Commit and update diary
+          done: false
+
+  - id: divider-2
+    type: divider
+
+  - id: quote-1
+    type: quote
+    data:
+      text: "Any sufficiently automated workflow is indistinguishable from magic."
+      author: The Almanach
+
+  - id: note-1
+    type: note
+    data:
+      label: Printer Note
+      text: ALM_0F2320 is online at 192.168.0.126 on yolobolo. Paired via native BLE provisioning with Security 1.
+      author: Pi Agent

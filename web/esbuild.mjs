@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { mkdirSync, writeFileSync } from "fs";
+import { mkdirSync, writeFileSync, copyFileSync } from "fs";
 
 const isDev = process.argv.includes("--dev");
 
@@ -31,14 +31,16 @@ const setupResult = await esbuild.build({
   outfile: "dist/setup-bundle.js",
 });
 
-function html({ title, script }) {
+function html({ title, script, css }) {
+  const cssLink = css ? `    <link rel="stylesheet" href="${css}">
+` : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
-  <style>
+${cssLink}  <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #root { width: 100%; min-height: 100%; }
     body { background: #1a1612; }
@@ -51,7 +53,10 @@ function html({ title, script }) {
 </html>`;
 }
 
-writeFileSync("dist/index.html", html({ title: "Almanach Studio", script: "/almanach/bundle.js" }));
+// Copy embedded Google Fonts CSS (base64 woff2, no network needed at runtime)
+copyFileSync("src/fonts-embedded.css", "dist/fonts.css");
+
+writeFileSync("dist/index.html", html({ title: "Almanach Studio", script: "/almanach/bundle.js", css: "/almanach/fonts.css" }));
 writeFileSync("dist/setup.html", html({ title: "Almanach Printer Setup", script: "/setup/bundle.js" }));
 
 function printBundle(result, outfile, label) {

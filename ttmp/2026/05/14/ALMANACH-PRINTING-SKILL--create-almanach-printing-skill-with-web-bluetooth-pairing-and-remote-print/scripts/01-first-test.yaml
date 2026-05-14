@@ -1,0 +1,38 @@
+almanach_studio_version: 1
+theme: minimal
+paperWidth: 384
+bodyScale: 1.45
+feedLines: 3
+blocks:
+  - id: title-1
+    type: title
+    data:
+      text: THE ALMANACH
+      subtitle: Thursday, May 14, 2026
+
+  - id: date-1
+    type: date
+    data:
+      date: May 14, 2026
+      day: Thursday
+
+  - id: divider-1
+    type: divider
+
+  - id: note-1
+    type: note
+    data:
+      label: Status
+      text: |
+        Printer ALM_0F2320 paired and online at 192.168.0.126.
+        Provisioned via native BLE on yolobolo network.
+        This is the first test print from the new setup.
+
+  - id: divider-2
+    type: divider
+
+  - id: quote-1
+    type: quote
+    data:
+      text: "The best way to predict the future is to invent it."
+      author: Alan Kay
