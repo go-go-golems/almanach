@@ -57,7 +57,7 @@ CGO_ENABLED=1 go build -tags=embed -o dist/almanach-render-service ./cmd/almanac
 ### Print a layout
 
 ```bash
-./dist/almanach-render-service print \
+almanach-render-service print \
   --layout examples/layouts/02-daily-briefing.yaml \
   --printer-ip 192.168.0.126 \
   --feed-lines 3 \
@@ -67,7 +67,7 @@ CGO_ENABLED=1 go build -tags=embed -o dist/almanach-render-service ./cmd/almanac
 ### Preview without printing
 
 ```bash
-./dist/almanach-render-service render \
+almanach-render-service render \
   --layout examples/layouts/02-daily-briefing.yaml \
   --out /tmp/preview.png
 ```
@@ -75,7 +75,7 @@ CGO_ENABLED=1 go build -tags=embed -o dist/almanach-render-service ./cmd/almanac
 ### Start the web UI
 
 ```bash
-./dist/almanach-render-service serve --port 8199
+almanach-render-service serve --port 8199
 # Open http://localhost:8199/almanach
 ```
 
@@ -286,13 +286,13 @@ The printer uses ESP-IDF BLE provisioning with Security 1. Pair when the printer
 
 ```bash
 # Verify BLE connection
-./dist/almanach-render-service ble-provision \
+almanach-render-service ble-provision \
   --implementation native \
   --action version \
   --service-name ALM_0F2320 --pop alm-0f2320
 
 # Provision WiFi
-./dist/almanach-render-service ble-provision \
+almanach-render-service ble-provision \
   --implementation native \
   --action provision \
   --service-name ALM_0F2320 --pop alm-0f2320 \
@@ -301,7 +301,7 @@ The printer uses ESP-IDF BLE provisioning with Security 1. Pair when the printer
 
 ### Web Bluetooth pairing
 
-1. `./dist/almanach-render-service setup --port 8199`
+1. `almanach-render-service setup --port 8199`
 2. Open `http://localhost:8199/setup` in Chrome
 3. Enter PoP, WiFi credentials, click "Find BLE printer"
 4. Printer IP is saved to `~/.config/almanach/render-service/state.json`
@@ -322,18 +322,58 @@ The printer uses ESP-IDF BLE provisioning with Security 1. Pair when the printer
 
 ## Firmware
 
-The AtomS3R firmware is an ESP-IDF application that:
+The `firmware/atoms3r/` directory contains the ESP-IDF firmware that runs on the **M5Stack AtomS3R Lite** — the small ESP32-S3 device that connects to the K118 thermal printer mechanism and exposes the bitmap printing API over WiFi.
 
-- Exposes an HTTP server for bitmap printing, status, and WiFi provisioning
-- Receives packed 1-bit bitmaps and streams them to the K118 thermal mechanism over UART
-- Supports BLE provisioning for WiFi setup
-- Includes the Almanach Studio SPA as embedded assets (served in SoftAP mode when offline)
+### Hardware
+
+- **MCU**: M5Stack AtomS3R Lite (ESP32-S3)
+- **Printer**: K118 thermal printer mechanism (58mm paper, 384 dots/line)
+- **Connection**: UART at 9600 baud (TX=GPIO8, RX=GPIO7, CTS=GPIO6)
+- **Power**: USB-C (AtomS3R) + dedicated 5V/2A for printer mechanism
+
+### What the firmware does
+
+- Runs an **HTTP server** with bitmap printing, text printing, and status endpoints
+- **Receives packed 1-bit bitmaps** and streams them row-by-row to the K118 over UART
+- **Buffers the full bitmap body** before starting UART output (direct streaming caused visible stripes due to timing gaps)
+- Supports **BLE provisioning** (ESP-IDF Security 1) for WiFi setup without a serial connection
+- Includes the **Almanach Studio SPA** as embedded assets (served at `/almanach` in SoftAP mode when offline)
+- Exposes printer control endpoints: density, speed, graphics mode, temperature, status
+
+### Firmware HTTP API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `POST /api/print/bitmap` | POST | Print a 1-bit bitmap (headers: `X-Width`, `X-Height`, `X-Feed`) |
+| `POST /api/print/text` | POST | Print plain text (`{"text": "..."}`) |
+| `GET /api/status` | GET | WiFi + printer state JSON |
+| `GET /api/printer/status` | GET | K118 real-time status byte |
+| `GET /api/printer/temp` | GET | Printhead temperature |
+| `GET /api/printer/baud` | GET | Current UART baud rate |
+| `POST /api/printer/density` | POST | Set print density (0–15) |
+| `POST /api/printer/speed` | POST | Set print speed |
+| `POST /api/printer/graphics-mode` | POST | Enable/disable graphics mode |
+| `GET /` | GET | Status dashboard page |
+| `GET /almanach` | GET | Almanach Studio SPA |
+
+### Build & Flash
 
 ```bash
 cd firmware/atoms3r
 ./build.sh /dev/ttyACM0 build
 ./build.sh /dev/ttyACM0 flash-monitor
 ```
+
+Requires ESP-IDF 5.4.x. The `build.sh` script wraps `idf.py build` and `idf.py flash monitor`.
+
+### Firmware Documentation
+
+The `firmware/atoms3r/docs/` directory contains detailed engineering notes:
+
+- **01-k118-command-discoveries.md** — Practical discoveries from the Chinese K118 command spec (baud, status, bitmap, density, speed, graphics mode, temperature, flow control)
+- **02-bitmap-stripes-flow-control.md** — Full record of the bitmap stripe/pause investigation (why full-body buffering is needed, why chunk streaming and 5-row banding caused visible seams)
+- **03-original-arduino-firmware-command-inventory.md** — Inventory of every printer command used by the original M5Stack Arduino firmware
+- **PROJ-SToMS3R-...** — Obsidian project report with architecture, command surface, and research links
 
 ## License
 
