@@ -61,6 +61,14 @@ func NewRootCommand(version string) (*cobra.Command, error) {
 		return nil, err
 	}
 
+	printRemoteCmd, err := newPrintRemoteCommand()
+	if err != nil {
+		return nil, err
+	}
+	if err := addGlazedCommand(rootCmd, printRemoteCmd); err != nil {
+		return nil, err
+	}
+
 	bleProvisionCmd, err := newBLEProvisionCommand()
 	if err != nil {
 		return nil, err
