@@ -550,10 +550,10 @@ quote_author: "Steve Jobs"
 almanach-render-service render --layout template.yaml --data data.yaml --out /tmp/out.png
 
 # Inline override
-almanach-render-service render --layout template.yaml -D title="HELLO WORLD" --out /tmp/out.png
+almanach-render-service render --layout template.yaml --define title="HELLO WORLD" --out /tmp/out.png
 
 # Mixed: file + override (override wins)
-almanach-render-service render --layout template.yaml --data data.yaml -D title="OVERRIDE" --out /tmp/out.png
+almanach-render-service render --layout template.yaml --data data.yaml --define title="OVERRIDE" --out /tmp/out.png
 ```
 
 ### Data Context Priority
