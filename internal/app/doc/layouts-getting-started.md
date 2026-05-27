@@ -51,6 +51,10 @@ go build -o almanach-render-service .
 
 You also need Chrome or Chromium available on the host. If Chrome is not auto-detected, pass `--chrome-path` or set `ALMANACH_CHROME_PATH`.
 
+## No Layout File? The Scaffold
+
+If you run `render` without `--layout`, the CLI produces a minimal scaffold: a single title block ("ALMANACH") and a date block with today's date. No content is fetched from APIs or generated. This gives you a valid PNG to verify the pipeline works, but you will want to provide a layout file or template for any useful content.
+
 ## Step 1 — Create a Layout File
 
 Create `daily.yaml`:

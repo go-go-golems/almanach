@@ -221,3 +221,57 @@ Total: 224 lines deleted. Replaced by ~15-line `buildScaffoldLayout()` function.
 - Consider adding `-D` as an explicit short flag alias
 - Consider a `scaffold` command that generates a starter YAML file
 - Print a template-driven layout on the physical thermal printer to validate paper output
+
+## Step 9: Documentation Quality Pass — DSL Reference and Supporting Docs
+
+### Prompt Context
+
+**User prompt (verbatim):** "We've updated the yaml spec significantly ... Update @internal/app/doc/layout-dsl-reference.md and potentially other documentation. Study things well before updating, so we get high quality info"
+
+**Assistant interpretation:** Review all current implementation code and the ticket workspace to understand what changed, then bring all docs up to date with the actual state of the codebase.
+
+**Inferred user intent:** Ensure documentation accurately reflects the current DSL spec, including the image block (which was missing), scaffold behavior (undocumented), and correct CLI syntax (--define, not -D).
+
+### What I did
+
+- Thoroughly studied the current Go structs (`layout.go`), React SPA (`almanach-studio.jsx`), template engine (`template.go`), data context (`data_context.go`), CLI flags, and existing docs
+- Updated `layout-dsl-reference.md`:
+  - Added `image` to supported block types list (was missing — 15 → 16 types)
+  - Added full `image` block section with all 9 data fields, defaults, and image source guidance (data URLs, HTTP URLs, ZIP bundles)
+  - Added "Scaffold Layout" section explaining what happens when no --layout is provided
+  - Fixed CLI template examples: changed `-D` to `--define` (Glazed doesn't create short flags)
+  - Fixed `--define` syntax documentation: comma-separated `key=value` pairs, not repeatable
+  - Expanded Data Context Priority section with clear syntax description
+  - Fixed troubleshooting entry: `-D` → `--define`
+- Updated `layouts-getting-started.md`: Added "No Layout File? The Scaffold" section
+- Updated `layouts-user-guide.md`: Added "Scaffold Layout" section and "Photo Card" style recipe
+
+### Why
+
+The DSL reference was out of date in several ways: the image block was completely undocumented despite being fully implemented in both Go and React; the scaffold behavior (fetcher removal) was undocumented; the template CLI examples used `-D` which doesn't actually work with Glazed.
+
+### What was tricky to build
+
+- Determining which Go struct fields are actually rendered in the SPA vs. just accepted by the JSON schema. Weather has `humidity` and `wind` fields in Go with `omitempty`, but the React WeatherBlock doesn't render them. Quote has `source` in Go but not in the React renderer. Decided to document only fields that produce visible output.
+- The image block has many fields (9) with subtle defaults that differ between the Go struct and the React DEFAULTS object. Had to cross-reference both carefully.
+
+### What warrants a second pair of eyes
+
+- The decision to omit `humidity`, `wind` (weather) and `source` (quote) from the reference because the SPA doesn't render them — should these be documented as "accepted but not rendered" for forward compatibility?
+- The image block's `thermalTone` field is SPA-specific (controls a CSS filter). It works for headless rendering but isn't meaningful without the SPA's CSS pipeline.
+
+### What should be done in the future
+
+- Consider adding tutorials that demonstrate the image block
+- Consider documenting weather `humidity`/`wind` and quote `source` as optional fields that are accepted but not currently rendered
+- Add `-D` as an explicit short flag alias for `--define`
+
+### What I did (follow-up: skill file)
+
+- Updated `~/.pi/agent/skills/almanach-printing/SKILL.md` image block section:
+  - Added `thermalTone` field to the table (was missing — DSL reference and SPA both support it)
+  - Fixed `fit` values: removed `fill` (SPA only supports `cover` and `contain`)
+  - Added defaults column to match DSL reference (`"Image Plate"`, `""`, `160`, `"cover"`, `true`, `true`, `"normal"`)
+  - Fixed `src` description: marked as Required
+  - Updated YAML example: `height: 100` → `160` (correct default), added `thermalTone: normal`
+- The skill file already had correct template workflow, scaffold mention, and `--define` syntax — no other changes needed
