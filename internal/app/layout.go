@@ -6,6 +6,19 @@ import (
 	"time"
 )
 
+// ImageData holds image block fields. Kept here alongside the other data types
+// so the Go type definitions stay in one place.
+type ImageData struct {
+	Label     string `json:"label"`
+	Src       string `json:"src"`
+	Alt       string `json:"alt,omitempty"`
+	Caption   string `json:"caption,omitempty"`
+	Height    int    `json:"height,omitempty"`
+	Fit       string `json:"fit,omitempty"`
+	Border    bool   `json:"border,omitempty"`
+	Grayscale bool   `json:"grayscale,omitempty"`
+}
+
 // Layout represents the full almanac page layout sent to the SPA.
 //
 // Keep this schema aligned with web/src/almanach-studio.jsx:
@@ -172,56 +185,10 @@ func dividerBlock() Block {
 	return newBlock("divider", map[string]string{"style": "line"})
 }
 
-// buildDefaultLayout constructs a layout using live data from fetchers.
-func buildDefaultLayout(cfg Config) (*Layout, error) {
+// buildScaffoldLayout produces a minimal layout with just a title and date block.
+// Used when no layout file is provided — no content is invented, no APIs are called.
+func buildScaffoldLayout(cfg Config) *Layout {
 	now := time.Now()
-
-	dateData := fetchDate(now)
-	weatherData := fetchWeather(cfg)
-	newsData := fetchNews()
-	quoteData := fetchQuote()
-	wordData := fetchWord()
-	historyData := fetchHistory(now)
-
-	var blocks []Block
-	blocks = append(blocks,
-		newBlock("title", TitleData{
-			Text:     "Daily Almanac",
-			Subtitle: formatDate(now),
-		}),
-		newBlock("date", dateData),
-		dividerBlock(),
-	)
-
-	if weatherData != nil {
-		blocks = append(blocks, newBlock("weather", weatherData))
-	}
-
-	if newsData != nil && len(newsData.Items) > 0 {
-		blocks = append(blocks, newBlock("news", newsData))
-	}
-
-	if quoteData != nil {
-		blocks = append(blocks, newBlock("quote", quoteData))
-	}
-
-	if wordData != nil {
-		blocks = append(blocks, newBlock("word", wordData))
-	}
-
-	if historyData != nil && len(historyData.Items) > 0 {
-		blocks = append(blocks, newBlock("history", historyData))
-	}
-
-	blocks = append(blocks,
-		newBlock("did", DidData{
-			Label: "Did You Know?",
-			Items: []string{
-				"Honey never spoils. Archaeologists have found 3000-year-old honey in Egyptian tombs that was still edible.",
-			},
-		}),
-	)
-
 	return &Layout{
 		Version:    1,
 		ExportedAt: now.UTC().Format(time.RFC3339),
@@ -229,10 +196,15 @@ func buildDefaultLayout(cfg Config) (*Layout, error) {
 		PaperWidth: cfg.PaperWidth,
 		BodyScale:  cfg.BodyScale,
 		FeedLines:  cfg.FeedLines,
-		Blocks:     blocks,
-	}, nil
-}
-
-func formatDate(t time.Time) string {
-	return t.Format("January 2, 2006")
+		Blocks: []Block{
+			newBlock("title", TitleData{
+				Text:     "ALMANACH",
+				Subtitle: now.Format("January 2, 2006"),
+			}),
+			newBlock("date", DateData{
+				Date: now.Format("January 2, 2006"),
+				Day:  now.Format("Monday"),
+			}),
+		},
+	}
 }

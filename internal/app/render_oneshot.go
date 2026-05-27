@@ -78,13 +78,10 @@ func renderOneShot(ctx context.Context, req oneShotRenderRequest) (*RenderResult
 
 func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config) (string, map[string]interface{}, error) {
 	if len(obj) == 0 {
-		layout, err := buildDefaultLayout(cfg)
-		if err != nil {
-			return "", nil, fmt.Errorf("build layout: %w", err)
-		}
+		layout := buildScaffoldLayout(cfg)
 		b, err := json.Marshal(layout)
 		if err != nil {
-			return "", nil, fmt.Errorf("marshal default layout: %w", err)
+			return "", nil, fmt.Errorf("marshal scaffold: %w", err)
 		}
 		return string(b), nil, nil
 	}

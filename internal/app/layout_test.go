@@ -3,7 +3,6 @@ package app
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
 func TestFrontendBlockSchemaDataKeys(t *testing.T) {
@@ -69,20 +68,28 @@ func TestFrontendBlockSchemaDataKeys(t *testing.T) {
 	}
 }
 
-func TestDefaultLocalFetchersUseFrontendSchema(t *testing.T) {
-	if news := fetchNews(); news == nil || news.Label == "" || len(news.Items) == 0 || news.Items[0].Time == "" {
-		t.Fatalf("fetchNews() did not produce frontend-shaped news data: %#v", news)
+// TestBuildScaffoldLayout verifies the scaffold has the expected shape.
+func TestBuildScaffoldLayout(t *testing.T) {
+	cfg := Config{
+		DefaultTheme: "minimal",
+		PaperWidth:   384,
+		BodyScale:    1.4,
+		FeedLines:    3,
 	}
-
-	if quote := fetchQuote(); quote == nil || quote.Label == "" || quote.Text == "" || quote.Author == "" {
-		t.Fatalf("fetchQuote() did not produce frontend-shaped quote data: %#v", quote)
+	layout := buildScaffoldLayout(cfg)
+	if layout.Version != 1 {
+		t.Fatalf("expected version 1, got %d", layout.Version)
 	}
-
-	if word := fetchWord(); word == nil || word.Label == "" || word.Word == "" || word.Part == "" || word.Definition == "" {
-		t.Fatalf("fetchWord() did not produce frontend-shaped word data: %#v", word)
+	if len(layout.Blocks) != 2 {
+		t.Fatalf("expected 2 blocks (title + date), got %d", len(layout.Blocks))
 	}
-
-	if history := fallbackHistory(time.Now()); history == nil || history.Label == "" || len(history.Items) == 0 || history.Items[0].Year == "" || history.Items[0].Event == "" {
-		t.Fatalf("fallbackHistory() did not produce frontend-shaped history data: %#v", history)
+	if layout.Blocks[0].Type != "title" {
+		t.Fatalf("expected first block type 'title', got %q", layout.Blocks[0].Type)
+	}
+	if layout.Blocks[1].Type != "date" {
+		t.Fatalf("expected second block type 'date', got %q", layout.Blocks[1].Type)
+	}
+	if layout.Theme != "minimal" {
+		t.Fatalf("expected theme 'minimal', got %q", layout.Theme)
 	}
 }

@@ -94,13 +94,10 @@ func (s *Server) layoutJSONFromReader(layoutOverride io.Reader) (string, error) 
 		}
 	}
 
-	layout, err := buildDefaultLayout(s.cfg)
-	if err != nil {
-		return "", fmt.Errorf("build layout: %w", err)
-	}
+	layout := buildScaffoldLayout(s.cfg)
 	b, err := json.Marshal(layout)
 	if err != nil {
-		return "", fmt.Errorf("marshal layout: %w", err)
+		return "", fmt.Errorf("marshal scaffold: %w", err)
 	}
 	return string(b), nil
 }

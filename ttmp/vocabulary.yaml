@@ -27,6 +27,14 @@ topics:
       description: Go language implementation and libraries
     - slug: protocomm
       description: ESP-IDF protocomm protocol and endpoints
+    - slug: dsl
+      description: Domain-specific language for almanach layouts
+    - slug: layout
+      description: YAML/JSON layout files for thermal paper pages
+    - slug: printing
+      description: Thermal printer workflow and bitmap generation
+    - slug: templates
+      description: Template engine for layout variable substitution
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
