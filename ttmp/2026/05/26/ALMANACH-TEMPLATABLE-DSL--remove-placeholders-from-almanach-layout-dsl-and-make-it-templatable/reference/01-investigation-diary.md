@@ -105,3 +105,82 @@ internal/app/fetch_history.go   — 78 lines  — fetchHistory() Wikimedia + fal
 ```
 
 Total: 224 lines deleted. Replaced by ~15-line `buildScaffoldLayout()` function.
+
+## Step 3: Implementation — Phase 1 (Delete Fetchers, Add Scaffold)
+
+**Commit:** `106486c` — "feat: remove all fetchers and hardcoded content, replace with scaffold layout"
+
+### Prompt Context
+
+**User prompt (verbatim):** (same as Step 2)
+
+**Inferred user intent:** Implement the design now.
+
+### What I did
+
+- Deleted all 6 `fetch_*.go` files
+- Replaced `buildDefaultLayout()` with `buildScaffoldLayout()` (title + date block only)
+- Removed `formatDate()` helper
+- Updated callers: `render_oneshot.go:81` and `renderer.go:97`
+- Updated `layout_test.go`: removed `TestDefaultLocalFetchersUseFrontendSchema`, added `TestBuildScaffoldLayout`
+
+### What didn't work
+
+- First build attempt failed with `undefined: err` in `render_oneshot.go:82` because I left a stale `if err != nil` check from when `buildDefaultLayout` returned an error. `buildScaffoldLayout` doesn't return an error. Fixed by removing the error check.
+
+## Step 4: Implementation — Phase 2 (Template Engine)
+
+**Commit:** `4c821cd` — "feat: add template engine for {{variable}} resolution in layout files"
+
+### What I did
+
+- Created `internal/app/template.go` with `ResolveTemplate()`, `resolveValue()`, `resolveExpr()`, `walkMap()`, `walkValue()`
+- Created `internal/app/template_test.go` with 16 test cases
+
+### What didn't work
+
+- First test compilation failed because `contains()` and `containsSubstr()` helper functions in the test file conflicted with identically-named functions in `server.go`. Fixed by replacing with `strings.Contains()`.
+
+## Step 5: Implementation — Phase 3 (Data Context Loading)
+
+**Commit:** `6e0cd1f` — "feat: add data context loading from YAML/JSON files and --define flags"
+
+### What I did
+
+- Created `internal/app/data_context.go` with `LoadDataContext()` and `loadDataCtxFromFlags()`
+- Created `internal/app/data_context_test.go` with 9 test cases
+
+## Step 6: Implementation — Phase 4 (CLI Integration)
+
+**Commit:** `d053b04` — "feat: wire --data and --define CLI flags through render pipeline"
+
+### What I did
+
+- Added `Data` and `Define` fields + flags to all 4 CLI commands (render, print, print-remote, inspect)
+- Thread `DataContext` through `layoutJSONFromPathOrDefault` → `layoutJSONFromObjectOrDefault`
+- Added `ResolveTemplate()` call before JSON marshaling in `layoutJSONFromObjectOrDefault`
+- Added data context extraction from wrapped request body `data` key for HTTP API
+- Updated `layout_bundle_test.go` to pass `nil` DataContext
+
+### What was tricky
+
+- The `render_oneshot.go` edits required care: the `layoutJSONFromObjectOrDefault` function needed both the new data context parameter AND the template resolution logic, plus extraction of `data` from wrapped request bodies. All three had to land in one coherent edit.
+- The `data_context.go` file had a duplicate `import` block after my first edit. Fixed by merging into a single import.
+
+## Step 7: Implementation — Phase 5 (Docs and Examples)
+
+**Commit:** `635b7fb` — "docs: add template syntax to DSL reference, add template examples, update skill file"
+
+### What I did
+
+- Added "Template Syntax" section to `layout-dsl-reference.md` with expression format, types, CLI usage, priority rules
+- Updated wrapped render request example to include `data` key
+- Added troubleshooting entries for template errors
+- Created `examples/templates/` with 4 files: daily-briefing and knowledge-strip template + data pairs
+- Updated `~/.pi/agent/skills/almanach-printing/SKILL.md` with template workflow section
+
+### What should be done in the future
+
+- Update `layouts-getting-started.md` and `layouts-user-guide.md` to reference templates
+- Add template examples to tutorials
+- Upload updated design doc + diary to reMarkable
