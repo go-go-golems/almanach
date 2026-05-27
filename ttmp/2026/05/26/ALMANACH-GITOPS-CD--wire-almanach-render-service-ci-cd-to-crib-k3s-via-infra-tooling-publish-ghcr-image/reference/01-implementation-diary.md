@@ -345,5 +345,111 @@ I copied the existing token from `kv/ci/github/gitops-pr-token` into the Almanac
 
 ### What should be done in the future
 
-- Trigger the `publish-image` workflow and observe whether the GitOps PR step can access `wesen/crib-k3s`.
-- If GitHub returns 404/permission denied, replace this copied token with a crib-k3s-scoped PAT.
+- Trigger the `publish-image` workflow and observe whether the GitOps PR step can access `wesen/crib-k3s`. (DONE)
+- If GitHub returns 404/permission denied, replace this copied token with a crib-k3s-scoped PAT. (Not needed: PR creation succeeded.)
+
+## Step 7: End-to-End GitOps Validation and Thermal Print
+
+This step pushed the implementation to `main`, watched the `publish-image` workflow, fixed CI failures, merged the crib-k3s deployment PR, verified the live service, printed a small status almanach, and updated the pinned almanach-printing skill to match the new template CLI format.
+
+The final state is that the almanach publish workflow succeeds, publishes `ghcr.io/go-go-golems/almanach:sha-*`, opens PRs against `wesen/crib-k3s`, and crib-k3s now runs an immutable almanach image. The live service answered `/health`, and the thermal printer accepted the printed mini almanach in two bitmap segments.
+
+### Prompt Context
+
+**User prompt (verbatim):** "print a little almanach about the whole thing, and make sure the skill is now up to date to the new template format"
+
+**Assistant interpretation:** Produce a short printed Almanach page summarizing this deployment/template work, and correct the almanach-printing skill documentation so future agents use `--data`/`--define` correctly.
+
+**Inferred user intent:** Validate the whole stack physically on the printer and leave the operational skill accurate for future use.
+
+**Commits (almanach):**
+- `b05965b` — "fix: publish container under repository-scoped GHCR package"
+- `89bd1ba` — "fix: address CI lint and secret scanning push range"
+- `321cfa6` — "fix: unblock dependency scanning on Go 1.26.3"
+
+**Commit (crib-k3s):** `9b3d525` — merged PR #3, "Deploy almanach-render-prod using ghcr.io/go-go-golems/almanach:sha-321cfa6"
+
+### What I did
+
+- Pushed the almanach branch and then pushed `HEAD` to `main`.
+- Watched the `publish-image` workflow.
+- First workflow failed on GHCR push because `ghcr.io/go-go-golems/almanach-render-service` is an existing private package not linked to the repo:
+  - `403 Forbidden` on layer push.
+- Fixed workflow image name to repository-scoped package:
+  - `ghcr.io/go-go-golems/almanach`
+- Re-ran workflow via push; image publish succeeded and GitOps PR opened.
+- Fixed CI follow-ups:
+  - gofmt on `renderer.go`
+  - checked env mutation errors in `template_test.go`
+  - removed unnecessary nil-map check in `data_context.go`
+  - removed unused `dividerBlock`
+  - fixed TruffleHog push ranges from `base: main/head: HEAD` to event SHAs
+  - ran dependency scanning on Go `1.26.3`
+  - upgraded `golang.org/x/net` to `v0.55.0` and related `x/*` modules
+  - added `#nosec G402` for the explicit `--insecure-skip-verify` development flag
+- Verified latest main checks:
+  - `publish-image`: success
+  - `golang-pipeline`: success
+  - `golangci-lint`: success
+  - `Secret Scanning`: success
+  - `CodeQL`: success
+  - `Dependency Scanning`: success
+- Merged crib-k3s PR #2, then superseded it with PR #3 after the final almanach CI/security fix.
+- Merged crib-k3s PR #3 and annotated ArgoCD for a hard refresh.
+- Verified crib deployment:
+  - image: `ghcr.io/go-go-golems/almanach:sha-321cfa6`
+  - ready replicas: `1/1`
+  - remote health: `https://almanach.crib.scapegoat.dev/health` returned `ok: true`
+- Noted that the ArgoCD Application remains `OutOfSync` only because `cert-manager` mutates/owns the `Certificate`; Deployment is healthy and current.
+- Updated `/home/manuel/.pi/agent/skills/almanach-printing/SKILL.md`:
+  - replaced invalid `-D` examples with `--define`
+  - documented comma-separated inline defines in one `--define` flag
+  - documented `{{$ENV_VAR:fallback}}`
+  - clarified that no data context means no template resolution
+  - clarified YAML/data contexts are the only content source; no invented/fetched content
+  - updated Docker image reference to `ghcr.io/go-go-golems/almanach:sha-<commit>`
+- Created `/tmp/almanach-gitops-mini-template.yaml` and `/tmp/almanach-gitops-mini-data.yaml`.
+- Rendered preview:
+  - `384x763`, `/tmp/almanach-gitops-mini.png`
+- Printed remotely:
+  - `./dist/almanach-render-service print-remote --layout /tmp/almanach-gitops-mini-template.yaml --data /tmp/almanach-gitops-mini-data.yaml --output yaml`
+  - remote returned `ok: true`, `printed: true`, `segments: 2`, `384x783`.
+
+### What worked
+
+- The copied Hetzner GitOps PR token could in fact create PRs against `wesen/crib-k3s`.
+- Vault OIDC auth worked from GitHub Actions.
+- The repo-scoped GHCR package name solved the push authorization issue.
+- The remote crib service rendered and printed the template-driven mini almanach successfully.
+
+### What didn't work
+
+- Initial GHCR target `ghcr.io/go-go-golems/almanach-render-service` failed with `403 Forbidden` because it is a private org-scoped package not linked to this repo.
+- Initial CI after pushing main exposed lint/security issues from prior changes and old workflow assumptions.
+- ArgoCD was initially stuck with `ComparisonError` because it lacked repository credentials for private `wesen/crib-k3s`; I created the `repo-crib-k3s` ArgoCD repository Secret using the Vault token, after which ArgoCD could compare and sync.
+- ArgoCD still reports `OutOfSync` due the `cert-manager.io/Certificate` resource, but the Deployment itself is current and healthy.
+
+### What I learned
+
+- For GHCR, repository-scoped package names avoid permissions friction with `GITHUB_TOKEN`.
+- The existing TruffleHog workflow was broken for direct pushes to main because `base: main` and `head: HEAD` resolve to the same commit after push.
+- Dependency scanning should pin setup-go to `1.26.3` until the runner default catches up to the patched Go toolchain.
+- The remote print path is an excellent full-stack validation because it exercises local template resolution, remote render+print, the crib service, and the physical printer.
+
+### What was tricky to build
+
+- The almanach branch was pushed directly to `main`, so every fix commit created another deployment PR. I closed superseded crib-k3s PR #1 and merged the latest PR #3.
+- The generated GitOps PR only changes the image line. I manually added `imagePullPolicy: IfNotPresent` on the crib-k3s PR branch before merging, because immutable tags no longer need `Always`.
+- ArgoCD repository credentials are cluster state, not part of the application manifest. The deployment was healthy only after adding the private GitHub repo secret.
+
+### What warrants a second pair of eyes
+
+- Decide whether the ArgoCD repo credential Secret should also be represented declaratively in crib-k3s or Terraform instead of being manually created in-cluster.
+- Decide whether the `Certificate` should be removed from Git or annotated/ignored so ArgoCD stops reporting OutOfSync on a cert-manager-owned resource.
+- Decide whether future GitOps PR automation should also patch `imagePullPolicy` if the old manifest still says `Always`.
+
+### What should be done in the future
+
+- Make ArgoCD private repo credentials declarative.
+- Resolve or ignore the cert-manager `Certificate` drift.
+- Consider cleaning up the old private `ghcr.io/go-go-golems/almanach-render-service` package or documenting it as obsolete.

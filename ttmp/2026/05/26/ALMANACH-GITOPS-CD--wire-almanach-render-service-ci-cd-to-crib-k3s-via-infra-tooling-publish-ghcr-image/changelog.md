@@ -46,3 +46,15 @@ Phase 3 complete. Copied existing Hetzner GitOps PR token from kv/ci/github/gito
 - /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/reference/01-implementation-diary.md — Recorded Vault secret copy
 - /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/tasks.md — Marked PAT storage task complete
 
+
+## 2026-05-27
+
+End-to-end validation complete. publish-image succeeds, GHCR image ghcr.io/go-go-golems/almanach:sha-321cfa6 deployed through crib-k3s PR #3, ArgoCD rolled Deployment to 1/1 ready, remote health OK, and a template-driven mini almanach was printed (2 segments). Updated almanach-printing skill to use --define and current image naming.
+
+### Related Files
+
+- /home/manuel/.pi/agent/skills/almanach-printing/SKILL.md — Updated template workflow docs and Docker image reference
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/reference/01-implementation-diary.md — Recorded end-to-end validation and print
+- /tmp/almanach-gitops-mini-data.yaml — Printed mini almanach data context
+- /tmp/almanach-gitops-mini-template.yaml — Printed mini almanach template
+

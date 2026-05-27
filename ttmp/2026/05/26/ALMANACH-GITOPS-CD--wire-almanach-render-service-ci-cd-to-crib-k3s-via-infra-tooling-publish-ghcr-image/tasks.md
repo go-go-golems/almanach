@@ -9,8 +9,8 @@
 
 ## Phase 2: Crib-k3s deployment — switch to immutable tags
 
-- [ ] Update `gitops/kustomize/almanach/deployment.yaml`: `:latest` → `:sha-<placeholder>`, `imagePullPolicy: Always` → `IfNotPresent`
-- [ ] Verify kustomize builds cleanly with `kubectl kustomize`
+- [x] Update `gitops/kustomize/almanach/deployment.yaml`: `:latest` → immutable `sha-*`, `imagePullPolicy: Always` → `IfNotPresent` (crib-k3s PR #2/#3)
+- [x] Verify kustomize builds cleanly with `kubectl kustomize`
 
 ## Phase 3: Vault configuration (admin prerequisite)
 
@@ -19,7 +19,7 @@
 
 ## Phase 4: Validation
 
-- [ ] Push to main triggers publish-image workflow
-- [ ] Image appears in GHCR with `sha-<hash>` tag
-- [ ] PR opened against wesen/crib-k3s
-- [ ] ArgoCD rolls out new pod after merge
+- [x] Push to main triggers publish-image workflow
+- [x] Image appears in GHCR with `sha-<hash>` tag
+- [x] PR opened against wesen/crib-k3s
+- [x] ArgoCD rolls out new pod after merge (`sha-321cfa6`; app remains OutOfSync only due pre-existing cert-manager Certificate drift)
