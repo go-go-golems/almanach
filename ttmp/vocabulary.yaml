@@ -35,6 +35,16 @@ topics:
       description: Thermal printer workflow and bitmap generation
     - slug: templates
       description: Template engine for layout variable substitution
+    - slug: argocd
+      description: ArgoCD GitOps continuous delivery
+    - slug: ci-cd
+      description: Continuous integration and continuous deployment
+    - slug: docker
+      description: Container image building and publishing
+    - slug: github-actions
+      description: GitHub Actions CI/CD workflows
+    - slug: gitops
+      description: GitOps deployment pattern
 docTypes:
     - slug: design-doc
       description: Structured rationale and architecture notes
