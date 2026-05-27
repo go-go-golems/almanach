@@ -453,3 +453,164 @@ The final state is that the almanach publish workflow succeeds, publishes `ghcr.
 - Make ArgoCD private repo credentials declarative.
 - Resolve or ignore the cert-manager `Certificate` drift.
 - Consider cleaning up the old private `ghcr.io/go-go-golems/almanach-render-service` package or documenting it as obsolete.
+
+## Step 6: Follow-up — Remove ArgoCD Drift and Make Repo Credentials Declarative
+
+I closed out the post-deployment cleanup items that were left after the first successful rollout. The immediate operational goal was to make the `almanach` ArgoCD Application genuinely `Synced Healthy`, not merely healthy with a known drift exception, and to remove the manually-created private repository credential from the list of undocumented cluster state.
+
+The cleanup split into three concrete changes: make the checked-in Certificate the only TLS source of truth, import/manage the ArgoCD repository Secret from Terraform using the Vault-stored token, and document the old GHCR package name as obsolete so future deployment work uses the repository-scoped package.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, let's do this:                                                                                                       
+ Suggested immediate next steps                                                                       
+                                                                                                      
+ 1. In ~/code/wesen/crib-k3s, choose Option A:                                                        
+     - remove cert-manager.io/cluster-issuer from gitops/kustomize/almanach/ingress.yaml              
+     - keep certificate.yaml                                                                          
+     - run:                                                                                           
+       ```bash                                                                                        
+         kubectl kustomize gitops/kustomize/almanach                                                  
+       ```                                                                                            
+     - commit and push                                                                                
+     - let ArgoCD sync                                                                                
+ 2. Make ArgoCD repo credentials declarative:                                                         
+     - store GitHub token in Vault                                                                    
+     - create an ArgoCD repo credential Secret via Terraform / ExternalSecret / SealedSecret          
+     - avoid manual kubectl create secret                                                             
+ 3. Clean up old GHCR package situation:                                                              
+     - old package:                                                                                   
+       ```text                                                                                        
+         ghcr.io/go-go-golems/almanach-render-service                                                 
+       ```                                                                                            
+     - new package:                                                                                   
+       ```text                                                                                        
+         ghcr.io/go-go-golems/almanach                                                                
+       ```                                                                                            
+     - either delete/archive the old package or document it as obsolete."
+
+**Assistant interpretation:** Apply the agreed post-rollout cleanup: resolve cert-manager drift with explicit Certificate ownership, declaratively manage ArgoCD private repo credentials, and handle the obsolete GHCR package.
+
+**Inferred user intent:** Finish the GitOps rollout so the cluster state is reproducible, ArgoCD is clean, and future operators do not reuse the broken image package name.
+
+**Commit (code):** `06e2ab4` — `almanach: let explicit Certificate own TLS issuance`
+
+**Commit (code):** `4f106fc` — `almanach: match cert-manager Certificate defaults`
+
+**Commit (code):** `3329312` — `almanach: normalize Certificate durations`
+
+**Commit (code):** `059b9b1` — `vault: manage crib ArgoCD repo credential`
+
+**Commit (code):** `36512b4` — `docs: document published GHCR image`
+
+### What I did
+
+- In `/home/manuel/code/wesen/crib-k3s`:
+  - removed `cert-manager.io/cluster-issuer: letsencrypt-prod` from `gitops/kustomize/almanach/ingress.yaml`
+  - kept `gitops/kustomize/almanach/certificate.yaml`
+  - ran `kubectl kustomize gitops/kustomize/almanach`
+  - committed and pushed the ingress ownership fix (`06e2ab4`)
+  - observed ArgoCD still `OutOfSync Healthy` on `Certificate/almanach-tls`
+  - inspected the live Certificate and found stale ingress `ownerReferences`, cert-manager-defaulted `issuerRef.group`, `spec.usages`, and normalized duration fields
+  - committed `issuerRef.group` and `usages` to Git (`4f106fc`)
+  - removed the stale live `ownerReferences` with a JSON patch
+  - committed normalized durations (`2160h0m0s`, `360h0m0s`) to Git (`3329312`)
+  - verified ArgoCD became `Synced Healthy` at revision `3329312684c4c26755458a8758ae4b05e2139dcb`
+- In `/home/manuel/code/wesen/terraform`:
+  - added the Kubernetes provider to `vault/github-actions/envs/k3s`
+  - added `crib_kubeconfig_path`
+  - read the existing GitOps token from Vault via `data "vault_kv_secret_v2" "crib_k3s_gitops_pr_token"`
+  - added `kubernetes_secret_v1.argocd_repo_crib_k3s`
+  - imported the existing `argocd/repo-crib-k3s` Secret into Terraform state
+  - applied Terraform and verified a follow-up plan had no changes
+  - committed and pushed `059b9b1`
+- In Almanach docs:
+  - checked GHCR package metadata: old `almanach-render-service` package is private; new `almanach` package is public
+  - documented `ghcr.io/go-go-golems/almanach:sha-<commit>` as the deployment image in `README.md`
+  - documented `ghcr.io/go-go-golems/almanach-render-service` as obsolete/private and not for deployments
+  - fixed leftover `-D` examples in `internal/app/doc/layout-dsl-reference.md`
+  - pushed docs to `task/fix-almanach-templates` (`41825ff`) and cherry-picked the README documentation onto main (`36512b4`)
+
+### Why
+
+- Removing the Ingress cluster-issuer annotation prevents cert-manager ingress-shim from competing with the checked-in Certificate.
+- Matching cert-manager’s defaulted fields keeps ArgoCD’s desired/live comparison stable without hiding differences globally.
+- Managing the ArgoCD repository Secret in Terraform makes the private GitOps repository credential reproducible instead of relying on a manual `kubectl create secret` step.
+- Documenting the old GHCR package is safer than silently leaving an attractive but broken deployment target in place.
+
+### What worked
+
+- The final Certificate drift was fully explainable as live-vs-desired differences: stale owner reference, defaulted issuer group/usages, and duration string normalization.
+- ArgoCD now reports `Synced Healthy` for `argocd/almanach`.
+- Terraform successfully imported and now manages `argocd/repo-crib-k3s`.
+- `AWS_PROFILE=manuel terraform plan -detailed-exitcode` reported no changes after apply.
+- Almanach `go test ./internal/app -count=1` passed before the docs commit; pre-push hooks later ran `go test ./...`, `golangci-lint run -v`, and a GoReleaser snapshot successfully.
+
+### What didn't work
+
+- My first direct `kubectl diff` was misleading because raw `kubectl kustomize` output has no namespace; ArgoCD injects the Application destination namespace (`almanach`) during sync.
+- I initially tried to inspect `argocd-application-controller` as a Deployment, but this cluster runs it as the StatefulSet pod `argocd-application-controller-0`.
+- Terraform initially failed without `AWS_PROFILE=manuel` because the S3 backend had no AWS credentials.
+- The first Terraform Vault data source used `vault_generic_secret` against `kv/data/...`; the correct provider-native source for this KV v2 secret is `vault_kv_secret_v2` with `mount = "kv"` and `name = "ci/github/gitops-pr-token"`.
+- While inspecting the manually-created Kubernetes Secret, its `kubectl.kubernetes.io/last-applied-configuration` annotation exposed the credential payload as base64. I immediately removed that annotation from the live Secret. The token itself should still be considered exposed to this local session transcript and rotated if that transcript is not fully trusted.
+- Pushing the Almanach docs commit directly to `main` first failed because `origin/main` had advanced to `188504b`; I cherry-picked the docs change in the separate main worktree and resolved a conflict in `layout-dsl-reference.md` by keeping the newer comma-separated `--define` examples.
+
+### What I learned
+
+- Cert-manager duration fields are normalized to Go-style duration strings (`2160h0m0s`), and ArgoCD compares those strings unless Git matches them or differences are ignored.
+- Direct Terraform management of Kubernetes Secrets is simple but stores the secret value in Terraform state; External Secrets would avoid storing the GitHub token in Terraform state but would require installing/managing the controller and CRDs.
+- `kubectl apply`-style annotations on Secrets are dangerous because they can preserve full secret payloads. Terraform-managed Secrets avoid that annotation by default.
+- The old GHCR package exists and is private; the new repository-scoped `ghcr.io/go-go-golems/almanach` package exists and is public.
+
+### What was tricky to build
+
+- The Certificate needed both declarative fixes and one live cleanup. Removing the Ingress annotation stopped future ingress-shim ownership, but it did not remove the old `ownerReferences` already present on the live Certificate. The safe sequence was: remove the annotation in Git, add cert-manager defaults to Git, patch away the stale live owner reference, then normalize duration fields.
+- Terraform import required the final HCL to be mostly valid before import, but reading the Vault secret during import exposed the incorrect data-source path choice. Switching to `vault_kv_secret_v2` made import and plan work cleanly.
+- There are two Almanach worktrees: the task branch under `/home/manuel/workspaces/...` and `main` under `/home/manuel/code/wesen/go-go-golems/almanach`. Because `main` was checked out elsewhere, I could not switch the task worktree to main and had to cherry-pick from the main worktree.
+
+### What warrants a second pair of eyes
+
+- Decide whether the ArgoCD repo credential token should be rotated because the old manual Secret annotation contained the base64-encoded credential and was printed during inspection.
+- Decide whether the Terraform-state tradeoff is acceptable for this credential or whether crib should get External Secrets later so Terraform stores only references, not secret material.
+- Review whether deleting the old private GHCR package is desirable. I documented it as obsolete, but did not delete it.
+
+### What should be done in the future
+
+- Rotate the GitHub token backing `kv/ci/github/gitops-pr-token` if transcript exposure is considered sensitive.
+- Consider moving from direct Terraform-managed Kubernetes Secret to External Secrets if more cluster secrets need Vault-backed reconciliation.
+- Optionally delete the old private `ghcr.io/go-go-golems/almanach-render-service` package from GHCR if no historical references need it.
+
+### Code review instructions
+
+- Start with crib-k3s Certificate changes:
+  - `/home/manuel/code/wesen/crib-k3s/gitops/kustomize/almanach/ingress.yaml`
+  - `/home/manuel/code/wesen/crib-k3s/gitops/kustomize/almanach/certificate.yaml`
+- Then review Terraform:
+  - `/home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s/main.tf`
+  - `/home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s/providers.tf`
+  - `/home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s/variables.tf`
+  - `/home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s/versions.tf`
+- Finally review Almanach docs:
+  - `/home/manuel/code/wesen/go-go-golems/almanach/README.md`
+  - `/home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/doc/layout-dsl-reference.md`
+- Validate with:
+  - `cd /home/manuel/code/wesen/crib-k3s && kubectl kustomize gitops/kustomize/almanach`
+  - `KUBECONFIG=/home/manuel/code/wesen/crib-k3s/kubeconfig.yaml kubectl get application -n argocd almanach -o jsonpath='{.status.sync.status}{" "}{.status.health.status}{" rev="}{.status.sync.revision}{"\n"}'`
+  - `cd /home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s && AWS_PROFILE=manuel terraform plan -detailed-exitcode`
+  - `cd /home/manuel/code/wesen/go-go-golems/almanach && go test ./internal/app -count=1`
+
+### Technical details
+
+```bash
+# Final ArgoCD state after Certificate cleanup
+Synced Healthy rev=3329312684c4c26755458a8758ae4b05e2139dcb
+
+# Terraform import used for the repo credential
+AWS_PROFILE=manuel terraform import \
+  kubernetes_secret_v1.argocd_repo_crib_k3s \
+  argocd/repo-crib-k3s
+
+# Final Terraform validation
+AWS_PROFILE=manuel terraform plan -detailed-exitcode
+# No changes. Your infrastructure matches the configuration.
+```

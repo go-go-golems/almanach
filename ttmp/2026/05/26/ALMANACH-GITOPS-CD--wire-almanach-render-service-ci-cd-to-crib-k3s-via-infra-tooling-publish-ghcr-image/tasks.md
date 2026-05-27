@@ -23,3 +23,11 @@
 - [x] Image appears in GHCR with `sha-<hash>` tag
 - [x] PR opened against wesen/crib-k3s
 - [x] ArgoCD rolls out new pod after merge (`sha-321cfa6`; app remains OutOfSync only due pre-existing cert-manager Certificate drift)
+
+## Phase 5: Post-rollout cleanup
+
+- [x] Resolve cert-manager Certificate drift with explicit Certificate ownership (`crib-k3s` commits `06e2ab4`, `4f106fc`, `3329312`)
+- [x] Verify ArgoCD reports `Synced Healthy`
+- [x] Import and manage `argocd/repo-crib-k3s` via Terraform (`wesen/terraform` commit `059b9b1`)
+- [x] Document old GHCR package `ghcr.io/go-go-golems/almanach-render-service` as obsolete/private and use `ghcr.io/go-go-golems/almanach`
+- [ ] Rotate the GitHub token backing `kv/ci/github/gitops-pr-token` if local transcript exposure is considered sensitive
