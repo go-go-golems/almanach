@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
-)
+	"gopkg.in/yaml.v3")
 
 const (
 	defaultRenderSelector       = ".paper-shell"
@@ -90,7 +90,7 @@ func (s *Server) layoutJSONFromReader(layoutOverride io.Reader) (string, error) 
 			return "", fmt.Errorf("read layout: %w", err)
 		}
 		if len(bytes.TrimSpace(data)) > 0 {
-			return string(data), nil
+			return s.layoutJSONFromRaw(data)
 		}
 	}
 
@@ -100,6 +100,28 @@ func (s *Server) layoutJSONFromReader(layoutOverride io.Reader) (string, error) 
 		return "", fmt.Errorf("marshal scaffold: %w", err)
 	}
 	return string(b), nil
+}
+
+// layoutJSONFromRaw parses raw JSON/YAML, extracts a data context from a
+// top-level "data" key, resolves template expressions, and returns the
+// marshaled layout JSON.
+func (s *Server) layoutJSONFromRaw(raw []byte) (string, error) {
+	var obj map[string]interface{}
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		// Not valid JSON — try YAML.
+		if yamlErr := yaml.Unmarshal(raw, &obj); yamlErr != nil {
+			return "", fmt.Errorf("parse layout: json: %v, yaml: %v", err, yamlErr)
+		}
+	}
+	if len(obj) == 0 {
+		return string(raw), nil
+	}
+
+	layoutJSON, _, err := layoutJSONFromObjectOrDefault(obj, s.cfg, nil)
+	if err != nil {
+		return "", err
+	}
+	return layoutJSON, nil
 }
 
 // renderWithChrome drives Chrome headless to render the layout.
