@@ -217,3 +217,83 @@ Capture the investigation and design process for wiring almanach-render-service 
 - Phase 2: Update crib-k3s deployment after first pipeline run
 - Phase 3: Vault configuration (admin prerequisite)
 - Phase 4: End-to-end validation
+
+## Step 5: Terraform Takeover — Move Vault Role Setup into wesen/terraform
+
+This step corrected the previous ad-hoc Vault work. I had manually written the Almanach GitOps PR Vault policy with `vault policy write`; the user clarified that Vault setup must live in `/home/manuel/code/wesen/terraform`. I moved the role/policy definition into the Terraform-managed `vault/github-actions/envs/k3s` environment and applied it there.
+
+The important design correction was repository ownership. Existing GitOps PR roles in Terraform assumed all caller repositories are owned by `wesen`, but Almanach lives at `go-go-golems/almanach`. I made `repository_owner` explicit per role so existing roles remain bound to `wesen/*`, while `almanach-render-service-gitops-pr` is correctly bound to `go-go-golems/almanach`.
+
+### Prompt Context
+
+**User prompt (verbatim):** "we're taking over for our little brothers. We want the vault setup to be done in ~/code/wesen/terraform . 
+
+Examine what was done so far, and let's fix things up"
+
+**Assistant interpretation:** Stop making manual Vault changes; inspect the existing Terraform-managed Vault GitHub Actions setup and move the Almanach GitOps role/policy into that source of truth.
+
+**Inferred user intent:** Keep infrastructure declarative and auditable, remove drift from hand-applied Vault changes, and ensure the Almanach workflow can authenticate with Vault using the same pattern as existing GitOps PR workflows.
+
+**Commit (terraform):** `af3a5c0` — "vault: add almanach GitOps PR GitHub Actions role"
+
+### What I did
+
+- Inspected `/home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s`.
+- Found existing Terraform resources:
+  - `local.gitops_pr_roles`
+  - `vault_policy.gitops_pr`
+  - `vault_jwt_auth_backend_role.gitops_pr`
+- Verified the earlier manual Vault state:
+  - Policy `gha-almanach-render-service-gitops-pr` existed.
+  - Role `almanach-render-service-gitops-pr` did not exist.
+  - Secret `kv/ci/github/almanach-render-service/gitops-pr-token` did not exist.
+- Updated Terraform:
+  - Added `repository_owner` to every GitOps PR role entry.
+  - Added `almanach-render-service-gitops-pr` with `repository_owner = "go-go-golems"` and `repository = "go-go-golems/almanach"`.
+  - Changed the JWT role bound claims from hardcoded `repository_owner = "wesen"` to `each.value.repository_owner`.
+  - Included `repository_owner` in Terraform outputs.
+- Ran:
+  - `terraform fmt`
+  - `terraform validate`
+  - `AWS_PROFILE=manuel terraform plan -out /tmp/almanach-vault-github-actions.tfplan`
+  - `AWS_PROFILE=manuel terraform apply -auto-approve /tmp/almanach-vault-github-actions.tfplan`
+  - `AWS_PROFILE=manuel terraform plan -detailed-exitcode`
+- Verified post-apply state:
+  - Role exists with `repository_owner=go-go-golems`, `repository=go-go-golems/almanach`, `ref=refs/heads/main`, `event_name=push`.
+  - Policy exists and only reads `kv/data/ci/github/almanach-render-service/gitops-pr-token` plus token self-management paths.
+  - Final Terraform plan has **No changes**.
+
+### What worked
+
+- Terraform already had the correct abstraction for GitOps PR roles; it only needed an owner-aware extension.
+- The plan was minimal: `2 to add, 0 to change, 0 to destroy`.
+- Applying after the earlier manual policy write was safe: Terraform now manages the policy and role, and the final plan is clean.
+
+### What didn't work
+
+- First `terraform plan` failed because AWS backend credentials were missing:
+  - `Error: No valid credential sources found`
+  - Fixed by running with `AWS_PROFILE=manuel`.
+- The GitHub token secret is still not present in Vault. Existing generic and goja tokens are fine-grained PATs for `wesen/2026-03-27--hetzner-k3s`, not `wesen/crib-k3s`; testing them against `wesen/crib-k3s` returned GitHub API `404 Not Found`, which indicates no access to that repository.
+
+### What I learned
+
+- `/home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s` is the canonical source for GitHub Actions → Vault JWT roles.
+- The existing GitOps PR implementation had an implicit assumption that every caller repository belongs to `wesen`.
+- Almanach is the first GitOps PR caller from the `go-go-golems` org targeting the `wesen/crib-k3s` repo, so this required making repository ownership explicit.
+
+### What was tricky to build
+
+- Avoiding drift: a manually written policy already existed in Vault. The Terraform provider accepted the policy resource and the final plan is clean, so no manual cleanup was needed.
+- The GitOps target repository (`wesen/crib-k3s`) is different from the caller repository (`go-go-golems/almanach`), but Vault JWT auth only binds the **caller workflow identity**. The PAT secret controls target-repo permissions separately.
+
+### What warrants a second pair of eyes
+
+- Confirm whether the PAT should be a fine-grained user PAT or a GitHub App installation token. The current infra-tooling pattern uses Vault-stored fine-grained PATs.
+- Confirm the PAT should grant only `contents: write`, `pull_requests: write`, and `metadata: read` on `wesen/crib-k3s`.
+
+### What should be done in the future
+
+- Create/store a fine-grained GitHub PAT for `wesen/crib-k3s` at `kv/ci/github/almanach-render-service/gitops-pr-token` with field `token`.
+- Re-run the publish workflow after the PAT secret exists.
+- Let the workflow open the first crib-k3s PR that moves the deployment from `:latest` to an immutable `sha-<hash>` tag.
