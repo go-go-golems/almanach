@@ -69,16 +69,18 @@ layout:
     - id: t1
       type: title
       data:
-        text: WRAPPED REQUEST
+        text: "{{title}}"
         subtitle: Layout plus render options
 render:
   selector: .paper-body
   threshold: 128
   viewportWidth: 800
   viewportHeight: 3000
+data:
+  title: HELLO WORLD
 ```
 
-Use this form when a file should carry both content and render preferences.
+Use this form when a file should carry content, render preferences, and template data together.
 
 ## Render Options
 
@@ -478,12 +480,104 @@ Use these rules when generating YAML programmatically:
 - Keep block IDs unique.
 - Prefer plain ASCII punctuation for thermal clarity unless the glyph has been tested.
 
+## Template Syntax
+
+Layout files can contain template expressions that are resolved at render time using a data context. This allows automation scripts, cron jobs, and LLMs to produce layouts without generating full YAML each time.
+
+### Expression Format
+
+A template expression uses double curly braces:
+
+```yaml
+text: "{{title}}"
+```
+
+When a data context is provided (via `--data` file or `--define` flag), all `{{expr}}` expressions in string values are replaced. When no data context is provided, template resolution is skipped entirely — existing layouts without expressions are unaffected.
+
+### Expression Types
+
+| Expression | Meaning |
+|---|---|
+| `{{key}}` | Look up `key` in the data context. Error if missing. |
+| `{{key:fallback value}}` | Look up `key`. Use fallback string if missing. First colon separates key from fallback. |
+| `{{$ENV_VAR}}` | Look up environment variable `ENV_VAR`. Error if unset. |
+| `{{$ENV_VAR:fallback}}` | Look up environment variable. Use fallback if unset. |
+
+### Example Template
+
+```yaml
+# template.yaml
+almanach_studio_version: 1
+theme: minimal
+paperWidth: 384
+bodyScale: 1.45
+feedLines: 3
+blocks:
+  - id: title-1
+    type: title
+    data:
+      text: "{{title}}"
+      subtitle: "{{subtitle}}"
+  - id: date-1
+    type: date
+    data:
+      date: "{{date}}"
+      day: "{{day}}"
+  - id: quote-1
+    type: quote
+    data:
+      label: Quote of the Day
+      text: "{{quote_text}}"
+      author: "{{quote_author}}"
+```
+
+### Example Data Context
+
+```yaml
+# data.yaml
+title: "MORNING SIGNAL"
+subtitle: "Coffee, weather, tasks"
+date: "May 26, 2026"
+day: "Monday"
+quote_text: "The only way to do great work is to love what you do."
+quote_author: "Steve Jobs"
+```
+
+### CLI Usage
+
+```bash
+# From file
+almanach-render-service render --layout template.yaml --data data.yaml --out /tmp/out.png
+
+# Inline override
+almanach-render-service render --layout template.yaml -D title="HELLO WORLD" --out /tmp/out.png
+
+# Mixed: file + override (override wins)
+almanach-render-service render --layout template.yaml --data data.yaml -D title="OVERRIDE" --out /tmp/out.png
+```
+
+### Data Context Priority
+
+```
+--define flags  >  --data file  >  environment variable fallbacks
+```
+
+### Rules
+
+- Template resolution only runs when a data context is provided (`--data` or `--define`).
+- Layouts without `{{...}}` expressions are completely unaffected.
+- Only string values are processed. Numbers, booleans, and null pass through unchanged.
+- An unclosed `{{` without a matching `}}` is an error.
+- A missing variable without a fallback is an error with a helpful message.
+
 ## Troubleshooting
 
 | Problem | Cause | Solution |
 |---|---|---|
 | A block disappears | Unknown `type`. | Use one of the supported type strings exactly. |
 | A field renders blank | Wrong data key. | Compare the block against this reference. |
+| Template variable not provided | Missing key in data context. | Use `{{key:fallback}}` or provide the key via `--data` or `-D`. |
+| `unclosed {{` error | Missing `}}` in a template expression. | Close all expressions or use literal text. |
 | YAML parser fails | Unquoted colon or invalid indentation. | Quote the value and use two-space indentation. |
 | Page renders but is too tall | Content is too verbose. | Lower `bodyScale` or split into multiple layouts. |
 | Shell preview has extra height | `.paper-shell` includes zigzag edges. | Use `.paper-body` for print output. |

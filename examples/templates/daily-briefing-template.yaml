@@ -1,0 +1,45 @@
+# Daily briefing template.
+# Use with: almanach-render-service render --layout daily-briefing-template.yaml --data daily-briefing-data.yaml --out /tmp/daily.png
+almanach_studio_version: 1
+theme: minimal
+paperWidth: 384
+bodyScale: 1.42
+feedLines: 8
+blocks:
+  - id: title-1
+    type: title
+    data:
+      text: "{{title}}"
+      subtitle: "{{subtitle}}"
+  - id: date-1
+    type: date
+    data:
+      date: "{{date}}"
+      day: "{{day}}"
+  - id: weather-1
+    type: weather
+    data:
+      temp: "{{temp}}"
+      condition: "{{condition}}"
+      high: "{{high}}"
+      low: "{{low}}"
+  - id: plan-1
+    type: plan
+    data:
+      label: Today's Plan
+      items:
+        - time: "08:30"
+          text: "{{task1}}"
+          done: true
+        - time: "10:00"
+          text: "{{task2}}"
+          done: false
+        - time: "14:00"
+          text: "{{task3}}"
+          done: false
+  - id: note-1
+    type: note
+    data:
+      label: Daily Note
+      text: "{{note_text}}"
+      author: "{{note_author}}"

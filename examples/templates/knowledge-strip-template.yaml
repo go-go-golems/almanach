@@ -1,0 +1,42 @@
+# Knowledge strip template.
+# Use with: almanach-render-service render --layout knowledge-strip-template.yaml --data knowledge-strip-data.yaml --out /tmp/knowledge.png
+almanach_studio_version: 1
+theme: minimal
+paperWidth: 384
+bodyScale: 1.35
+feedLines: 8
+blocks:
+  - id: title-1
+    type: title
+    data:
+      text: "{{title:KNOWLEDGE STRIP}}"
+      subtitle: "{{subtitle:Word, history, facts, and one quote}}"
+  - id: date-1
+    type: date
+    data:
+      date: "{{date}}"
+      day: "{{day}}"
+  - id: word-1
+    type: word
+    data:
+      label: "Word of the Day"
+      word: "{{word}}"
+      phonetic: "{{phonetic:}}"
+      part: "{{part}}"
+      definition: "{{definition}}"
+      example: "{{example:}}"
+  - id: history-1
+    type: history
+    data:
+      label: "Today in History"
+      items:
+        - year: "{{hist1_year}}"
+          event: "{{hist1_event}}"
+        - year: "{{hist2_year}}"
+          event: "{{hist2_event}}"
+  - id: quote-1
+    type: quote
+    data:
+      label: "Closing Thought"
+      text: "{{quote_text}}"
+      author: "{{quote_author}}"
