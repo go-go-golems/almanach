@@ -211,6 +211,69 @@ Use dry-run when you want to test the render path without paper:
 | Text is too large and page is very tall | `bodyScale` is high or content is too verbose. | Try `bodyScale: 1.25` to `1.45` and shorten blocks. |
 | Output looks clipped | Wrong selector or capture CSS failure. | Run `inspect` and check overflow/height metrics. |
 
+## Using Templates
+
+If you want to generate the same layout structure every day with different content, use a template. A template is a layout file where some field values contain `{{variable}}` expressions instead of literal text.
+
+Create a template (`morning.yaml`):
+
+```yaml
+almanach_studio_version: 1
+theme: minimal
+paperWidth: 384
+bodyScale: 1.45
+feedLines: 3
+blocks:
+  - id: title-1
+    type: title
+    data:
+      text: "{{title}}"
+      subtitle: "{{subtitle}}"
+  - id: date-1
+    type: date
+    data:
+      date: "{{date}}"
+      day: "{{day}}"
+  - id: note-1
+    type: note
+    data:
+      label: Daily Note
+      text: "{{note_text}}"
+```
+
+Create a data context (`data.yaml`):
+
+```yaml
+title: "MORNING SIGNAL"
+subtitle: "Coffee and tasks"
+date: "May 26, 2026"
+day: "Monday"
+note_text: "Preview first, then print."
+```
+
+Render with both:
+
+```bash
+./almanach-render-service render \
+  --layout morning.yaml \
+  --data data.yaml \
+  --out /tmp/morning.png
+```
+
+You can also override individual values inline:
+
+```bash
+./almanach-render-service render \
+  --layout morning.yaml \
+  --data data.yaml \
+  --define "title=OVERRIDE" \
+  --out /tmp/morning.png
+```
+
+When no `--data` or `--define` is provided, template expressions are skipped. Existing layouts without `{{...}}` work unchanged.
+
+See `almanach-render-service help layout-dsl-reference` for the full template expression reference.
+
 ## See Also
 
 - `almanach-render-service help layouts-user-guide`

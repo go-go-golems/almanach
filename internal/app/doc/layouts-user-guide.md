@@ -250,6 +250,35 @@ blocks:
   - type: reading
 ```
 
+### Template-Driven Daily Page
+
+Use a template layout with `{{variable}}` expressions and a data context file:
+
+```yaml
+# template.yaml
+blocks:
+  - type: title
+    data:
+      text: "{{title}}"
+      subtitle: "{{subtitle}}"
+  - type: date
+    data:
+      date: "{{date}}"
+      day: "{{day}}"
+  - type: weather
+    data:
+      temp: "{{temp}}"
+      condition: "{{condition}}"
+      high: "{{high}}"
+      low: "{{low}}"
+```
+
+```bash
+almanach-render-service render --layout template.yaml --data data.yaml --out daily.png
+```
+
+Use `{{key:fallback}}` for optional fields. Inline overrides with `--define key=value`.
+
 ## Troubleshooting
 
 | Problem | Cause | Solution |
@@ -259,6 +288,7 @@ blocks:
 | A block is missing | Unknown `type` or malformed `data`. | Check `layout-dsl-reference` for exact block type names and fields. |
 | YAML parsing changes a value | Unquoted date/time-like strings. | Quote dates, times, and strings with colons. |
 | Feed does not seem to work | Old post-bitmap ESC feed path was unreliable. | Use current CLI `print`; it bakes feed into blank raster rows. |
+| Template variable not provided | Missing key in data context. | Use `{{key:fallback}}` or provide via `--data` or `--define`. |
 
 ## See Also
 
