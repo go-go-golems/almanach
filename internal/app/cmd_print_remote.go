@@ -166,7 +166,8 @@ func postLayoutToRemoteAlmanach(ctx context.Context, req remotePostRequest) (*re
 	transport := http.DefaultTransport
 	if req.InsecureSkipVerify {
 		transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // Explicit CLI flag for self-signed development endpoints.
+			// #nosec G402 -- Explicit CLI flag for self-signed development endpoints.
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 	}
 	client := &http.Client{Timeout: req.Timeout, Transport: transport}
