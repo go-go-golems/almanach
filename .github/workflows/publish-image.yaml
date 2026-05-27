@@ -1,0 +1,57 @@
+name: publish-image
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/publish-image.yaml
+      - Dockerfile
+      - go.mod
+      - go.sum
+      - cmd/**
+      - internal/**
+      - pkg/**
+      - deploy/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-image.yaml
+      - Dockerfile
+      - go.mod
+      - go.sum
+      - cmd/**
+      - internal/**
+      - pkg/**
+      - deploy/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    uses: go-go-golems/infra-tooling/.github/workflows/publish-ghcr-image.yml@main
+    secrets: inherit
+    with:
+      dockerfile: ./Dockerfile
+      build_context: .
+      test_command: |
+        go test ./...
+      go_version_file: go.mod
+      image_name: ghcr.io/go-go-golems/almanach-render-service
+      platforms: linux/amd64
+      gitops_target_config: deploy/gitops-targets.json
+      push_image: ${{ github.event_name != 'pull_request' }}
+      open_gitops_pr: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+      gitops_pr_token_source: vault
+      vault_role: almanach-render-service-gitops-pr
+      vault_secret_path: kv/data/ci/github/almanach-render-service/gitops-pr-token
+      tooling_repository: go-go-golems/infra-tooling
+      tooling_ref: main

@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "name": "almanach-render-prod",
+      "gitops_repo": "wesen/crib-k3s",
+      "gitops_branch": "main",
+      "manifest_path": "gitops/kustomize/almanach/deployment.yaml",
+      "container_name": "render"
+    }
+  ]
+}

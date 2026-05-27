@@ -20,3 +20,4 @@ ENV ALMANACH_PORT=8199 \
     ALMANACH_PAPER_WIDTH=384
 EXPOSE 8199
 ENTRYPOINT ["almanach-render-service"]
+CMD ["serve"]
