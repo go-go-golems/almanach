@@ -174,6 +174,10 @@ render:
 
 Use wrapped requests when sharing examples that should always render with a particular selector. Use raw layouts when you want command-line flags to be the main source of render behavior.
 
+## Scaffold Layout
+
+When no `--layout` file is provided, the CLI renders a scaffold page: one title block ("ALMANACH") and one date block with today's date. This is not a full daily page — it is a minimal valid output that proves the render pipeline works. To get useful content, provide a layout file or a template with a data context.
+
 ## Preview-First Workflow
 
 The safest workflow is:
@@ -248,6 +252,24 @@ blocks:
   - type: habits
   - type: mood
   - type: reading
+```
+
+### Photo Card
+
+Use a large image with a caption:
+
+```yaml
+bodyScale: 1.45
+blocks:
+  - type: title
+  - type: image
+    data:
+      src: data:image/jpeg;base64,...  # or URL
+      caption: Morning light
+      height: 280
+      fit: cover
+      border: true
+  - type: note
 ```
 
 ### Template-Driven Daily Page

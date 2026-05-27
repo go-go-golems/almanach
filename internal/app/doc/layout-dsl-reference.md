@@ -115,7 +115,7 @@ Every block uses this envelope:
 Supported block types:
 
 ```text
-title, date, divider, plan, news, weather, note, habits, mood,
+title, date, divider, plan, news, weather, note, image, habits, mood,
 reading, reflection, quote, word, history, did
 ```
 
@@ -152,6 +152,12 @@ Use `date` directly under the title.
 |---|---|---|
 | `date` | string | Human-readable date. |
 | `day` | string | Day name. |
+
+## Scaffold Layout
+
+When no layout file is provided (no `--layout` flag or empty POST body), the system generates a minimal scaffold layout instead of fetching or inventing content. The scaffold contains only a title block ("ALMANACH") and a date block with today's date. No APIs are called, no random content is selected.
+
+This behavior replaces the former default layout which called fetcher functions for weather, news, quotes, words, and history. If you want a full daily page, provide a layout file or a template with a data context.
 
 ## `divider`
 
@@ -251,6 +257,45 @@ News item fields:
 | `headline` | string | Short headline. |
 | `source` | string | Source label. |
 | `time` | string | Relative time or timestamp. |
+
+## `image`
+
+Use `image` to embed a photograph or illustration on the page. The image is rendered at the full paper width with configurable height, fit mode, and a thermal-specific grayscale filter.
+
+```yaml
+- id: image-1
+  type: image
+  data:
+    label: Photo Plate
+    src: data:image/jpeg;base64,/9j/4AAQ...
+    alt: Morning desk photo
+    caption: The desk at 7 AM
+    height: 160
+    fit: cover
+    border: true
+    grayscale: true
+    thermalTone: normal
+```
+
+| Data field | Type | Default | Description |
+|---|---|---|---|
+| `label` | string | `"Image Plate"` | Section heading. |
+| `src` | string | `""` | Image URL (`https://…`) or data URL (`data:image/…;base64,…`). Required for the image to render. |
+| `alt` | string | `""` | Alt text for accessibility. Falls back to `caption`. |
+| `caption` | string | `""` | Italic caption below the image. |
+| `height` | integer | `160` | Image height in pixels, clamped to 48–420. |
+| `fit` | string | `"cover"` | CSS object-fit: `cover` (fill, crop) or `contain` (fit, letterbox). |
+| `border` | boolean | `true` | Draw a thin border around the image. |
+| `grayscale` | boolean | `true` | Apply thermal grayscale filter for print preview. |
+| `thermalTone` | string | `"normal"` | Grayscale tone preset: `normal` (high contrast) or `light` (brighter, lower contrast — better for faint source images). |
+
+When `src` is empty, the block renders a dashed placeholder box with "Add an image URL or upload a file" text.
+
+### Image sources
+
+- **Data URLs**: The Studio editor embeds uploaded images as `data:image/…;base64,…` strings. These work in both the browser and headless CLI without fetching external files.
+- **HTTP URLs**: Remote images work in the browser but may fail in headless CLI if the server is unreachable. The CLI loads images with `crossOrigin: "anonymous"`, so the server must allow CORS.
+- **ZIP bundles**: Place image files next to `layout.yaml` in a ZIP archive. The CLI inlines relative `src` paths as data URLs before rendering.
 
 ## `note`
 
@@ -549,18 +594,23 @@ quote_author: "Steve Jobs"
 # From file
 almanach-render-service render --layout template.yaml --data data.yaml --out /tmp/out.png
 
-# Inline override
-almanach-render-service render --layout template.yaml -D title="HELLO WORLD" --out /tmp/out.png
+# Inline override (comma-separated key=value pairs)
+almanach-render-service render --layout template.yaml --define "title=HELLO WORLD" --out /tmp/out.png
+
+# Multiple inline overrides
+almanach-render-service render --layout template.yaml --define "title=HELLO WORLD,day=Monday" --out /tmp/out.png
 
 # Mixed: file + override (override wins)
-almanach-render-service render --layout template.yaml --data data.yaml -D title="OVERRIDE" --out /tmp/out.png
+almanach-render-service render --layout template.yaml --data data.yaml --define "title=OVERRIDE" --out /tmp/out.png
 ```
 
 ### Data Context Priority
 
 ```
---define flags  >  --data file  >  environment variable fallbacks
+--define flags  >  --data file  >  environment variable fallbacks in expressions
 ```
+
+The `--define` flag accepts a comma-separated list of `key=value` pairs (e.g. `--define "title=HELLO,day=Monday"`). Values from `--define` always override the same keys from the `--data` file. Environment variable fallbacks (`{{$ENV_VAR:fallback}}`) are used only when neither `--data` nor `--define` provides a value for that key.
 
 ### Rules
 
@@ -576,7 +626,7 @@ almanach-render-service render --layout template.yaml --data data.yaml -D title=
 |---|---|---|
 | A block disappears | Unknown `type`. | Use one of the supported type strings exactly. |
 | A field renders blank | Wrong data key. | Compare the block against this reference. |
-| Template variable not provided | Missing key in data context. | Use `{{key:fallback}}` or provide the key via `--data` or `-D`. |
+| Template variable not provided | Missing key in data context. | Use `{{key:fallback}}` or provide the key via `--data` or `--define`. |
 | `unclosed {{` error | Missing `}}` in a template expression. | Close all expressions or use literal text. |
 | YAML parser fails | Unquoted colon or invalid indentation. | Quote the value and use two-space indentation. |
 | Page renders but is too tall | Content is too verbose. | Lower `bodyScale` or split into multiple layouts. |
