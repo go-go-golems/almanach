@@ -27,6 +27,8 @@ type InspectSettings struct {
 	WebDir         string `glazed:"web-dir"`
 	ChromePath     string `glazed:"chrome-path"`
 	ChromeWSURL    string `glazed:"chrome-ws-url"`
+	Data           string `glazed:"data"`
+	Define         string `glazed:"define"`
 }
 
 func newInspectCommand() (*InspectCommand, error) {
@@ -59,6 +61,8 @@ Examples:
 			fields.New("web-dir", fields.TypeString, fields.WithDefault(cfg.WebDir), fields.WithHelp("SPA dist directory")),
 			fields.New("chrome-path", fields.TypeString, fields.WithDefault(cfg.ChromePath), fields.WithHelp("Chrome/Chromium executable path")),
 			fields.New("chrome-ws-url", fields.TypeString, fields.WithDefault(cfg.ChromeWSURL), fields.WithHelp("Remote Chrome websocket URL")),
+			fields.New("data", fields.TypeString, fields.WithDefault(""), fields.WithHelp("YAML/JSON data context file for template resolution")),
+			fields.New("define", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Inline key=value for template variables (comma-separated: -D key=val,key2=val2)")),
 		),
 		cmds.WithSections(glazedSection, commandSettingsSection),
 	)
@@ -72,7 +76,13 @@ func (c *InspectCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values
 	}
 
 	cfg := LoadConfig()
-	layoutSource, err := layoutJSONFromPathOrDefault(s.Layout, cfg)
+
+	dataCtx, err := loadDataCtxFromFlags(s.Data, s.Define)
+	if err != nil {
+		return err
+	}
+
+	layoutSource, err := layoutJSONFromPathOrDefault(s.Layout, cfg, dataCtx)
 	if err != nil {
 		return err
 	}

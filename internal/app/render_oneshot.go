@@ -76,7 +76,7 @@ func renderOneShot(ctx context.Context, req oneShotRenderRequest) (*RenderResult
 	return renderWithChrome(ctx, allocatorCtx, req.LayoutJSON, opts)
 }
 
-func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config) (string, map[string]interface{}, error) {
+func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config, dataCtx DataContext) (string, map[string]interface{}, error) {
 	if len(obj) == 0 {
 		layout := buildScaffoldLayout(cfg)
 		b, err := json.Marshal(layout)
@@ -84,6 +84,19 @@ func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config) (stri
 			return "", nil, fmt.Errorf("marshal scaffold: %w", err)
 		}
 		return string(b), nil, nil
+	}
+
+	// Merge data from wrapped request body into dataCtx.
+	wrappedDataCtx := dataCtx
+	if wrappedData, ok := obj["data"]; ok {
+		if dm, ok := wrappedData.(map[string]interface{}); ok {
+			if wrappedDataCtx == nil {
+				wrappedDataCtx = DataContext{}
+			}
+			for k, v := range dm {
+				wrappedDataCtx[k] = fmt.Sprintf("%v", v)
+			}
+		}
 	}
 
 	renderOptions := map[string]interface{}{}
@@ -102,6 +115,11 @@ func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config) (stri
 		}
 		if _, ok := blocks.([]interface{}); !ok {
 			return "", nil, fmt.Errorf("layout.blocks must be an array")
+		}
+
+		// Resolve template expressions before marshaling.
+		if err := ResolveTemplate(layoutMap, wrappedDataCtx); err != nil {
+			return "", nil, fmt.Errorf("resolve template: %w", err)
 		}
 	}
 

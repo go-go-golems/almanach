@@ -28,7 +28,7 @@ blocks:
 		t.Fatal(err)
 	}
 
-	res, err := layoutJSONFromPathOrDefault(layoutPath, Config{})
+	res, err := layoutJSONFromPathOrDefault(layoutPath, Config{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ blocks:
 		"images/fox.png": "\x89PNG\r\n\x1a\nnot-really-a-png-but-detectable-by-extension",
 	})
 
-	res, err := layoutJSONFromPathOrDefault(zipPath, Config{})
+	res, err := layoutJSONFromPathOrDefault(zipPath, Config{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ blocks:
 `,
 	})
 
-	res, err := layoutJSONFromPathOrDefault(zipPath, Config{})
+	res, err := layoutJSONFromPathOrDefault(zipPath, Config{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestZipBundleAmbiguousLayoutCandidates(t *testing.T) {
 		"two.yaml": "blocks: []\n",
 	})
 
-	_, err := layoutJSONFromPathOrDefault(zipPath, Config{})
+	_, err := layoutJSONFromPathOrDefault(zipPath, Config{}, nil)
 	if err == nil || !strings.Contains(err.Error(), "multiple root-level layout candidates") {
 		t.Fatalf("expected ambiguous layout error, got %v", err)
 	}

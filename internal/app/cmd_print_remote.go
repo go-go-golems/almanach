@@ -34,6 +34,8 @@ type PrintRemoteSettings struct {
 	DryRun             bool   `glazed:"dry-run"`
 	TimeoutSeconds     int    `glazed:"timeout-seconds"`
 	InsecureSkipVerify bool   `glazed:"insecure-skip-verify"`
+	Data               string `glazed:"data"`
+	Define             string `glazed:"define"`
 }
 
 func newPrintRemoteCommand() (*PrintRemoteCommand, error) {
@@ -65,6 +67,8 @@ Examples:
 			fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("POST to the render endpoint instead of render-and-print when using the default URL")),
 			fields.New("timeout-seconds", fields.TypeInteger, fields.WithDefault(90), fields.WithHelp("HTTP request timeout in seconds")),
 			fields.New("insecure-skip-verify", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Skip TLS certificate verification for self-signed development endpoints")),
+			fields.New("data", fields.TypeString, fields.WithDefault(""), fields.WithHelp("YAML/JSON data context file for template resolution")),
+			fields.New("define", fields.TypeString, fields.WithDefault(""), fields.WithHelp("Inline key=value for template variables (comma-separated: -D key=val,key2=val2)")),
 		),
 		cmds.WithSections(glazedSection, commandSettingsSection),
 	)
@@ -78,7 +82,13 @@ func (c *PrintRemoteCommand) RunIntoGlazeProcessor(ctx context.Context, vals *va
 	}
 
 	cfg := LoadConfig()
-	layoutSource, err := layoutJSONFromPathOrDefault(s.Layout, cfg)
+
+	dataCtx, err := loadDataCtxFromFlags(s.Data, s.Define)
+	if err != nil {
+		return err
+	}
+
+	layoutSource, err := layoutJSONFromPathOrDefault(s.Layout, cfg, dataCtx)
 	if err != nil {
 		return err
 	}

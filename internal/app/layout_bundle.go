@@ -24,9 +24,9 @@ type layoutLoadResult struct {
 	LayoutMember  string
 }
 
-func layoutJSONFromPathOrDefault(layoutPath string, cfg Config) (*layoutLoadResult, error) {
+func layoutJSONFromPathOrDefault(layoutPath string, cfg Config, dataCtx DataContext) (*layoutLoadResult, error) {
 	if strings.TrimSpace(layoutPath) == "" {
-		layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(nil, cfg)
+		layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(nil, cfg, dataCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -34,14 +34,14 @@ func layoutJSONFromPathOrDefault(layoutPath string, cfg Config) (*layoutLoadResu
 	}
 
 	if strings.EqualFold(filepath.Ext(layoutPath), ".zip") {
-		return layoutJSONFromZipBundle(layoutPath, cfg)
+		return layoutJSONFromZipBundle(layoutPath, cfg, dataCtx)
 	}
 
 	obj, err := readLayoutObjectFromFile(layoutPath)
 	if err != nil {
 		return nil, err
 	}
-	layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(obj, cfg)
+	layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(obj, cfg, dataCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func parseLayoutObject(data []byte, name string) (map[string]interface{}, error)
 	return obj, nil
 }
 
-func layoutJSONFromZipBundle(zipPath string, cfg Config) (*layoutLoadResult, error) {
+func layoutJSONFromZipBundle(zipPath string, cfg Config, dataCtx DataContext) (*layoutLoadResult, error) {
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return nil, fmt.Errorf("open layout zip %s: %w", zipPath, err)
@@ -109,7 +109,7 @@ func layoutJSONFromZipBundle(zipPath string, cfg Config) (*layoutLoadResult, err
 	if err := inlineZipImageAssets(obj, files, path.Dir(layoutName)); err != nil {
 		return nil, fmt.Errorf("inline zip image assets: %w", err)
 	}
-	layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(obj, cfg)
+	layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(obj, cfg, dataCtx)
 	if err != nil {
 		return nil, err
 	}

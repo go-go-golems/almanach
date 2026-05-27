@@ -53,3 +53,13 @@ func LoadDataContext(dataPath string, defines []string) (DataContext, error) {
 
 	return ctx, nil
 }
+
+// loadDataCtxFromFlags is a helper used by CLI commands to build a DataContext
+// from the --data and --define flags.
+func loadDataCtxFromFlags(dataFlag, defineFlag string) (DataContext, error) {
+	var defines []string
+	if defineFlag != "" {
+		defines = strings.Split(defineFlag, ",")
+	}
+	return LoadDataContext(dataFlag, defines)
+}
