@@ -15,7 +15,7 @@
 ## Phase 3: Vault configuration (admin prerequisite)
 
 - [x] Create Vault role `almanach-render-service-gitops-pr` via Terraform (`wesen/terraform`, commit `af3a5c0`)
-- [ ] Store GitHub PAT at `kv/data/ci/github/almanach-render-service/gitops-pr-token`
+- [x] Store GitHub PAT at `kv/data/ci/github/almanach-render-service/gitops-pr-token` (copied from Hetzner GitOps PR token)
 
 ## Phase 4: Validation
 

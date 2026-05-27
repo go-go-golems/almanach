@@ -36,3 +36,13 @@ Phase 3 partial complete. Moved Almanach Vault GitHub Actions role/policy into /
 - /home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s/outputs.tf — Exposes repository_owner in gitops_pr_roles output
 - /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/reference/01-implementation-diary.md — Recorded Terraform takeover and remaining PAT blocker
 
+
+## 2026-05-26
+
+Phase 3 complete. Copied existing Hetzner GitOps PR token from kv/ci/github/gitops-pr-token into kv/ci/github/almanach-render-service/gitops-pr-token and verified token key exists.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/reference/01-implementation-diary.md — Recorded Vault secret copy
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/tasks.md — Marked PAT storage task complete
+

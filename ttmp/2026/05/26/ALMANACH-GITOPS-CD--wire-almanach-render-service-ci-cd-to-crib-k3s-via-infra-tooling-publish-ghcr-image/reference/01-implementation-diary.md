@@ -294,6 +294,56 @@ Examine what was done so far, and let's fix things up"
 
 ### What should be done in the future
 
-- Create/store a fine-grained GitHub PAT for `wesen/crib-k3s` at `kv/ci/github/almanach-render-service/gitops-pr-token` with field `token`.
+- Create/store a fine-grained GitHub PAT for `wesen/crib-k3s` at `kv/ci/github/almanach-render-service/gitops-pr-token` with field `token`. (DONE by copying the existing Hetzner GitOps PR token.)
 - Re-run the publish workflow after the PAT secret exists.
 - Let the workflow open the first crib-k3s PR that moves the deployment from `:latest` to an immutable `sha-<hash>` tag.
+
+## Step 6: Vault Secret — Copy Existing Hetzner GitOps PR Token
+
+The Vault role and policy now exist in Terraform, but the policy only grants read access to a secret path. The workflow also needs an actual GitHub token stored at that path. The user clarified that we should copy the same token used for the Hetzner GitOps PR flow.
+
+I copied the existing token from `kv/ci/github/gitops-pr-token` into the Almanach-specific path `kv/ci/github/almanach-render-service/gitops-pr-token`. This keeps the workflow configuration unchanged: the almanach workflow asks Vault for the almanach-specific path, while the secret value is the same token currently used by the existing GitOps PR automation.
+
+### Prompt Context
+
+**User prompt (verbatim):** "copy the same token as for hetzner-k3s"
+
+**Assistant interpretation:** Use the already-provisioned Hetzner GitOps PR token as the Almanach GitOps PR token, rather than creating a new PAT.
+
+**Inferred user intent:** Unblock the publish-image workflow quickly by reusing the existing deployment automation credential.
+
+### What I did
+
+- Read the existing token from:
+  - `kv/ci/github/gitops-pr-token`
+- Wrote it to:
+  - `kv/ci/github/almanach-render-service/gitops-pr-token`
+- Verified the destination secret exists and contains key `token`.
+- Marked the ticket's PAT storage task complete.
+
+### What worked
+
+- Vault accepted the write and created version 1 of the Almanach-specific secret.
+- Verification showed the secret contains the expected `token` key.
+
+### What didn't work
+
+- N/A for the copy operation.
+
+### What I learned
+
+- The infra-tooling workflow does not care whether the token is unique per app; it only requires that the Vault role can read a secret containing a `token` field.
+- Keeping an app-specific Vault path still preserves least-privilege on the Vault side, even if the token value is reused.
+
+### What was tricky to build
+
+- The token value must never be printed. I used JSON extraction to pipe it from one Vault read into one Vault write and only printed the destination key list for verification.
+
+### What warrants a second pair of eyes
+
+- Confirm that the copied token actually has permission to push branches and open PRs against `wesen/crib-k3s`. Earlier API probing suggested the Hetzner token may be scoped to `wesen/2026-03-27--hetzner-k3s`; the workflow run will be the definitive validation.
+
+### What should be done in the future
+
+- Trigger the `publish-image` workflow and observe whether the GitOps PR step can access `wesen/crib-k3s`.
+- If GitHub returns 404/permission denied, replace this copied token with a crib-k3s-scoped PAT.
