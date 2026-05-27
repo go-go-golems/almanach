@@ -156,6 +156,64 @@ Capture the investigation and design process for wiring almanach-render-service 
 
 ### What should be done in the future
 
-- Upload to reMarkable
+- Upload to reMarkable (DONE)
 - Configure Vault (prerequisite for GitOps PR automation)
-- Implement Phase 1 (almanach repo changes) after merging the template work
+- Implement Phase 1 (almanach repo changes)
+
+## Step 4: Implementation — Phase 1 (CI/CD Workflow + Bug Fix)
+
+**Commit:** `b295e45` — "feat: add publish-image CI/CD workflow, gitops targets, Dockerfile CMD"
+**Commit:** `c595005` — "fix: add template resolution to HTTP API render path"
+
+### Prompt Context
+
+**User prompt (verbatim):** "we're taking over for your little brother. they might have made some things we need to correct, i'm not sure. Anyway, add phases and tasks to the ticket, and then work on them one by one, committing at appropriate intervals, keeping a detailed diary as you go"
+
+**Inferred user intent:** Review the existing work for issues, implement the GitOps CD pipeline phases, commit incrementally, keep diary.
+
+### What I did
+
+1. Reviewed all existing implementation files from the "little brother's" work:
+   - `template.go`, `template_test.go` (16 tests) — solid
+   - `data_context.go`, `data_context_test.go` (9 tests) — solid
+   - `layout_bundle.go` — correctly threads DataContext
+   - `render_oneshot.go` — correctly resolves templates for CLI path
+   - `layout.go` — scaffold is clean
+   - `renderer.go` — **found a bug** (see below)
+   - `cmd_render.go`, `cmd_print.go`, `cmd_print_remote.go`, `cmd_inspect.go` — all wired correctly
+
+2. **Found and fixed a bug**: The HTTP server's `layoutJSONFromReader()` in `renderer.go` was passing raw JSON straight to Chrome without template resolution. The CLI path went through `layoutJSONFromObjectOrDefault()` which resolves templates, but the server path bypassed it entirely. Fixed by making `layoutJSONFromReader` parse the JSON, extract the `data` key for template context, and call `layoutJSONFromObjectOrDefault`.
+
+3. Created Phase 1 implementation:
+   - `.github/workflows/publish-image.yaml` — CI/CD workflow using infra-tooling reusable workflow
+   - `deploy/gitops-targets.json` — single target pointing at `wesen/crib-k3s` deployment.yaml container `render`
+   - Updated `Dockerfile` — added `CMD ["serve"]` for easier local testing
+
+4. Verified Dockerfile builds locally: `docker build -t almanach-test-build .` → Entrypoint `[almanach-render-service]` + Cmd `[serve]` ✓
+5. Verified server template resolution: POST to `/api/render` with `data` key + `{{title}}` expressions → 384×1082 rendered page ✓
+
+### What worked
+
+- The infra-tooling reusable workflow pattern from goja-hosting-site was directly copy-pasteable with minimal adaptation (path filters, image_name override, vault_role)
+- Docker build cache was warm from previous builds, so verification was fast
+- The server template fix was a small, targeted change — parse + delegate to existing function
+
+### What didn't work
+
+- Initially tried to update the crib-k3s deployment.yaml to use `sha-placeholder` as the image tag. Realized this would break the running pod since no image with that tag exists yet. The correct approach is to keep `:latest` until the first pipeline run creates the image and opens a PR to switch to immutable tags.
+
+### What was tricky to build
+
+- The `layoutJSONFromReader` function needed to handle both the case where the server receives a raw layout JSON (no wrapping) and the wrapped format (`{data: {...}, layout: {...}}`). The existing `layoutJSONFromObjectOrDefault` already handles both, so delegating to it was the right call.
+- Needed to add `gopkg.in/yaml.v3` import to `renderer.go` for the YAML fallback parse.
+
+### What warrants a second pair of eyes
+
+- The `layoutJSONFromRaw` method tries JSON first, then YAML. If both fail, it returns the first error. This matches the CLI behavior in `layout_bundle.go`.
+- The crib-k3s deployment still uses `imagePullPolicy: Always` — this is fine for now since it references `:latest`, but should change to `IfNotPresent` when the pipeline switches it to immutable tags.
+
+### What should be done in the future
+
+- Phase 2: Update crib-k3s deployment after first pipeline run
+- Phase 3: Vault configuration (admin prerequisite)
+- Phase 4: End-to-end validation
