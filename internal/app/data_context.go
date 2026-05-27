@@ -36,10 +36,8 @@ func LoadDataContext(dataPath string, defines []string) (DataContext, error) {
 			}
 		}
 
-		if raw != nil {
-			for k, v := range raw {
-				ctx[k] = fmt.Sprintf("%v", v)
-			}
+		for k, v := range raw {
+			ctx[k] = fmt.Sprintf("%v", v)
 		}
 	}
 

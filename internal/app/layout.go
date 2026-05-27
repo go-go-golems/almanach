@@ -180,11 +180,6 @@ func newBlock(typ string, data any) Block {
 	return Block{ID: nextBlockID(), Type: typ, Data: raw}
 }
 
-// dividerBlock creates a divider block.
-func dividerBlock() Block {
-	return newBlock("divider", map[string]string{"style": "line"})
-}
-
 // buildScaffoldLayout produces a minimal layout with just a title and date block.
 // Used when no layout file is provided — no content is invented, no APIs are called.
 func buildScaffoldLayout(cfg Config) *Layout {

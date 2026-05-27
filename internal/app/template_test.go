@@ -37,8 +37,7 @@ func TestResolveValue_MissingKeyWithFallback(t *testing.T) {
 }
 
 func TestResolveValue_EnvVar(t *testing.T) {
-	os.Setenv("ALMANACH_TEST_VAR", "from-env")
-	defer os.Unsetenv("ALMANACH_TEST_VAR")
+	t.Setenv("ALMANACH_TEST_VAR", "from-env")
 
 	ctx := map[string]string{}
 	got, err := resolveValue("value: {{$ALMANACH_TEST_VAR}}", ctx)
@@ -51,7 +50,9 @@ func TestResolveValue_EnvVar(t *testing.T) {
 }
 
 func TestResolveValue_EnvVarWithFallback(t *testing.T) {
-	os.Unsetenv("ALMANACH_TEST_NONEXISTENT")
+	if err := os.Unsetenv("ALMANACH_TEST_NONEXISTENT"); err != nil {
+		t.Fatal(err)
+	}
 	ctx := map[string]string{}
 	got, err := resolveValue("hello {{$ALMANACH_TEST_NONEXISTENT:anonymous}}", ctx)
 	if err != nil {
@@ -63,7 +64,9 @@ func TestResolveValue_EnvVarWithFallback(t *testing.T) {
 }
 
 func TestResolveValue_EnvVarMissingWithoutFallback(t *testing.T) {
-	os.Unsetenv("ALMANACH_TEST_MISSING")
+	if err := os.Unsetenv("ALMANACH_TEST_MISSING"); err != nil {
+		t.Fatal(err)
+	}
 	ctx := map[string]string{}
 	_, err := resolveValue("{{$ALMANACH_TEST_MISSING}}", ctx)
 	if err == nil {
@@ -121,8 +124,7 @@ func TestResolveValue_NoExpressions(t *testing.T) {
 }
 
 func TestResolveValue_ContextOverridesEnvFallback(t *testing.T) {
-	os.Setenv("ALMANACH_TEST_OVERRIDE", "env-value")
-	defer os.Unsetenv("ALMANACH_TEST_OVERRIDE")
+	t.Setenv("ALMANACH_TEST_OVERRIDE", "env-value")
 
 	ctx := map[string]string{"key": "ctx-value"}
 	// Regular key lookup wins over env — they're different expression types

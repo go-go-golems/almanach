@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
-	"gopkg.in/yaml.v3")
+	"gopkg.in/yaml.v3"
+)
 
 const (
 	defaultRenderSelector       = ".paper-shell"
