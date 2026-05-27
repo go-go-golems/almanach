@@ -39,3 +39,8 @@ Phases 1-5 complete. All fetchers deleted, scaffold added, template engine imple
 - /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/layout.go — Replaced buildDefaultLayout with buildScaffoldLayout (commit 106486c)
 - /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/template.go — Template engine with ResolveTemplate (commit 4c821cd)
 
+
+## 2026-05-26
+
+Phase 6 complete. Manual validation: 5 end-to-end tests pass (template+data, no-data, plain, scaffold, override). Updated getting-started and user-guide docs.
+

@@ -184,3 +184,40 @@ Total: 224 lines deleted. Replaced by ~15-line `buildScaffoldLayout()` function.
 - Update `layouts-getting-started.md` and `layouts-user-guide.md` to reference templates
 - Add template examples to tutorials
 - Upload updated design doc + diary to reMarkable
+
+## Step 8: Phase 6 — Manual Validation and Final Docs
+
+**Commits:** `8c51be8`
+
+### What I did
+
+- Built binary, ran 5 end-to-end tests:
+  1. `--layout template.yaml --data data.yaml` → 384×597 PNG, all variables resolved ✓
+  2. `--layout template.yaml` (no data) → renders with literal `{{...}}` text ✓
+  3. `--layout plain.yaml` (no expressions, no data) → unchanged ✓
+  4. No `--layout` at all → scaffold (384×202) ✓
+  5. `--data data.yaml --define title=OVERRIDE` → override wins ✓
+- Verified rendered PNGs visually via VLM: "MORNING SIGNAL" title, weather, plan, note all correct
+- Scaffold shows "ALMANACH" title + date, no invented content
+- Updated `layouts-getting-started.md` with "Using Templates" section
+- Updated `layouts-user-guide.md` with template recipe and troubleshooting entry
+
+### What worked
+
+- The no-op rule (empty data context = no template resolution) saved us: test #2 and #3 would have failed without it
+- Debug artifacts (`layout.json`) made it trivial to verify variable substitution
+- The `--define` override correctly takes priority over `--data` file values
+
+### What didn't work
+
+- `-D` shorthand doesn't work because Glazed doesn't auto-create short flags. Must use `--define` instead.
+
+### What warrants a second pair of eyes
+
+- The scaffold layout includes a date block with today's date — this is deterministic but still auto-generated content. Acceptable?
+
+### What should be done in the future
+
+- Consider adding `-D` as an explicit short flag alias
+- Consider a `scaffold` command that generates a starter YAML file
+- Print a template-driven layout on the physical thermal printer to validate paper output
