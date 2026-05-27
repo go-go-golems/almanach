@@ -58,3 +58,16 @@ End-to-end validation complete. publish-image succeeds, GHCR image ghcr.io/go-go
 - /tmp/almanach-gitops-mini-data.yaml — Printed mini almanach data context
 - /tmp/almanach-gitops-mini-template.yaml — Printed mini almanach template
 
+
+
+## 2026-05-27
+
+Post-rollout cleanup complete. ArgoCD now reports `Synced Healthy` after removing ingress-shim ownership, matching cert-manager Certificate defaults, patching the stale live owner reference, and normalizing Certificate duration fields. The `argocd/repo-crib-k3s` repository credential is now Terraform-managed from the Vault-stored GitHub token. The old private GHCR package name was documented as obsolete in favor of `ghcr.io/go-go-golems/almanach:sha-<commit>`.
+
+### Related Files
+
+- /home/manuel/code/wesen/crib-k3s/gitops/kustomize/almanach/ingress.yaml — Removed `cert-manager.io/cluster-issuer` so the explicit Certificate is the only TLS issuance source
+- /home/manuel/code/wesen/crib-k3s/gitops/kustomize/almanach/certificate.yaml — Matched cert-manager defaulted fields and normalized durations to eliminate ArgoCD drift
+- /home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s/main.tf — Added Vault-backed Terraform management for the ArgoCD crib-k3s repository Secret
+- /home/manuel/code/wesen/go-go-golems/almanach/README.md — Documented current and obsolete GHCR package names
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/ttmp/2026/05/26/ALMANACH-GITOPS-CD--wire-almanach-render-service-ci-cd-to-crib-k3s-via-infra-tooling-publish-ghcr-image/reference/01-implementation-diary.md — Recorded cleanup details, validation, and follow-up token-rotation caveat
