@@ -272,6 +272,16 @@ docker run -p 8199:8199 \
 
 The Docker image bundles the Go binary + Chrome headless-shell in a single container. Google Fonts are embedded as base64 woff2 in the SPA bundle — no network access needed at render time, ensuring pixel-identical output regardless of the container's network.
 
+### Published Image
+
+GitOps deployments publish and consume the repository-scoped GHCR package:
+
+```text
+ghcr.io/go-go-golems/almanach:sha-<commit>
+```
+
+Do not use the old `ghcr.io/go-go-golems/almanach-render-service` package for deployments. That package is obsolete/private and was replaced by `ghcr.io/go-go-golems/almanach` so GitHub Actions can publish the image with repository-scoped package permissions.
+
 ### Docker Compose
 
 ```bash
