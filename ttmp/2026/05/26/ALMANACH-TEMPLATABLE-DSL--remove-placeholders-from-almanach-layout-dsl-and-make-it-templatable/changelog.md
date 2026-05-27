@@ -26,3 +26,16 @@ Uploaded design doc + diary bundle to reMarkable at /ai/2026/05/26/ALMANACH-TEMP
 
 Scope expanded: remove ALL 6 fetcher files (not just 3 placeholder ones). buildDefaultLayout() replaced with minimal scaffold. Design doc rewritten, diary updated. Ready for reMarkable re-upload.
 
+
+## 2026-05-26
+
+Phases 1-5 complete. All fetchers deleted, scaffold added, template engine implemented, --data/--define wired, docs and examples updated. 5 commits: 106486c, 4c821cd, 6e0cd1f, d053b04, 635b7fb.
+
+### Related Files
+
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/examples/templates/ — Template + data context examples (commit 635b7fb)
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/cmd_render.go — Added --data/--define flags (commit d053b04)
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/data_context.go — Data context loading (commit 6e0cd1f)
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/layout.go — Replaced buildDefaultLayout with buildScaffoldLayout (commit 106486c)
+- /home/manuel/workspaces/2026-05-26/fix-almanach-templates/almanach/internal/app/template.go — Template engine with ResolveTemplate (commit 4c821cd)
+
