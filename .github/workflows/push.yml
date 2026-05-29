@@ -24,8 +24,10 @@ jobs:
         run: make glazed-lint
       - name: Install buf
         run: go install github.com/bufbuild/buf/cmd/buf@v1.60.0
+      - name: Enable pnpm for web generation
+        run: corepack enable && corepack prepare pnpm@10.15.0 --activate
       - name: Generate assets
-        run: go generate ./...
+        run: BUILD_WEB_LOCAL=1 go generate ./...
       - name: Verify generated files are up to date
         run: git diff --exit-code
       - name: Run unit tests
