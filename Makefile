@@ -57,3 +57,11 @@ release:
 bump-glazed:
 	GOWORK=off go get github.com/go-go-golems/glazed@latest
 	GOWORK=off go mod tidy
+
+.PHONY: logcopter-generate
+logcopter-generate:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.almanach -strip-prefix github.com/go-go-golems/almanach ./cmd/... ./pkg/...
+
+.PHONY: logcopter-check
+logcopter-check:
+	GOWORK=off go tool logcopter-gen -include-main -var zlog -area-prefix go-go-golems.almanach -strip-prefix github.com/go-go-golems/almanach -check ./cmd/... ./pkg/...

@@ -1,0 +1,249 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: ALMANACH
+      - generic [ref=e7]: studio
+    - generic [ref=e8]:
+      - img [ref=e9]
+      - generic [ref=e13]: 6 blocks
+      - generic [ref=e14]: ·
+      - generic [ref=e15]: Classic
+      - generic [ref=e16]: ·
+      - generic [ref=e17]: 384px
+      - generic [ref=e18]: ·
+      - generic [ref=e19]: 1.6×
+    - generic [ref=e20]:
+      - button "Blocks" [ref=e21] [cursor=pointer]:
+        - img [ref=e22]
+        - text: Blocks
+      - button "Inspector" [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+        - text: Inspector
+      - button "Open" [ref=e30] [cursor=pointer]:
+        - img [ref=e31]
+        - text: Open
+      - button "Save" [ref=e34] [cursor=pointer]:
+        - img [ref=e35]
+        - text: Save
+      - button "PNG" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+        - text: PNG
+      - button "Print" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - text: Print
+  - generic [ref=e47]:
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - generic [ref=e50]: Header
+        - button "Title" [ref=e52] [cursor=pointer]:
+          - img [ref=e53]
+          - generic [ref=e55]: Title
+          - img [ref=e56]
+        - button "Date Strip" [ref=e57] [cursor=pointer]:
+          - img [ref=e58]
+          - generic [ref=e60]: Date Strip
+          - img [ref=e61]
+        - button "Divider" [ref=e62] [cursor=pointer]:
+          - img [ref=e63]
+          - generic [ref=e64]: Divider
+          - img [ref=e65]
+      - generic [ref=e66]:
+        - generic [ref=e67]: Daily
+        - button "Today's Plan" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e73]: Today's Plan
+          - img [ref=e74]
+        - button "Top News" [ref=e75] [cursor=pointer]:
+          - img [ref=e76]
+          - generic [ref=e79]: Top News
+          - img [ref=e80]
+        - button "Weather" [ref=e81] [cursor=pointer]:
+          - img [ref=e82]
+          - generic [ref=e87]: Weather
+          - img [ref=e88]
+        - button "Daily Note" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+          - generic [ref=e93]: Daily Note
+          - img [ref=e94]
+        - button "Image Plate" [ref=e95] [cursor=pointer]:
+          - img [ref=e96]
+          - generic [ref=e100]: Image Plate
+          - img [ref=e101]
+      - generic [ref=e102]:
+        - generic [ref=e103]: Trackers
+        - button "Habit Tracker" [ref=e105] [cursor=pointer]:
+          - img [ref=e106]
+          - generic [ref=e110]: Habit Tracker
+          - img [ref=e111]
+        - button "Mood & Energy" [ref=e112] [cursor=pointer]:
+          - img [ref=e113]
+          - generic [ref=e116]: Mood & Energy
+          - img [ref=e117]
+        - button "Reading List" [ref=e118] [cursor=pointer]:
+          - img [ref=e119]
+          - generic [ref=e121]: Reading List
+          - img [ref=e122]
+        - button "Daily Reflection" [ref=e123] [cursor=pointer]:
+          - img [ref=e124]
+          - generic [ref=e127]: Daily Reflection
+          - img [ref=e128]
+      - generic [ref=e129]:
+        - generic [ref=e130]: Knowledge
+        - button "Quote of the Day" [ref=e132] [cursor=pointer]:
+          - img [ref=e133]
+          - generic [ref=e136]: Quote of the Day
+          - img [ref=e137]
+        - button "Word of the Day" [ref=e138] [cursor=pointer]:
+          - img [ref=e139]
+          - generic [ref=e142]: Word of the Day
+          - img [ref=e143]
+        - button "Today in History" [ref=e144] [cursor=pointer]:
+          - img [ref=e145]
+          - generic [ref=e148]: Today in History
+          - img [ref=e149]
+        - button "Did You Know?" [ref=e150] [cursor=pointer]:
+          - img [ref=e151]
+          - generic [ref=e161]: Did You Know?
+          - img [ref=e162]
+    - generic [ref=e164]:
+      - img [ref=e165]
+      - generic [ref=e168]:
+        - generic [ref=e169] [cursor=pointer]:
+          - generic [ref=e171]:
+            - generic [ref=e172]: ⌘ ✦ ⌘
+            - generic [ref=e173]: The
+            - heading "THE ALMANACH" [level=1] [ref=e174]
+            - generic [ref=e175]: Your daily digest, printed fresh.
+            - generic [ref=e176]:
+              - generic [ref=e177]: ❦
+              - generic [ref=e178]: —
+              - generic [ref=e179]: ✦
+              - generic [ref=e180]: —
+              - generic [ref=e181]: ❦
+          - generic [ref=e182]:
+            - button "Move up" [disabled] [ref=e183]:
+              - img [ref=e184]
+            - button "Move down" [ref=e186]:
+              - img [ref=e187]
+            - button "Delete" [ref=e189]:
+              - img [ref=e190]
+        - generic [ref=e195] [cursor=pointer]: May 24, 2024 | Friday
+        - generic [ref=e198] [cursor=pointer]:
+          - generic [ref=e199]:
+            - generic [ref=e200]: ◷
+            - generic [ref=e201]: Today's Plan
+          - generic [ref=e202]:
+            - generic [ref=e203]:
+              - generic [ref=e204]: ✓
+              - generic [ref=e205]: 08:30
+              - generic [ref=e206]: Morning routine
+            - generic [ref=e207]:
+              - generic [ref=e208]: ✓
+              - generic [ref=e209]: 09:30
+              - generic [ref=e210]: "Deep work: Project Atlas"
+            - generic [ref=e211]:
+              - generic [ref=e213]: 12:30
+              - generic [ref=e214]: Lunch with Sam
+            - generic [ref=e215]:
+              - generic [ref=e217]: 14:00
+              - generic [ref=e218]: Review PRs
+            - generic [ref=e219]:
+              - generic [ref=e221]: 15:30
+              - generic [ref=e222]: Workout
+            - generic [ref=e223]:
+              - generic [ref=e225]: 18:30
+              - generic [ref=e226]: Call with Alex
+            - generic [ref=e227]:
+              - generic [ref=e229]: 20:00
+              - generic [ref=e230]: Read / Unwind
+        - generic [ref=e233] [cursor=pointer]:
+          - generic [ref=e234]:
+            - generic [ref=e235]: ❍
+            - generic [ref=e236]: Top News
+          - list [ref=e237]:
+            - listitem [ref=e238]:
+              - text: OpenAI announces new GPT-4o updates with improved reasoning and tools.
+              - generic [ref=e239]:
+                - emphasis [ref=e240]: The Verge
+                - text: ·1h ago
+            - listitem [ref=e241]:
+              - text: Markets rally as inflation cools more than expected in April.
+              - generic [ref=e242]:
+                - emphasis [ref=e243]: Bloomberg
+                - text: ·2h ago
+            - listitem [ref=e244]:
+              - text: SpaceX launches Starship test flight successfully.
+              - generic [ref=e245]:
+                - emphasis [ref=e246]: Reuters
+                - text: ·3h ago
+        - generic [ref=e249] [cursor=pointer]:
+          - img [ref=e251]
+          - generic [ref=e255]:
+            - generic [ref=e256]: 22°C
+            - generic [ref=e257]: Partly cloudy
+          - generic [ref=e258]:
+            - generic [ref=e259]: H 24°C / L 15°C
+            - generic [ref=e260]: 05:47 / 20:32
+        - generic [ref=e263] [cursor=pointer]:
+          - generic [ref=e264]:
+            - generic [ref=e265]: ✎
+            - generic [ref=e266]: Daily Note
+          - generic [ref=e267]:
+            - text: "\"Make something small, useful, and a little delightful.\""
+            - generic [ref=e268]: — Almanach
+      - img [ref=e269]
+    - generic [ref=e271]:
+      - generic [ref=e272]:
+        - generic [ref=e273]: Theme
+        - generic [ref=e275]:
+          - button "✦ Classic" [ref=e276] [cursor=pointer]:
+            - generic [ref=e277]: ✦
+            - generic [ref=e278]: Classic
+          - button "— Minimal" [ref=e279] [cursor=pointer]:
+            - generic [ref=e280]: —
+            - generic [ref=e281]: Minimal
+          - button "❦ Botanical" [ref=e282] [cursor=pointer]:
+            - generic [ref=e283]: ❦
+            - generic [ref=e284]: Botanical
+          - button "✎ Notebook" [ref=e285] [cursor=pointer]:
+            - generic [ref=e286]: ✎
+            - generic [ref=e287]: Notebook
+          - button "▣ Vintage Ledger" [ref=e288] [cursor=pointer]:
+            - generic [ref=e289]: ▣
+            - generic [ref=e290]: Vintage Ledger
+          - button "✦ Space Age" [ref=e291] [cursor=pointer]:
+            - generic [ref=e292]: ✦
+            - generic [ref=e293]: Space Age
+      - generic [ref=e294]:
+        - generic [ref=e295]: Paper Width
+        - slider [ref=e297]: "384"
+        - generic [ref=e298]:
+          - generic [ref=e299]: 58mm
+          - generic [ref=e300]: 384px
+          - generic [ref=e301]: 80mm
+      - generic [ref=e302]:
+        - generic [ref=e303]: Font Scale
+        - slider [ref=e305]: "1.6"
+        - generic [ref=e306]:
+          - generic [ref=e307]: 1×
+          - generic [ref=e308]: 1.6×
+          - generic [ref=e309]: 2×
+      - generic [ref=e310]:
+        - generic [ref=e311]: Feed After Print
+        - slider [ref=e313]: "3"
+        - generic [ref=e314]:
+          - generic [ref=e315]: "0"
+          - generic [ref=e316]: 3 lines
+          - generic [ref=e317]: "20"
+      - generic [ref=e318]:
+        - generic [ref=e319]: title
+        - generic [ref=e320]: Title
+        - button "Duplicate" [ref=e321] [cursor=pointer]:
+          - img [ref=e322]
+      - generic [ref=e325]:
+        - generic [ref=e326]:
+          - generic [ref=e327]: Title
+          - textbox "Title" [ref=e328]: THE ALMANACH
+        - generic [ref=e329]:
+          - generic [ref=e330]: Subtitle
+          - textbox "Subtitle" [ref=e331]: Your daily digest, printed fresh.
