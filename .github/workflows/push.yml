@@ -22,6 +22,8 @@ jobs:
         run: make logcopter-check
       - name: Verify Glazed CLI policy
         run: make glazed-lint
+      - name: Install buf
+        run: go install github.com/bufbuild/buf/cmd/buf@v1.60.0
       - name: Generate assets
         run: go generate ./...
       - name: Verify generated files are up to date
