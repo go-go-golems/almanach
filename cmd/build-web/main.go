@@ -40,6 +40,7 @@ func run(ctx context.Context) error {
 	}
 
 	// Dagger-first; falls back to local pnpm if Docker is unavailable.
+	//glazedclilint:ignore build helper uses env switch before CLI settings are initialized
 	if os.Getenv("BUILD_WEB_LOCAL") == "1" {
 		return runLocal(repoRoot)
 	}
@@ -170,6 +171,7 @@ func findRepoRoot() (string, error) {
 }
 
 func getenv(key, def string) string {
+	//glazedclilint:ignore build helper reads environment defaults outside the runtime CLI path
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
