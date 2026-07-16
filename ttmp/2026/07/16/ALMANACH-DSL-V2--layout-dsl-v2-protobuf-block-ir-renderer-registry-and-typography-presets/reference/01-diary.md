@@ -80,3 +80,60 @@ losing any of the accumulated context or the product decisions.
 ### Technical details
 - Handoff: `design-doc/01-handoff-...md`. Reference repos: rag-evaluation-system
   (IR renderer), scraper (protobuf Go/TS), go-go-goja (publishable TS package).
+
+## Step 2: Phase 1 — protobuf layout schema + codegen + round-trip tests
+
+Executed Phase 1 of the handoff: the shared block-IR schema and its Go/TS
+codegen, no behavior change (nothing wired into the render path yet).
+
+### What I did
+- **Buf setup.** Root `buf.yaml` (v2) scoped to `proto/` via `modules: [{path:
+  proto, name: buf.build/local/almanach}]` so it does **not** pick up the
+  pre-existing `internal/provisioning/native/proto` module. `buf.gen.yaml` uses
+  **local** plugins (`protoc-gen-go` on PATH, `web/node_modules/.bin/protoc-gen-es`)
+  rather than scraper's remote plugins — the machine's Buf token is invalid
+  (`buf registry login` fails), so remote codegen is unavailable here.
+- **Schema.** `proto/almanach/layout/v1/layout.proto`: `Layout` (schema_version,
+  paper_width, feed_lines, theme ref + inline `Theme`, `Typography`, repeated
+  `Block`, `data` map, `RenderOptions`), `Block` (id, type, `TextStyle` style,
+  `google.protobuf.Struct` content, per-block `RenderOptions`), `TextStyle`
+  (optional scalars + `min_size` legibility floor), `Typography`
+  (map<string,TextStyle>), `Theme`/`ThemeColors`, `RenderOptions`, and
+  `TextCase`/`RasterMode` enums. Block content is `Struct` for now (open Q in §9).
+- **Codegen.** `buf generate` -> Go in `gen/almanach/layout/v1/` (note: no
+  `proto/` path prefix because the module root is `proto/`, so `go_package` is
+  `.../gen/almanach/layout/v1;layoutv1`), TS in `web/src/pb/almanach/layout/v1/`.
+- **Codec + tests.** `internal/layoutpb/codec.go` mirrors scraper's
+  `runtimeevents` (protojson `UseProtoNames:false` camelCase, schema_version
+  normalize, JSON + binary). A shared golden `proto/.../testdata/layout_golden.json`
+  is read by **both** the Go test (`internal/layoutpb/codec_test.go`, field
+  assertions + proto.Equal round-trip) and a runner-free TS test
+  (`web/src/pb/layout.roundtrip.test.mjs`, `fromJson`/`toJson`, run with `node`).
+- **Wiring.** `make proto`, `make test-proto`, `pnpm --dir web test:proto`.
+
+### What was tricky / gotchas (read before Phase 2+)
+- **pnpm store is read-only in this sandbox.** The global `~/.config/pnpm/rc`
+  sets `store-dir` to an archived, read-only workspace path, so any install that
+  needs a *new* tarball fails with `ERR_PNPM_EROFS`, and `$HOME` itself is
+  read-only. Worked around by reinstalling into a repo-local store:
+  `pnpm install --store-dir ../.tmp-pnpm-store --config.confirmModulesPurge=false`
+  (the dir is git-ignored). `node_modules` is now linked to that store; a plain
+  `pnpm install` will error `UNEXPECTED_STORE` until you pass the same
+  `--store-dir` (or fix the global config on a normal machine).
+- **protobuf-es `tsEnum` strips the enum prefix at runtime**: the value is
+  `RasterMode.THRESHOLD`, not `RASTER_MODE_THRESHOLD` (the JSON wire form keeps
+  the full name). The `.d.ts` shows full names; runtime keys are short.
+- No `int64` in the schema, so no `bigint` round-trip hazard yet — keep it that
+  way, or add a `toJson` round-trip before any `JSON.stringify` if you introduce
+  one.
+
+### Verified
+- `make test-proto` green (Go + TS). `buf generate` is idempotent (re-running
+  produces no diff). `GOWORK=off go build ./...` and `go vet ./internal/layoutpb/...`
+  clean.
+
+### What should be done next
+- Phase 2: the React renderer registry. The generated TS types
+  (`web/src/pb/.../layout_pb`) are now importable in the studio; build the
+  `type -> adapter` registry against `Block`/`Layout` and a graceful
+  unknown-type placeholder.

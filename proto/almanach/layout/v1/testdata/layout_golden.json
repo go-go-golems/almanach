@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "paperWidth": 384,
+  "feedLines": 3,
+  "theme": "minimal",
+  "typography": {
+    "presets": {
+      "title": {
+        "font": "'DejaVu Serif', serif",
+        "size": 34,
+        "weight": 700,
+        "letterSpacing": 0.18,
+        "textCase": "TEXT_CASE_UPPER"
+      },
+      "body": {
+        "font": "'DejaVu Serif', serif",
+        "size": 16,
+        "weight": 500,
+        "lineHeight": 1.4,
+        "minSize": 12
+      },
+      "caption": {
+        "size": 12,
+        "weight": 700,
+        "italic": true
+      }
+    }
+  },
+  "blocks": [
+    {
+      "id": "title-1",
+      "type": "title",
+      "content": {
+        "text": "KNOWLEDGE STRIP",
+        "subtitle": "Word, history, facts"
+      }
+    },
+    {
+      "id": "quote-1",
+      "type": "quote",
+      "style": {
+        "weight": 700,
+        "italic": true
+      },
+      "content": {
+        "text": "The cure for boredom is curiosity.",
+        "author": "Dorothy Parker"
+      },
+      "render": {
+        "threshold": 128,
+        "rasterMode": "RASTER_MODE_THRESHOLD",
+        "printerDensity": 38
+      }
+    },
+    {
+      "id": "img-1",
+      "type": "image",
+      "content": {
+        "src": "data:image/png;base64,AAAA",
+        "fit": "contain"
+      },
+      "render": {
+        "rasterMode": "RASTER_MODE_ATKINSON",
+        "gamma": 0.8,
+        "printerDensity": 20
+      }
+    }
+  ],
+  "data": {
+    "date": "2026-07-16"
+  },
+  "render": {
+    "selector": ".paper-body",
+    "threshold": 128,
+    "supersampleScale": 1,
+    "viewportWidth": 384
+  }
+}

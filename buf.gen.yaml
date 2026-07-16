@@ -1,0 +1,16 @@
+version: v2
+clean: true
+plugins:
+  # TypeScript (protobuf-es v2) — local plugin from web/node_modules.
+  # Install: (cd web && pnpm install). Remote alt: buf.build/bufbuild/es (needs a
+  # Buf token).
+  - local: web/node_modules/.bin/protoc-gen-es
+    out: web/src/pb
+    opt:
+      - target=js+dts
+      - import_extension=none
+  # Go — local plugin. Install: go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+  - local: protoc-gen-go
+    out: gen
+    opt:
+      - paths=source_relative

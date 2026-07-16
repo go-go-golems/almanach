@@ -25,3 +25,6 @@ ttmp/**/artifacts/storybook-visuals/
 .env
 .envrc
 .history
+
+# Local pnpm store (env global store-dir is read-only in this sandbox)
+.tmp-pnpm-store/
