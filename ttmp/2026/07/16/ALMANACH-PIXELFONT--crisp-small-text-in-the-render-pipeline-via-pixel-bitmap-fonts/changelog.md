@@ -34,3 +34,8 @@ Step 5: Supersampling (3x render + box-average downscale) shipped as default fix
 
 Step 6: Font x size x technique matrix (02-font-matrix.py). Finding: hinted font @ 1x AA-off beats supersampling for small text. Best small: JetBrains Mono (8px), DejaVu Sans/Serif. EB Garamond/DM Sans/Noto rough small. Printed 1x-aaoff and 3x sheets.
 
+
+## 2026-07-16
+
+Step 7: Labeled matrix sheets (baked technique+density+speed header); added heat/speed sweep (set_heat + --densities/--speeds). Printed 1x-aaoff at d22/s80, d30/s62, d38/s37. Confirmed DejaVu Sans best italic; 1x AA-off best technique. User wants bigger default text esp serif.
+

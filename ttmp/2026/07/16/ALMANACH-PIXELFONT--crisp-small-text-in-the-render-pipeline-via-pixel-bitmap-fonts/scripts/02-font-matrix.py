@@ -53,24 +53,29 @@ TECHNIQUES = {
 }
 
 
-def build_html():
-    rows = []
+ITALIC_SAMPLE = "We stood enjoying the brief apricity 0123"
+
+
+def build_html(title="MATRIX"):
+    rows = [f'<div class="hdr">{title}</div>']
     for label, fam, ital in FONTS:
         rows.append(f'<div class="lbl">{label}</div>')
-        for sz in SIZES:
+        for sz in (9, 10, 11):
             rows.append(f'<div class="s" style="font-family:{fam};font-size:{sz}px;line-height:{sz+2}px">'
-                        f'{sz} {SAMPLE}</div>')
+                        f'{sz}&nbsp; {SAMPLE}</div>')
         if ital:
-            rows.append(f'<div class="s" style="font-family:{fam};font-style:italic;font-size:11px;line-height:13px">'
-                        f'11i {SAMPLE}</div>')
+            for sz in (11, 12, 13):
+                rows.append(f'<div class="s" style="font-family:{fam};font-style:italic;font-size:{sz}px;line-height:{sz+2}px">'
+                            f'{sz}i {ITALIC_SAMPLE}</div>')
         rows.append('<div class="gap"></div>')
     link = f'<link rel="stylesheet" href="file://{FONTS_CSS}">' if os.path.exists(FONTS_CSS) else ""
     html = f"""<!doctype html><meta charset=utf-8>{link}<style>
 html,body{{margin:0;background:#fff}}
 .p{{width:{W}px;padding:6px 4px;color:#000;box-sizing:border-box}}
-.lbl{{font-family:'DejaVu Sans',sans-serif;font-size:11px;font-weight:bold;background:#000;color:#fff;padding:1px 3px;margin-top:4px}}
+.hdr{{font-family:'DejaVu Sans',sans-serif;font-size:15px;font-weight:bold;background:#000;color:#fff;padding:3px 4px;margin-bottom:3px}}
+.lbl{{font-family:'DejaVu Sans',sans-serif;font-size:11px;font-weight:bold;border-bottom:2px solid #000;padding:1px 3px;margin-top:5px}}
 .s{{color:#000;margin:1px 0;white-space:nowrap;overflow:hidden}}
-.gap{{height:4px}}</style><div class="p">{''.join(rows)}</div>"""
+.gap{{height:5px}}</style><div class="p">{''.join(rows)}</div>"""
     path = os.path.join(HERE, "matrix.html")
     open(path, "w").write(html)
     return path
@@ -113,6 +118,17 @@ def pack_bits(black):
     return bytes(data), wpad, h, bpr
 
 
+def set_heat(printer, density, speed):
+    import urllib.request
+    for path, key, val in (("density", "density", density), ("speed", "speed", speed)):
+        if val is None:
+            continue
+        req = urllib.request.Request(printer.rstrip("/") + f"/api/printer/{path}",
+                                     data=f'{{"{key}":{val}}}'.encode(), method="POST",
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=30).read()
+
+
 def print_to(printer, black, feed=3):
     import urllib.request
     data, wpad, h, bpr = pack_bits(black)
@@ -136,20 +152,32 @@ def main():
     ap.add_argument("--print", dest="do_print", action="store_true")
     ap.add_argument("--printer", default="http://192.168.0.126")
     ap.add_argument("--tech", default="", help="single technique to render/print")
+    ap.add_argument("--densities", default="", help="comma list; sweep printer density per print")
+    ap.add_argument("--speeds", default="", help="comma list; sweep printer speed per print")
     args = ap.parse_args()
 
-    html = build_html()
     techs = [args.tech] if args.tech else list(TECHNIQUES)
+    densities = [int(x) for x in args.densities.split(",")] if args.densities else [None]
+    speeds = [int(x) for x in args.speeds.split(",")] if args.speeds else [None]
     os.makedirs(args.out, exist_ok=True)
+
     for t in techs:
         scale, aa_off, thr = TECHNIQUES[t]
-        black = render(html, scale, aa_off, thr)
-        print(f"[{t}] {black.shape[1]}x{black.shape[0]} black={black.mean()*100:.1f}%", file=sys.stderr)
-        # header strip label baked at top for printed sheets
-        prev = Image.fromarray((~black * 255).astype("uint8"), "L")
-        prev.resize((prev.width * 2, prev.height * 2), Image.NEAREST).save(os.path.join(args.out, f"{t}.png"))
-        if args.do_print:
-            print_to(args.printer, black)
+        for d in densities:
+            for s in speeds:
+                # Bake the technique + heat into the sheet header so every printed
+                # strip is self-identifying.
+                heat = (f"  d={d}" if d is not None else "") + (f" s={s}" if s is not None else "")
+                title = f"{t}  scale={scale} aa_off={int(aa_off)} thr={thr}{heat}"
+                html = build_html(title)
+                black = render(html, scale, aa_off, thr)
+                print(f"[{title}] {black.shape[1]}x{black.shape[0]} black={black.mean()*100:.1f}%", file=sys.stderr)
+                tag = t + (f"_d{d}" if d is not None else "") + (f"_s{s}" if s is not None else "")
+                Image.fromarray((~black * 255).astype("uint8"), "L").save(os.path.join(args.out, f"{tag}.png"))
+                if args.do_print:
+                    if d is not None or s is not None:
+                        set_heat(args.printer, d, s)
+                    print_to(args.printer, black)
 
 
 if __name__ == "__main__":
