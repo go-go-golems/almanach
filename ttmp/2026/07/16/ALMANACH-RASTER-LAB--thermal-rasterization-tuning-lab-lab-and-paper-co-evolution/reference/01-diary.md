@@ -12,14 +12,18 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - internal/app/bitmap.go
-    - internal/app/printer.go
-    - firmware/atoms3r/main/printer_drv.c
+    - Path: firmware/atoms3r/main/printer_drv.c
+    - Path: internal/app/bitmap.go
+    - Path: internal/app/printer.go
+    - Path: repo://ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/01-thermal-lab.py
+      Note: 'Experiment harness: mixed card + tone curve + dither + density + print'
 ExternalSources: []
-Summary: "Chronological diary of the thermal rasterization tuning-lab work: investigation, the intern guide, and the lab-and-paper co-evolution loop."
-WhatFor: "Record what was tried, what worked, what failed, and what to do next."
-WhenToUse: "Read before resuming ALMANACH-RASTER-LAB work."
+Summary: 'Chronological diary of the thermal rasterization tuning-lab work: investigation, the intern guide, and the lab-and-paper co-evolution loop.'
+LastUpdated: 0001-01-01T00:00:00Z
+WhatFor: Record what was tried, what worked, what failed, and what to do next.
+WhenToUse: Read before resuming ALMANACH-RASTER-LAB work.
 ---
+
 
 # Diary
 
@@ -157,3 +161,88 @@ that a newcomer can drive it.
   `design-doc/01-thermal-rasterization-system-analysis-design-and-implementation-guide.md`
 - Lab (older ticket):
   `ttmp/2026/05/10/ALMANACH-RASTERIZATION--.../various/raster-dither-lab.{html,js}`
+
+## Step 2: Build the experiment harness (synthetic mixed card + grid + printer client)
+
+The user chose a **synthetic mixed card** as the first comparison sample and
+confirmed the printer is ready for physical prints now. I built a self-contained
+Python harness, `scripts/01-thermal-lab.py`, that generates a mixed card
+(ALMANACH title, body text at 13/11/9 px, a 0→255 gray ramp, and a real cat
+portrait for continuous-tone content), applies the host tone curve
+(gamma/brightness/contrast), rasterizes through a chosen algorithm, prints a
+self-describing settings header above each strip, packs MSB-first exactly like
+the firmware contract, sets printer density via `/api/printer/density`, and POSTs
+the bitmap via `/api/print/bitmap` (segmenting above ~36 KiB, feed on last
+segment only).
+
+I validated it in `--dry-run` mode (writes upscaled PNG previews). The previews
+make the problem visible on screen before we spend paper: at gamma 1.0 the
+**threshold** card crushes the cat into black/white blobs (all midtone detail
+lost — the "hard to read" failure), while **Atkinson** preserves fur, eyes, and
+whiskers as tonal dot patterns. Black density at density-20/gamma-1.0 was
+threshold 32.7%, atkinson 30.0%, floyd 30.7%, bayer8 31.0%.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1; plus the AskUserQuestion answers:
+sample = "Synthetic mixed card", printer = "Yes, ready now")
+
+**Assistant interpretation:** Build experimental (non-production) software that
+lets me tune levers 1–3 on a synthetic mixed card and print candidates for the
+user to photograph.
+
+**Inferred user intent:** Start the lab→paper loop with a controlled,
+text+ramp+photo sample so the text-vs-photo conflict and the density interaction
+are both exercised.
+
+**Commit (code):** see changelog.
+
+### What I did
+- Wrote `scripts/01-thermal-lab.py` (card generator, tone curve, dither
+  algorithms threshold/atkinson/floyd/stucki/sierra2/bayer8, MSB packing,
+  density + bitmap HTTP client, `--grid` and `--dry-run` modes).
+- Fixed the cat-portrait lookup to search the ttmp root recursively (the
+  portraits live under the 2026/05/10 UART ticket, a different date dir).
+- Dry-ran the 4-algo grid and visually inspected threshold vs. atkinson.
+
+### Why
+- Paper is the only place dot gain is real, but a screen dry-run first avoids
+  wasting paper on obviously-broken candidates and confirms the card composition.
+
+### What worked
+- Harness runs; previews render correctly; the threshold↔atkinson contrast is
+  exactly the expected illustration of the midtone-collapse problem.
+- Packing stays a single segment (~26 KiB card, under the 36 KiB safe limit).
+
+### What didn't work
+- First dry-run fell back to a synthetic radial-gradient "photo" because the
+  cat-portrait glob used the wrong date directory; fixed with a recursive
+  search from the ttmp root.
+
+### What I learned
+- Card width 384 is already a multiple of 8, so no padding surprises.
+- At gamma 1.0 the black density is ~30–33%; with thermal dot gain this will
+  print darker, so the density sweep should include values below 20.
+
+### What warrants a second pair of eyes
+- The header is packed as pure threshold and stacked in bit-space above the
+  dithered card so the header text stays crisp — confirm this stacking is what
+  reviewers expect vs. dithering the whole strip.
+- Gamma direction is still unresolved until the paper ramp test (§7.4).
+
+### What should be done in the future
+- Confirm the printer URL and print the first grid (algorithms × densities).
+- Get photos back; record paper observations; narrow the sweep.
+- Add density/speed UI to the browser lab too (parity with this harness).
+
+### Code review instructions
+- `scripts/01-thermal-lab.py`: start at `build_card()` (composition),
+  `apply_tone()` (lever 1), `DIFFUSION`/`dith_*` (lever 2), `set_density()` +
+  `print_bitmap()` (lever 3 + transport).
+- Validate: `python3 01-thermal-lab.py --dry-run --out ./out --grid` then inspect PNGs.
+
+### Technical details
+- Grid default: algos `threshold,atkinson,floyd,bayer8` × densities
+  `12,20,28,35`; each cell a labeled strip.
+- Printer client mirrors `internal/app/printer.go` segmentation (~36 KiB) and
+  firmware headers `X-Width`/`X-Height`/`X-Feed`.
