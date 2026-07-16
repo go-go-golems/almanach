@@ -12,13 +12,17 @@ DocType: reference
 Intent: long-term
 Owners: []
 RelatedFiles:
-    - internal/app/renderer.go
-    - web/src/almanach-studio.jsx
+    - Path: internal/app/renderer.go
+    - Path: repo://internal/app/fontconfig.go
+      Note: AA-off fontconfig + renderFontEnv (commit 93abdd3)
+    - Path: web/src/almanach-studio.jsx
 ExternalSources: []
-Summary: "Chronological diary of the ALMANACH-PIXELFONT work: making small text render crisp in the thermal pipeline via pixel/bitmap fonts."
-WhatFor: "Record what was tried, what worked, what failed, and what to do next."
-WhenToUse: "Read before resuming ALMANACH-PIXELFONT work."
+Summary: 'Chronological diary of the ALMANACH-PIXELFONT work: making small text render crisp in the thermal pipeline via pixel/bitmap fonts.'
+LastUpdated: 0001-01-01T00:00:00Z
+WhatFor: Record what was tried, what worked, what failed, and what to do next.
+WhenToUse: Read before resuming ALMANACH-PIXELFONT work.
 ---
+
 
 # Diary
 
@@ -170,3 +174,44 @@ legible down to 8 px. Rendering the SPA's real body font (DM Sans, extracted fro
 - AA-off conf: `scripts/fonts-noaa.conf`. Spike renders: `spike-1bit.png`
   (AA on, dropped strokes), `spike-noaa-1bit.png` (AA off, crisp),
   `spike-dmsans-noaa-1bit.png` (real DM Sans AA-off).
+
+## Step 3: Phase 1 — disable AA in the render browser (shipped)
+
+Wired the AA-off approach into the production render path. Added
+`internal/app/fontconfig.go` with a fontconfig (`antialias=false`, full hinting)
+and `renderFontEnv()`, which writes it to a temp file and returns
+`FONTCONFIG_FILE=...`; `newChromeAllocatorWithViewport` passes it to the local
+Chrome exec allocator via `chromedp.Env`. An env override
+`ALMANACH_FONT_ANTIALIAS=1` keeps AA on.
+
+Verified end-to-end with the real `render` command (pointing chrome at
+`/usr/bin/google-chrome-stable`, since the default snap chromium is blocked in
+this sandbox): the render screenshot went from **2.09% gray (AA on) to 0.00%
+gray (AA off)**. Only the headless render browser is affected; the studio UI a
+human edits is untouched. `go build`, `golangci-lint`, `go test` all pass.
+
+**Commit (code):** 93abdd3.
+
+### What worked
+- `chromedp.Env("FONTCONFIG_FILE=...")` cleanly scopes AA-off to the render
+  browser process. 0% gray confirmed in the real pipeline.
+
+### What I learned
+- The default chromedp browser resolved to snap chromium, which fails under the
+  sandbox (`snap-confine ... cap_dac_override`); `--chrome-path
+  /usr/bin/google-chrome-stable` works. Noted for local verification runs.
+- A serif *display* font (theme scaffold) renders a little rough AA-off at
+  medium size, but it is still 1-bit-legible and the threshold would have
+  thinned it anyway; small body text (the goal) is the win. Confirm on the real
+  page in Phase 3.
+
+### What warrants a second pair of eyes
+- Remote-allocator path (`ChromeWSURL`) cannot receive the env var, so AA-off
+  does not apply to a remote browser; documented as a limitation.
+
+### Code review instructions
+- `internal/app/fontconfig.go` (`renderFontEnv`, the conf) and the
+  `chromedp.Env` call in `newChromeAllocatorWithViewport`.
+- Reproduce: `render --layout <yaml> --out o.png --debug-dir d --web-dir web/dist
+  --chrome-path /usr/bin/google-chrome-stable`, then check `screenshot.png` has
+  ~0% gray; set `ALMANACH_FONT_ANTIALIAS=1` to see it rise.

@@ -14,3 +14,8 @@ Step 1: Created ticket, design+implementation doc (embedded-bitmap web font appr
 
 Step 2 (Phase 0 spike): Approach A (embedded-bitmap webfont) REJECTED - Chrome ignores strikes, renders outlines. Approach B (disable AA via fontconfig) ADOPTED - hinted vector text renders crisp 1-bit; DM Sans good to ~10px, degrades at 8-9px. Design doc + plan pivoted.
 
+
+## 2026-07-16
+
+Step 3 (Phase 1): Shipped AA-off in render browser via fontconfig+FONTCONFIG_FILE; render screenshot 2.09%->0.00% gray end-to-end; env override ALMANACH_FONT_ANTIALIAS. lint+tests green (commit 93abdd3).
+
