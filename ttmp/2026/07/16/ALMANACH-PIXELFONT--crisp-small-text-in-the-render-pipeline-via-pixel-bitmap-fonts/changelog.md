@@ -49,3 +49,8 @@ Step 8: x-height-matched font sheet (EB Garamond 13-16 vs DejaVu Serif/Sans 10-1
 
 Step 9: Enumerated remaining levers (weight, tracking, hinting, stem-darkening, threshold, numerals, case, graphics-mode). Style sweep (weight x tracking x italic) printed at d38/s37: BOLD is the big win, esp for italics (bold italic legible where normal isn't); tracking helps mildly; EB Garamond 17 italic legible. Heat differences 34-39 marginal.
 
+
+## 2026-07-16
+
+Step 10: Added compact heat card (--mode heat) with trailing-blank-row trim; printed a density x speed grid (d{24,32,38} x s{37,80}) to isolate the two heat levers.
+

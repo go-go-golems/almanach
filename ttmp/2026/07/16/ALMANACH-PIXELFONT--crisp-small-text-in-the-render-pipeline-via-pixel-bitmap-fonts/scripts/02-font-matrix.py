@@ -69,6 +69,40 @@ STYLE_VARIANTS = [
 ]
 
 
+def build_heat_html(title="HEAT"):
+    """Compact card for isolating printer density/speed: a few representative
+    lines + a reverse (white-on-black) bleed bar. Kept short so a density x speed
+    sweep does not use much paper."""
+    L = [
+        ("'DejaVu Serif', serif", 11, False, False, "DjSerif 11"),
+        ("'DejaVu Serif', serif", 11, True, False, "DjSerif 11 bold"),
+        ("'DejaVu Sans', sans-serif", 11, False, False, "DjSans 11"),
+        ("'EB Garamond', serif", 16, False, False, "EBGaramond 16"),
+        ("'EB Garamond', serif", 16, False, True, "EBGaramond 16 ital"),
+    ]
+    rows = [f'<div class="hdr">{title}</div>']
+    for fam, sz, bold, ital, lbl in L:
+        style = f"font-family:{fam};font-size:{sz}px;line-height:{sz+3}px"
+        if bold:
+            style += ";font-weight:700"
+        if ital:
+            style += ";font-style:italic"
+        samp = ITALIC_SAMPLE if ital else "The quick brown fox jumps 0123456789"
+        rows.append(f'<div class="s" style="{style}">{lbl}: {samp}</div>')
+    rows.append('<div class="rev">REVERSE white-on-black bleed 0123 eagso</div>')
+    link = f'<link rel="stylesheet" href="file://{FONTS_CSS}">' if os.path.exists(FONTS_CSS) else ""
+    html = f"""<!doctype html><meta charset=utf-8>{link}<style>
+html,body{{margin:0;background:#fff}}
+.p{{width:{W}px;padding:6px 4px;color:#000;box-sizing:border-box}}
+.hdr{{font-family:'DejaVu Sans',sans-serif;font-size:14px;font-weight:bold;background:#000;color:#fff;padding:3px 4px;margin-bottom:3px}}
+.s{{color:#000;margin:2px 0;white-space:nowrap;overflow:hidden}}
+.rev{{background:#000;color:#fff;font-family:'DejaVu Sans',sans-serif;font-weight:bold;font-size:12px;padding:2px 3px;margin-top:3px}}
+</style><div class="p">{''.join(rows)}</div>"""
+    path = os.path.join(HERE, "matrix.html")
+    open(path, "w").write(html)
+    return path
+
+
 def build_style_html(title="STYLE"):
     rows = [f'<div class="hdr">{title}</div>']
     for label, fam, sz in STYLE_FONTS:
@@ -138,7 +172,12 @@ def render(html, scale, aa_off, threshold):
         h = (gray.shape[0] // scale) * scale
         w = (gray.shape[1] // scale) * scale
         gray = gray[:h, :w].reshape(h // scale, scale, w // scale, scale).mean(axis=(1, 3))
-    return gray < threshold
+    black = gray < threshold
+    # Trim trailing blank rows so a printed strip is only as tall as its content.
+    rows_with_ink = np.where(black.any(axis=1))[0]
+    if len(rows_with_ink):
+        black = black[: rows_with_ink[-1] + 4]
+    return black
 
 
 def pack_bits(black):
@@ -188,10 +227,10 @@ def main():
     ap.add_argument("--tech", default="", help="single technique to render/print")
     ap.add_argument("--densities", default="", help="comma list; sweep printer density per print")
     ap.add_argument("--speeds", default="", help="comma list; sweep printer speed per print")
-    ap.add_argument("--mode", default="grid", choices=["grid", "style"], help="grid=font/size, style=weight/tracking")
+    ap.add_argument("--mode", default="grid", choices=["grid", "style", "heat"], help="grid=font/size, style=weight/tracking, heat=compact density/speed card")
     args = ap.parse_args()
 
-    build = build_style_html if args.mode == "style" else build_html
+    build = {"style": build_style_html, "heat": build_heat_html}.get(args.mode, build_html)
 
     techs = [args.tech] if args.tech else list(TECHNIQUES)
     densities = [int(x) for x in args.densities.split(",")] if args.densities else [None]
