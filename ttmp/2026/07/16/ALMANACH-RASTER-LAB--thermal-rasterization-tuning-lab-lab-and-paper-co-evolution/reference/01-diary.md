@@ -246,3 +246,78 @@ are both exercised.
   `12,20,28,35`; each cell a labeled strip.
 - Printer client mirrors `internal/app/printer.go` segmentation (~36 KiB) and
   firmware headers `X-Width`/`X-Height`/`X-Feed`.
+
+## Step 3: First physical batch — baseline algorithm comparison on paper
+
+Printed the 4-algorithm baseline (threshold, atkinson, floyd, bayer8) at
+density 20, neutral tone (gamma 1.0, contrast 1.0, brightness 0). Printer was at
+`http://192.168.0.126` (NOT the older lab's `.242`, which timed out — the user
+corrected the address; status endpoint confirmed paper present, not overheated).
+The user photographed the four strips (Downloads IMG_2703..2706, HEIC →
+converted to JPEG with `heif-convert`).
+
+The paper results are decisive and match the on-screen dry-run prediction: this
+is the first real data point in the lab→paper loop.
+
+### Prompt Context
+
+**User prompt (verbatim):** "look at the 4 last files in ~/Downloads/"
+(preceded by "i think the printer is 192.168.0.126 ? that's the printer hardware")
+
+**Assistant interpretation:** Read the four photographed thermal strips and
+extract paper observations to drive the next tuning round.
+
+**Inferred user intent:** Close the first lab→paper loop and decide what to
+print next.
+
+**Commit (code):** N/A (analysis + next-batch prints).
+
+### What I did
+- Converted the four HEIC photos to JPEG and read them.
+- Scored each algorithm on: photo tonal detail, text legibility, gray-ramp
+  reproduction, overall darkness.
+
+### What worked / findings
+- **Atkinson = best photo.** Fur, whiskers, eye catchlights, smooth midtones;
+  not muddy, not too dark. black≈33.9%.
+- **Floyd = close 2nd**, slightly denser/darker in shadows. black≈33.3%.
+- **Bayer8**: midtones present but a distracting cross-hatch grid in flat areas.
+- **Threshold** (current production): photo collapses to black blobs + blown
+  highlights; chest is a solid black mass; ramp = black bar then white. This IS
+  the "hard to read" the user reported.
+- **Text survives dithering.** Body text renders pure black, so error diffusion
+  has no error to spread there — 13/11 px stay crisp under Atkinson/Floyd; only
+  9 px anti-aliased edges soften slightly. => whole-page dithering is far less
+  harmful to text than the guide warned; segmented printing is lower priority.
+- **Gray ramp crushes in the darkest ~20%** in every mode (dot gain). Midtones/
+  shadows want LIGHTENING, i.e. gamma < 1 in the `v'=v^γ` convention. This is
+  the direction to test next.
+- **Density 20 is roughly right**, maybe slightly light for small text; worth
+  nudging up for text punch while watching photo mud.
+
+### What didn't work
+- Printer `.242` (from the old lab) is dead here; correct address is
+  `192.168.0.126`. Recorded so future runs don't repeat the timeout.
+
+### What I learned
+- The headline win is simply **threshold → Atkinson**: it converts the exact
+  failure the user described into a legible, detailed print with no other change.
+- For our content (pure-black text), the text/photo conflict is milder than
+  theory predicts, which de-risks whole-page dithering as a near-term default.
+
+### What warrants a second pair of eyes
+- Confirm gamma direction on paper before baking a default (Step 4 sweep).
+
+### What should be done in the future
+- Step 4: Atkinson gamma sweep {0.7, 1.0, 1.4} at density 24 to settle the tone
+  direction and pick a shadow-opening gamma.
+- Then a density sweep around the chosen gamma for text punch vs. photo mud.
+- Carry Atkinson (and Floyd as alternate) forward; drop Bayer8 and threshold for
+  photos.
+
+### Technical details
+- Photos: `~/Downloads/IMG_2703.HEIC` (threshold), `IMG_2704` (atkinson),
+  `IMG_2705` (floyd), `IMG_2706` (bayer8); JPEG copies in the session scratchpad.
+- Print cmd: `python3 01-thermal-lab.py --printer http://192.168.0.126 --grid
+  --algos threshold,atkinson,floyd,bayer8 --densities 20 --gamma 1.0
+  --contrast 1.0 --brightness 0.0 --feed 4`.

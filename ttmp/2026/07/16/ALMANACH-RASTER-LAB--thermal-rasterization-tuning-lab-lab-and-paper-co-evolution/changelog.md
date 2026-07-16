@@ -22,3 +22,8 @@ Step 2: Added scripts/01-thermal-lab.py experiment harness (synthetic mixed card
 
 - /home/manuel/code/wesen/go-go-golems/almanach/ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/01-thermal-lab.py — Experiment harness
 
+
+## 2026-07-16
+
+Step 3: First paper batch (4 algos @ d20). Atkinson best photo, Floyd 2nd, Bayer8 gridded, threshold collapses. Text survives dithering; ramp crushes in shadows -> test gamma<1. Printer is 192.168.0.126.
+
