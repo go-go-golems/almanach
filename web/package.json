@@ -11,7 +11,8 @@
     "build-storybook": "storybook build",
     "test:proto": "node test/layout.roundtrip.test.mjs",
     "test:registry": "node src/blocks/registry.test.mjs",
-    "test:web": "node test/layout.roundtrip.test.mjs && node src/blocks/registry.test.mjs"
+    "test:presets": "node src/typography/presets.test.mjs",
+    "test:web": "node test/layout.roundtrip.test.mjs && node src/blocks/registry.test.mjs && node src/typography/presets.test.mjs"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.1",

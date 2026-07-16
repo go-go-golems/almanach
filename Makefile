@@ -27,6 +27,7 @@ test-proto:
 test-web:
 	node web/test/layout.roundtrip.test.mjs
 	node web/src/blocks/registry.test.mjs
+	node web/src/typography/presets.test.mjs
 
 build: build-web
 	GOWORK=off go build -tags embed -o ./dist/$(BINARY) ./cmd/almanach-render-service

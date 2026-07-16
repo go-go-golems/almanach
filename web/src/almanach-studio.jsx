@@ -8,6 +8,7 @@ import {
   Image as ImageIcon, Upload
 } from "lucide-react";
 import { defineBlock, createBlockRegistry, resolveBlockAdapter } from "./blocks/registry.js";
+import { makePresetResolver } from "./typography/presets.js";
 
 /* ================================================================
    ALMANACH STUDIO — thermal-printer almanac layout designer
@@ -294,11 +295,8 @@ const Ornament = ({ theme, kind = "rule" }) => {
 const SectionLabel = ({ label, theme, icon }) => (
   <div style={{
     display: "flex", alignItems: "center", gap: 6,
-    fontFamily: theme.fontDisplay,
-    fontSize: theme.fs(12), letterSpacing: "0.18em",
-    textTransform: "uppercase",
+    ...theme.preset("sectionLabel"),
     color: theme.ink,
-    fontWeight: 600,
     margin: "4px 0 8px",
   }}>
     {icon && <span style={{ color: theme.accent, fontSize: theme.fs(13) }}>{icon}</span>}
@@ -306,7 +304,7 @@ const SectionLabel = ({ label, theme, icon }) => (
   </div>
 );
 
-const TitleBlock = ({ data, theme }) => {
+const TitleBlock = ({ data, theme, blockStyle }) => {
   return (
     <div style={{ textAlign: "center", padding: "4px 0 10px" }}>
       {theme.ornateFrame && (
@@ -315,8 +313,10 @@ const TitleBlock = ({ data, theme }) => {
         </div>
       )}
       {theme.botanical && <div style={{ fontSize: 18, color: theme.accent, marginBottom: 2 }}>❦</div>}
-      <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(13), color: theme.muted, fontStyle: "italic", marginBottom: 2 }}>The</div>
+      <div style={{ ...theme.preset("caption", { italic: true }), color: theme.muted, marginBottom: 2 }}>The</div>
       <h1 style={{
+        // Title sizing stays theme-driven (per-theme titleSize/weight/case);
+        // an inline block style may still override any of it.
         fontFamily: theme.fontDisplay,
         fontSize: theme.titleSize,
         fontWeight: theme.titleWeight,
@@ -325,16 +325,15 @@ const TitleBlock = ({ data, theme }) => {
         color: theme.ink,
         margin: 0,
         lineHeight: 1,
+        ...theme.preset("__title", blockStyle),
       }}>
         {data.text}
       </h1>
       {data.subtitle && (
         <div style={{
-          fontFamily: theme.fontBody,
-          fontSize: theme.fs(11),
+          ...theme.preset("caption", { italic: !theme.lined }),
           color: theme.muted,
           marginTop: 6,
-          fontStyle: theme.lined ? "normal" : "italic",
         }}>
           {data.subtitle}
         </div>
@@ -348,26 +347,23 @@ const TitleBlock = ({ data, theme }) => {
   );
 };
 
-const DateBlock = ({ data, theme }) => (
+const DateBlock = ({ data, theme, blockStyle }) => (
   <div style={{
-    fontFamily: theme.fontBody,
-    fontSize: theme.fs(12),
+    ...theme.preset("body", { letterSpacing: 0.05 }, blockStyle),
     color: theme.ink,
     textAlign: "center",
     padding: "4px 0",
     borderTop: `1px solid ${theme.rule}`,
     borderBottom: `1px solid ${theme.rule}`,
-    opacity: 1,
-    letterSpacing: "0.05em",
   }}>
     {data.date} <span style={{ margin: "0 8px", color: theme.muted }}>|</span> {data.day}
   </div>
 );
 
-const PlanBlock = ({ data, theme }) => (
+const PlanBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="◷" />
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(13), color: theme.ink }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
       {data.items.map((it, i) => (
         <div key={i} style={{
           display: "flex", alignItems: "baseline", gap: 8,
@@ -383,9 +379,9 @@ const PlanBlock = ({ data, theme }) => (
             {it.done ? "✓" : ""}
           </span>
           <span style={{
+            ...theme.preset("meta"),
             fontVariantNumeric: "tabular-nums",
             color: theme.muted,
-            fontSize: theme.fs(12),
             minWidth: 40,
           }}>
             {it.time}
@@ -403,14 +399,14 @@ const PlanBlock = ({ data, theme }) => (
   </div>
 );
 
-const NewsBlock = ({ data, theme }) => (
+const NewsBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="❍" />
-    <ul style={{ margin: 0, paddingLeft: 14, fontFamily: theme.fontBody, fontSize: theme.fs(12.5), color: theme.ink }}>
+    <ul style={{ margin: 0, paddingLeft: 14, ...theme.preset("body", blockStyle), color: theme.ink }}>
       {data.items.map((it, i) => (
         <li key={i} style={{ marginBottom: 6, lineHeight: 1.35 }}>
           {it.headline}
-          <div style={{ fontSize: theme.fs(10.5), color: theme.muted, marginTop: 1 }}>
+          <div style={{ ...theme.preset("small"), color: theme.muted, marginTop: 1 }}>
             <em style={{ fontStyle: "italic" }}>{it.source}</em>
             <span style={{ margin: "0 6px" }}>·</span>
             {it.time}
@@ -429,37 +425,34 @@ const WeatherIcon = ({ theme }) => (
   </svg>
 );
 
-const WeatherBlock = ({ data, theme }) => (
+const WeatherBlock = ({ data, theme, blockStyle }) => (
   <div style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: theme.fontBody, color: theme.ink }}>
     <div style={{ flexShrink: 0 }}><WeatherIcon theme={theme} /></div>
     <div style={{ flex: 1 }}>
-      <div style={{ fontFamily: theme.fontDisplay, fontSize: theme.fs(22), fontWeight: 600, lineHeight: 1, color: theme.ink }}>
+      <div style={{ ...theme.preset("metric", blockStyle), color: theme.ink }}>
         {data.temp}
       </div>
-      <div style={{ fontSize: theme.fs(11), color: theme.muted, marginTop: 2 }}>{data.condition}</div>
+      <div style={{ ...theme.preset("caption"), color: theme.muted, marginTop: 2 }}>{data.condition}</div>
     </div>
-    <div style={{ fontSize: theme.fs(10.5), color: theme.muted, textAlign: "right", lineHeight: 1.5 }}>
+    <div style={{ ...theme.preset("small"), color: theme.muted, textAlign: "right", lineHeight: 1.5 }}>
       <div>H {data.high} &nbsp;/&nbsp; L {data.low}</div>
       <div>{data.sunrise} &nbsp;/&nbsp; {data.sunset}</div>
     </div>
   </div>
 );
 
-const NoteBlock = ({ data, theme }) => (
+const NoteBlock = ({ data, theme, blockStyle }) => (
   <div>
     {data.label && <SectionLabel label={data.label} theme={theme} icon="✎" />}
     <div style={{
-      fontFamily: theme.fontBody,
-      fontStyle: "italic",
-      fontSize: theme.fs(13),
+      ...theme.preset("emphasis", blockStyle),
       color: theme.ink,
-      lineHeight: 1.4,
       paddingLeft: 8,
       borderLeft: `2px solid ${theme.accent}`,
     }}>
       "{data.text}"
       {data.author && (
-        <div style={{ fontSize: theme.fs(11), color: theme.muted, fontStyle: "normal", marginTop: 4, textAlign: "right" }}>
+        <div style={{ ...theme.preset("caption", { italic: false }), color: theme.muted, marginTop: 4, textAlign: "right" }}>
           — {data.author}
         </div>
       )}
@@ -467,22 +460,22 @@ const NoteBlock = ({ data, theme }) => (
   </div>
 );
 
-const HabitsBlock = ({ data, theme }) => (
+const HabitsBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="▦" />
-    <div style={{ fontSize: theme.fs(10.5), color: theme.muted, textAlign: "center", marginBottom: 6, fontFamily: theme.fontBody }}>
+    <div style={{ ...theme.preset("small"), color: theme.muted, textAlign: "center", marginBottom: 6 }}>
       {data.range}
     </div>
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(12), color: theme.ink }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 18px)", gap: 4, alignItems: "center", marginBottom: 4 }}>
         <div />
         {data.columns.map((c, i) => (
-          <div key={i} style={{ textAlign: "center", fontSize: theme.fs(10), color: theme.muted, letterSpacing: "0.05em" }}>{c}</div>
+          <div key={i} style={{ ...theme.preset("small"), textAlign: "center", color: theme.muted }}>{c}</div>
         ))}
       </div>
       {data.items.map((h, i) => (
         <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr repeat(7, 18px)", gap: 4, alignItems: "center", padding: "1.5px 0" }}>
-          <div style={{ fontSize: theme.fs(11.5) }}>{h.name}</div>
+          <div style={{ ...theme.preset("caption") }}>{h.name}</div>
           {h.days.map((d, j) => (
             <div key={j} style={{ textAlign: "center" }}>
               <span style={{
@@ -499,10 +492,10 @@ const HabitsBlock = ({ data, theme }) => (
     {data.reflection && (
       <>
         <Ornament theme={theme} kind="dots" />
-        <div style={{ fontSize: theme.fs(10.5), color: theme.muted, textAlign: "center", letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 4, fontFamily: theme.fontDisplay }}>
+        <div style={{ ...theme.preset("overline"), color: theme.muted, textAlign: "center", marginBottom: 4 }}>
           Weekly Reflection
         </div>
-        <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(12), fontStyle: "italic", color: theme.ink, textAlign: "center", lineHeight: 1.4 }}>
+        <div style={{ ...theme.preset("emphasis"), color: theme.ink, textAlign: "center" }}>
           {data.reflection}
         </div>
       </>
@@ -510,43 +503,43 @@ const HabitsBlock = ({ data, theme }) => (
   </div>
 );
 
-const QuoteBlock = ({ data, theme }) => (
+const QuoteBlock = ({ data, theme, blockStyle }) => (
   <div style={{ textAlign: "center" }}>
     {data.label && <SectionLabel label={data.label} theme={theme} icon="❝" />}
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(14), fontStyle: "italic", color: theme.ink, lineHeight: 1.4, padding: "0 4px" }}>
+    <div style={{ ...theme.preset("emphasis", blockStyle), color: theme.ink, padding: "0 4px" }}>
       "{data.text}"
     </div>
-    <div style={{ fontFamily: theme.fontDisplay, fontSize: theme.fs(12), color: theme.muted, marginTop: 8 }}>
+    <div style={{ ...theme.preset("caption", { role: "display", italic: false }), color: theme.muted, marginTop: 8 }}>
       — {data.author}
     </div>
   </div>
 );
 
-const WordBlock = ({ data, theme }) => (
+const WordBlock = ({ data, theme, blockStyle }) => (
   <div style={{ textAlign: "center" }}>
     {data.label && <SectionLabel label={data.label} theme={theme} icon="✦" />}
-    <div style={{ fontFamily: theme.fontDisplay, fontSize: theme.fs(26), color: theme.ink, fontWeight: 500, letterSpacing: "0.02em" }}>
+    <div style={{ ...theme.preset("word", blockStyle), color: theme.ink }}>
       {data.word}
     </div>
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(11), color: theme.muted, marginTop: 2 }}>
+    <div style={{ ...theme.preset("caption"), color: theme.muted, marginTop: 2 }}>
       <em>{data.part}</em> &nbsp;|&nbsp; {data.phonetic}
     </div>
     <Ornament theme={theme} kind="dots" />
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(12), color: theme.ink, lineHeight: 1.4, padding: "0 4px" }}>
+    <div style={{ ...theme.preset("body"), color: theme.ink, padding: "0 4px" }}>
       {data.definition}
     </div>
     {data.example && (
-      <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(11.5), fontStyle: "italic", color: theme.muted, lineHeight: 1.4, marginTop: 8, padding: "0 4px" }}>
+      <div style={{ ...theme.preset("small", { italic: true }), color: theme.muted, lineHeight: 1.4, marginTop: 8, padding: "0 4px" }}>
         "{data.example}"
       </div>
     )}
   </div>
 );
 
-const HistoryBlock = ({ data, theme }) => (
+const HistoryBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="◷" />
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(12), color: theme.ink }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
       {data.items.map((it, i) => (
         <div key={i} style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 10, padding: "3px 0", alignItems: "baseline" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
@@ -554,7 +547,7 @@ const HistoryBlock = ({ data, theme }) => (
               display: "inline-block", width: 5, height: 5, borderRadius: "50%",
               background: theme.ink, transform: "translateY(-2px)",
             }} />
-            <span style={{ fontFamily: theme.fontDisplay, fontWeight: 500, color: theme.ink, fontVariantNumeric: "tabular-nums" }}>
+            <span style={{ ...theme.preset("bodyStrong", { role: "display" }), color: theme.ink, fontVariantNumeric: "tabular-nums" }}>
               {it.year}
             </span>
           </div>
@@ -565,10 +558,10 @@ const HistoryBlock = ({ data, theme }) => (
   </div>
 );
 
-const DidBlock = ({ data, theme }) => (
+const DidBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="✦" />
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(12), color: theme.ink }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
       {data.items.map((t, i) => (
         <div key={i} style={{ display: "flex", gap: 8, padding: "3px 0", lineHeight: 1.4 }}>
           <span style={{ color: theme.accent, fontSize: theme.fs(14), lineHeight: 1, marginTop: 1 }}>❀</span>
@@ -622,11 +615,8 @@ const ImageBlock = ({ data, theme }) => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontFamily: theme.fontBody,
-            fontSize: theme.fs(11),
+            ...theme.preset("small", { letterSpacing: 0.08, textCase: "upper" }),
             color: theme.muted,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
           }}>
             Add an image URL or upload a file
           </div>
@@ -634,13 +624,10 @@ const ImageBlock = ({ data, theme }) => {
       </div>
       {data.caption && (
         <div style={{
-          fontFamily: theme.fontBody,
-          fontSize: theme.fs(10.5),
+          ...theme.preset("small", { italic: true }),
           color: theme.muted,
           textAlign: "center",
-          fontStyle: "italic",
           marginTop: 5,
-          lineHeight: 1.3,
         }}>
           {data.caption}
         </div>
@@ -666,12 +653,14 @@ const Battery = ({ filled, theme }) => (
   </svg>
 );
 
-const MoodBlock = ({ data, theme }) => (
+const MoodBlock = ({ data, theme, blockStyle }) => {
+  const rowLabel = { width: 60, ...theme.preset("small", { letterSpacing: 0.1, textCase: "upper" }), color: theme.muted };
+  return (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="☺" />
-    <div style={{ fontFamily: theme.fontBody, color: theme.ink }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-        <div style={{ width: 60, fontSize: theme.fs(11), color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Mood</div>
+        <div style={rowLabel}>Mood</div>
         <div style={{ display: "flex", gap: 6, flex: 1, justifyContent: "center" }}>
           {[1, 2, 3, 4, 5].map((n) => (
             <MoodFace key={n} active={n === data.mood} theme={theme} />
@@ -679,7 +668,7 @@ const MoodBlock = ({ data, theme }) => (
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-        <div style={{ width: 60, fontSize: theme.fs(11), color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Energy</div>
+        <div style={rowLabel}>Energy</div>
         <div style={{ display: "flex", gap: 6, flex: 1, justifyContent: "center", alignItems: "center" }}>
           {[1, 2, 3, 4, 5].map((n) => (
             <Battery key={n} filled={n <= data.energy} theme={theme} />
@@ -687,54 +676,55 @@ const MoodBlock = ({ data, theme }) => (
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}>
-        <div style={{ width: 60, fontSize: theme.fs(11), color: theme.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>Sleep</div>
-        <div style={{ flex: 1, textAlign: "center", fontFamily: theme.fontDisplay, fontSize: theme.fs(14) }}>☾ {data.sleep}</div>
+        <div style={rowLabel}>Sleep</div>
+        <div style={{ flex: 1, textAlign: "center", ...theme.preset("body", { role: "display" }) }}>☾ {data.sleep}</div>
       </div>
       {data.notes && (
-        <div style={{ fontSize: theme.fs(11.5), fontStyle: "italic", color: theme.muted, marginTop: 6, textAlign: "center", lineHeight: 1.4 }}>
+        <div style={{ ...theme.preset("small", { italic: true }), color: theme.muted, marginTop: 6, textAlign: "center" }}>
           {data.notes}
         </div>
       )}
     </div>
   </div>
-);
+  );
+};
 
-const ReadingBlock = ({ data, theme }) => (
+const ReadingBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="❒" />
-    <div style={{ fontFamily: theme.fontBody, color: theme.ink, fontSize: theme.fs(12) }}>
-      <div style={{ fontSize: theme.fs(10), color: theme.muted, letterSpacing: "0.18em", textTransform: "uppercase", textAlign: "center", marginBottom: 6 }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
+      <div style={{ ...theme.preset("overline"), color: theme.muted, textAlign: "center", marginBottom: 6 }}>
         Currently Reading
       </div>
       <div style={{ border: `1px solid ${theme.rule}`, padding: "8px 10px", marginBottom: 8 }}>
-        <div style={{ fontFamily: theme.fontDisplay, fontSize: theme.fs(15), color: theme.ink }}>{data.current.title}</div>
-        <div style={{ fontSize: theme.fs(11), color: theme.muted, fontStyle: "italic", marginBottom: 6 }}>{data.current.author}</div>
-        <div style={{ fontSize: theme.fs(10), color: theme.muted, marginBottom: 3 }}>{data.current.progress}% complete</div>
+        <div style={{ ...theme.preset("body", { role: "display", size: 15 }), color: theme.ink }}>{data.current.title}</div>
+        <div style={{ ...theme.preset("caption", { italic: true }), color: theme.muted, marginBottom: 6 }}>{data.current.author}</div>
+        <div style={{ ...theme.preset("small"), color: theme.muted, marginBottom: 3 }}>{data.current.progress}% complete</div>
         <div style={{ height: 6, border: `1px solid ${theme.ink}`, position: "relative" }}>
           <div style={{ position: "absolute", inset: 0, width: `${data.current.progress}%`, background: theme.ink }} />
         </div>
       </div>
-      <div style={{ fontSize: theme.fs(10), color: theme.muted, letterSpacing: "0.18em", textTransform: "uppercase", textAlign: "center", marginBottom: 4 }}>
+      <div style={{ ...theme.preset("overline"), color: theme.muted, textAlign: "center", marginBottom: 4 }}>
         Want to Read
       </div>
-      <ul style={{ margin: 0, paddingLeft: 14, fontSize: theme.fs(11.5), lineHeight: 1.5 }}>
+      <ul style={{ margin: 0, paddingLeft: 14, ...theme.preset("caption"), lineHeight: 1.5 }}>
         {data.next.map((b, i) => <li key={i}>{b}</li>)}
       </ul>
     </div>
   </div>
 );
 
-const ReflectionBlock = ({ data, theme }) => (
+const ReflectionBlock = ({ data, theme, blockStyle }) => (
   <div>
     <SectionLabel label={data.label} theme={theme} icon="✎" />
-    <div style={{ fontFamily: theme.fontBody, fontSize: theme.fs(12), color: theme.ink }}>
+    <div style={{ ...theme.preset("body", blockStyle), color: theme.ink }}>
       {[
         { k: "What went well?", v: data.well },
         { k: "What could be better?", v: data.better },
         { k: "What did I learn?", v: data.learned },
       ].map((row, i) => (
         <div key={i} style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: theme.fs(10), color: theme.muted, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 2, fontFamily: theme.fontDisplay }}>
+          <div style={{ ...theme.preset("overline"), color: theme.muted, marginBottom: 2 }}>
             {row.k}
           </div>
           <div style={{ lineHeight: 1.4 }}>{row.v}</div>
@@ -743,7 +733,7 @@ const ReflectionBlock = ({ data, theme }) => (
       {data.quote && (
         <>
           <Ornament theme={theme} kind="dots" />
-          <div style={{ fontStyle: "italic", textAlign: "center", padding: "0 4px", lineHeight: 1.4 }}>
+          <div style={{ ...theme.preset("emphasis"), textAlign: "center", padding: "0 4px" }}>
             "{data.quote}"
           </div>
         </>
@@ -775,22 +765,22 @@ const UnknownBlock = ({ type, theme }) => (
 // registry from an array (not a bare object) gives us the duplicate-type guard
 // and a single place to compose future sub-registries.
 const BLOCK_ADAPTERS = [
-  defineBlock({ type: "title", module: "studio", render: (data, ctx) => <TitleBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "date", module: "studio", render: (data, ctx) => <DateBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "plan", module: "studio", render: (data, ctx) => <PlanBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "news", module: "studio", render: (data, ctx) => <NewsBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "weather", module: "studio", render: (data, ctx) => <WeatherBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "note", module: "studio", render: (data, ctx) => <NoteBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "image", module: "studio", render: (data, ctx) => <ImageBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "habits", module: "studio", render: (data, ctx) => <HabitsBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "quote", module: "studio", render: (data, ctx) => <QuoteBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "word", module: "studio", render: (data, ctx) => <WordBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "history", module: "studio", render: (data, ctx) => <HistoryBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "did", module: "studio", render: (data, ctx) => <DidBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "mood", module: "studio", render: (data, ctx) => <MoodBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "reading", module: "studio", render: (data, ctx) => <ReadingBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "reflection", module: "studio", render: (data, ctx) => <ReflectionBlock data={data} theme={ctx.theme} /> }),
-  defineBlock({ type: "divider", module: "studio", render: (data, ctx) => <DividerBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "title", module: "studio", render: (data, ctx) => <TitleBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "date", module: "studio", render: (data, ctx) => <DateBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "plan", module: "studio", render: (data, ctx) => <PlanBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "news", module: "studio", render: (data, ctx) => <NewsBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "weather", module: "studio", render: (data, ctx) => <WeatherBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "note", module: "studio", render: (data, ctx) => <NoteBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "image", module: "studio", render: (data, ctx) => <ImageBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "habits", module: "studio", render: (data, ctx) => <HabitsBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "quote", module: "studio", render: (data, ctx) => <QuoteBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "word", module: "studio", render: (data, ctx) => <WordBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "history", module: "studio", render: (data, ctx) => <HistoryBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "did", module: "studio", render: (data, ctx) => <DidBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "mood", module: "studio", render: (data, ctx) => <MoodBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "reading", module: "studio", render: (data, ctx) => <ReadingBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "reflection", module: "studio", render: (data, ctx) => <ReflectionBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
+  defineBlock({ type: "divider", module: "studio", render: (data, ctx) => <DividerBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
 ];
 
 const BLOCK_REGISTRY = createBlockRegistry(BLOCK_ADAPTERS);
@@ -1463,16 +1453,22 @@ async function exportPaperToPng(paperNode, fileName, scale = 2, themeObj) {
   triggerDownload(pngBlob, fileName);
 }
 
-function buildLayoutJson({ themeKey, paperWidth, bodyScale, feedLines, blocks }) {
-  return {
+function buildLayoutJson({ themeKey, paperWidth, bodyScale, feedLines, blocks, typography }) {
+  const payload = {
     almanach_studio_version: 1,
     exported_at: new Date().toISOString(),
     theme: themeKey,
     paperWidth,
     bodyScale,
     feedLines,
-    blocks: blocks.map((b) => ({ id: b.id, type: b.type, data: b.data })),
+    blocks: blocks.map((b) => (
+      b.style ? { id: b.id, type: b.type, data: b.data, style: b.style } : { id: b.id, type: b.type, data: b.data }
+    )),
   };
+  if (typography && Object.keys(typography).length > 0) {
+    payload.typography = { presets: typography };
+  }
+  return payload;
 }
 
 function exportLayoutJson(state, fileName) {
@@ -1498,8 +1494,18 @@ function parseLayoutJson(text) {
         : defaults
           ? JSON.parse(JSON.stringify(defaults))
           : {};
-      return { id: b.id || uid(), type: b.type, data };
+      const block = { id: b.id || uid(), type: b.type, data };
+      // Per-block typography override (proto Block.style) — applied to the
+      // block's primary text preset at render time.
+      if (b.style && typeof b.style === "object") block.style = b.style;
+      return block;
     });
+
+  // Layout-level typography preset overrides (proto Layout.typography.presets).
+  const typography =
+    parsed.typography && typeof parsed.typography.presets === "object"
+      ? parsed.typography.presets
+      : {};
 
   const themeKey = THEMES[parsed.theme] ? parsed.theme : "classic";
   const paperWidth =
@@ -1523,7 +1529,7 @@ function parseLayoutJson(text) {
       ? parsed.feedLines
       : 3;
 
-  return { blocks, themeKey, paperWidth, bodyScale, feedLines };
+  return { blocks, themeKey, paperWidth, bodyScale, feedLines, typography };
 }
 
 // =================================================================
@@ -1545,6 +1551,10 @@ export default function AlmanachStudio() {
   const [themeKey, setThemeKey] = useState(() => {
     try { const v = localStorage.getItem("almanach_themeKey"); return (v && THEMES[v]) ? v : "classic"; } catch { return "classic"; }
   });
+  // Layout-level typography preset overrides (name -> partial TextStyle). Empty
+  // means "use the built-in defaults". Set by loading a layout that carries a
+  // `typography.presets` object.
+  const [typography, setTypography] = useState({});
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -1564,8 +1574,8 @@ export default function AlmanachStudio() {
   useEffect(() => { localStorage.setItem("almanach_feedLines", JSON.stringify(feedLines)); }, [feedLines]);
 
   // --- Headless API for programmatic control (Go render service) ---
-  const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, flashToast });
-  stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, flashToast };
+  const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, flashToast });
+  stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, flashToast };
 
   useEffect(() => {
     window.almanachReady = true;
@@ -1580,6 +1590,7 @@ export default function AlmanachStudio() {
         s.setPaperWidth(result.paperWidth);
         s.setBodyScale(result.bodyScale);
         s.setFeedLines(result.feedLines);
+        s.setTypography(result.typography || {});
         s.setSelectedId(result.blocks[0]?.id || null);
       } catch (e) {
         console.error("almanachLoadLayout error:", e);
@@ -1670,6 +1681,11 @@ export default function AlmanachStudio() {
 
   const fsRaw = (base) => Math.round(base * bodyScale * 10) / 10;
   const theme = { ...THEMES[themeKey], bodyScale, fs: fsRaw };
+  // Typography preset resolver bound to this theme, the layout's preset
+  // overrides, and bodyScale. Blocks call theme.preset("body"), etc., and spread
+  // the returned CSS. See web/src/typography/presets.js.
+  theme.fontMono = theme.fontMono || "'JetBrains Mono', 'DejaVu Sans Mono', monospace";
+  theme.preset = makePresetResolver({ presets: typography, theme, bodyScale });
   // Convenience alias used in block renderers
   const fs = fsRaw;
   const selected = blocks.find((b) => b.id === selectedId);
@@ -1860,7 +1876,7 @@ export default function AlmanachStudio() {
     try {
       const dateStamp = new Date().toISOString().slice(0, 10);
       exportLayoutJson(
-        { themeKey, paperWidth, bodyScale, feedLines, blocks },
+        { themeKey, paperWidth, bodyScale, feedLines, blocks, typography },
         `almanach-${dateStamp}.json`
       );
       flashToast("ok", "Layout saved");
@@ -1868,7 +1884,7 @@ export default function AlmanachStudio() {
       console.error(e);
       flashToast("err", "Save failed");
     }
-  }, [themeKey, paperWidth, bodyScale, feedLines, blocks, flashToast]);
+  }, [themeKey, paperWidth, bodyScale, feedLines, blocks, typography, flashToast]);
 
   const handleImportClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -1887,6 +1903,7 @@ export default function AlmanachStudio() {
         setPaperWidth(parsed.paperWidth);
         setBodyScale(parsed.bodyScale);
         setFeedLines(parsed.feedLines);
+        setTypography(parsed.typography || {});
         setSelectedId(parsed.blocks[0]?.id || null);
         flashToast("ok", `Loaded ${parsed.blocks.length} blocks`);
       } catch (err) {

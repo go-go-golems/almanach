@@ -189,3 +189,52 @@ placeholder instead of being dropped at parse or crashing.
 - Phase 3: typography presets. With the registry in place and `Typography`/
   `TextStyle` already in the proto, introduce the preset model + paper-verified
   defaults and migrate components off inline `theme.fs(n)` sizes. Ship + print.
+
+## Step 4: Phase 3 — typography presets (the ship-and-print quality win)
+
+Introduced named typography presets with built-in defaults + a three-layer
+override model, baked the ALMANACH-PIXELFONT recipe into the defaults, and
+migrated every block component off inline `theme.fs(n)`/font literals. This is
+the phase where the print-legibility win lands.
+
+### What I did
+- **`web/src/typography/presets.js`** — `DEFAULT_PRESETS` (sectionLabel, overline,
+  word, metric, body, bodyStrong, emphasis, caption, small, meta) using the same
+  field names as the proto `TextStyle`; `resolveStyle(name, {presets, theme,
+  bodyScale, overrides})` merges `default <- layout preset <- block/component
+  overrides`, scales `size` by bodyScale, floors at `minSize`, and maps
+  `textCase`/`italic`/`letterSpacing` to CSS; `makePresetResolver` binds it.
+  Recipe baked in: bigger sizes, absolute minSize floors, weight 500-700 on
+  body/small, and **bold italic** for `emphasis` (quotes/notes) — the
+  paper-verified legible italic. Unit test in `presets.test.mjs`.
+- **Studio wiring** — `theme.preset(name, ...overrides)` bound to the layout's
+  `typography.presets` + bodyScale; `theme.fontMono` added. `parseLayoutJson`
+  now reads `typography.presets` and per-block `style`; `typography` is app state
+  set on headless load + file import; `buildLayoutJson` round-trips both. Block
+  adapters pass `blockStyle={ctx.block?.style}` to components.
+- **Component migration** — all 16 block components resolve text styles from
+  presets instead of `fs(n)` literals; the block's primary text takes the
+  per-block `style` (e.g. a quote's text = `emphasis`, its attribution =
+  `caption`). Only decorative glyphs/icons still use `fs()`.
+
+### Gotcha fixed
+- The resolver originally always injected a role-derived font, which clobbered
+  the theme's title font when an ad-hoc override (no `role`/`font`) was spread
+  onto the `<h1>`. Fixed: `resolveStyle` only sets `fontFamily` when the merged
+  style actually names a `font` or a `role`. Test added.
+
+### Verified (on paper, google-chrome-stable, 384px)
+- `examples/layouts/03-knowledge-strip.yaml`: markedly more legible than
+  pre-Phase-3 — heavier body text, bold-italic closing quote and subtitle,
+  bold display years. Page grew 1000 -> 1071px (intentionally bigger text).
+- An override layout (`typography.presets.body = {weight:700,size:15}` + a block
+  with `style:{italic:true,weight:500}`) confirms all three layers: the first
+  `did` block is bold/enlarged from the layout override, the second flips to
+  italic/lighter from its per-block style.
+- `make test-web` (13 + registry + presets assertions), `go test ./...`, and the
+  studio bundle build all green.
+
+### What should be done next
+- Phase 4: data-driven themes + embed the hinted DejaVu Serif/Sans fonts in the
+  palette, then let presets/themes select them (the presets already accept an
+  explicit `font`; only the embedded families + theme-as-data are missing).
