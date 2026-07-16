@@ -215,3 +215,54 @@ human edits is untouched. `go build`, `golangci-lint`, `go test` all pass.
 - Reproduce: `render --layout <yaml> --out o.png --debug-dir d --web-dir web/dist
   --chrome-path /usr/bin/google-chrome-stable`, then check `screenshot.png` has
   ~0% gray; set `ALMANACH_FONT_ANTIALIAS=1` to see it rise.
+
+## Step 4: Phase 3 verification on a real page, Phase 4 paper, and the Phase 2 decision
+
+Rendered the realistic `examples/layouts/03-knowledge-strip.yaml` (word,
+phonetics, history, did-you-know, quote — genuine small text) through the real
+pipeline both ways. AA-off produced 0.01% gray versus 4.58% with AA on. Cropping
+the small-text region and comparing: **AA-off renders every stroke complete and
+legible** — the dropped-stroke problem the ticket set out to fix is gone. Then I
+printed the AA-off render to the physical K118 (`192.168.0.126`); it rendered and
+printed cleanly in 2 segments through the production `print` command.
+
+This end-to-end result also settles Phase 2. The `minimal` theme uses a **serif**
+body font (EB Garamond). AA-off, the serif is complete but looks a little rough,
+because hairline serifs are inherently hard at 1-bit low resolution — and AA-on
+would have printed *worse*, since the threshold drops those light-gray hairlines.
+A hinted **sans** or pixel font would render small text more cleanly, but swapping
+a theme's font is an **aesthetic/product decision**, not a bug fix, so I did not
+change theme fonts unilaterally. The mechanism to get crisper small text already
+exists: choose a sans theme, or (future) add a pixel-vector small-text face.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1)
+
+**Assistant interpretation:** Verify the fix on a real page and on paper; treat
+the serif-vs-hinted-sans small-text choice as a user aesthetic decision.
+
+**Commit (code):** none (verification + docs); render/print code shipped in Step 3.
+
+### What worked
+- Real page AA-off: 0.01% gray, all strokes present, legible; printed to paper via
+  the production pipeline (2 segments, printer_ok).
+
+### What I learned
+- The core complaint (small strokes missing) is fixed by Phase 1 for real content;
+  the residual is serif roughness at low res, which is a font-choice matter.
+
+### Decision (Phase 2)
+- Do **not** unilaterally change theme fonts. AA-off delivers complete strokes;
+  crisper small serif text is an aesthetic call. Recommend to the user: for
+  small-text-heavy pages, use a sans theme; optionally add a bundled pixel-vector
+  small-text face later if they want a deliberate pixel look.
+
+### What should be done in the future
+- If the user wants it: bundle a hinted pixel-vector face and a `.pixel-text`
+  class / theme option for the smallest captions.
+
+### Technical details
+- Compared crops: `/tmp/ks/screenshot-off-crop2x.png` vs `-on-crop2x.png`.
+- Printed: `print --layout examples/layouts/03-knowledge-strip.yaml
+  --printer-ip 192.168.0.126 --chrome-path /usr/bin/google-chrome-stable`.
