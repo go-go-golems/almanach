@@ -321,3 +321,73 @@ print next.
 - Print cmd: `python3 01-thermal-lab.py --printer http://192.168.0.126 --grid
   --algos threshold,atkinson,floyd,bayer8 --densities 20 --gamma 1.0
   --contrast 1.0 --brightness 0.0 --feed 4`.
+
+## Step 4: Gamma sweep result + text heat calibration (density/speed)
+
+Printed the Atkinson gamma sweep {0.7, 1.0, 1.4} at density 24. User feedback:
+"the sweet spot is between the first and the second (for the cat)" — i.e. the
+cat wants **gamma ≈ 0.8** (between 0.7 and 1.0), confirming the `v'=v^γ`
+convention with γ<1 lightening/opening shadows. γ=1.4 (darken) was the wrong
+direction, as predicted from the ramp crush.
+
+The user then raised text: it needs its own experimentation, "including setting
+the heat contrast on the printer too." I confirmed the printer's "heat" is the
+density register (`ESC ## STDP`, 0..39) — there is no separate contrast register,
+density *is* the contrast/darkness knob — and that **print speed**
+(`ESC ## STSP`) is a second heat lever (slower = longer dwell = darker). Because
+our print path already sends the page as separate segment commands, density can
+be set *between* segments, so a text segment can print hotter than a photo
+segment in one job **without firmware changes** — the real mixed-page answer.
+
+I extended the harness with a **text card** (glyph legibility 16→8 px + a
+reverse white-on-black bleed bar) and **speed control/sweep**, then printed a
+text density sweep {16, 24, 32, 39} at speed 80.
+
+### Prompt Context
+
+**User prompt (verbatim):** "i think the sweet spot is between the first and the second (for the cat). \n\nI think for text we should experiment more, including setting the heat contrast on the printer too? What do you think"
+
+**Assistant interpretation:** Lock the cat near gamma 0.8; investigate text
+legibility as a function of printer heat (density) and speed, which are separate
+from the dithering algorithm.
+
+**Inferred user intent:** Get crisp, dark, legible text — tuning the printer's
+heat, not just the host-side rasterization — while keeping the photo good.
+
+**Commit (code):** see changelog.
+
+### What I did
+- Added `build_text_card()` (sizes 16/14/13/12/11/10/9/8 with counter-heavy
+  glyphs + a reverse-video bleed bar) and `set_speed()` + `--card`,
+  `--speed`/`--speeds` to `scripts/01-thermal-lab.py`.
+- Verified the text card via dry-run (black≈16.5%).
+- Printed text density sweep {16, 24, 32, 39} at speed 80.
+
+### Why
+- Text is pure black, so the dither algorithm is irrelevant to it; its quality
+  is governed by heat (density × speed) and font size. A dedicated text card
+  isolates those.
+
+### What worked
+- Harness now sweeps algo × density × speed and switches card type; dry-run of
+  the text card confirms clean multi-size rendering.
+
+### What I learned / reasoning
+- Cat locks near **Atkinson, gamma ~0.8**, density low-20s.
+- The mixed-page conflict is addressable via **per-segment density** on the
+  existing segmented print path — no firmware work needed.
+
+### What warrants a second pair of eyes
+- The text density ceiling: where dot gain closes 8–9 px counters (need paper).
+
+### What should be done in the future
+- Read the text density sweep photos; pick the text heat sweet spot.
+- If text wants a hotter density than the photo, prototype per-segment density
+  in the harness (text segment hot, photo segment cooler) and print a full
+  mixed page to prove the mixed-page fix.
+- Optionally a speed sweep at the chosen density (e.g. 80 vs 50 vs 100).
+
+### Technical details
+- Text sweep cmd: `python3 01-thermal-lab.py --printer http://192.168.0.126
+  --card text --algo threshold --densities 16,24,32,39 --speed 80 --feed 4`.
+- Valid speeds (firmware): 25,30,37,50,56,62,70,80,90,100,120,150,180,200,220.

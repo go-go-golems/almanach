@@ -27,3 +27,8 @@ Step 2: Added scripts/01-thermal-lab.py experiment harness (synthetic mixed card
 
 Step 3: First paper batch (4 algos @ d20). Atkinson best photo, Floyd 2nd, Bayer8 gridded, threshold collapses. Text survives dithering; ramp crushes in shadows -> test gamma<1. Printer is 192.168.0.126.
 
+
+## 2026-07-16
+
+Step 4: Cat locks at Atkinson gamma~0.8 (user feedback). Added text card + speed control to harness; printed text density sweep {16,24,32,39}. Noted per-segment density enables mixed-page text/photo heat split with no firmware change.
+
