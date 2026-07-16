@@ -182,6 +182,26 @@ The font toolchain section below is retained for reference but is **not on the
 critical path** anymore; no custom web font ships unless the polish option is
 chosen.
 
+### Decision, revised again by paper (supersampling is the shipped default)
+
+Printing the AA-off page revealed a residual: small **serif italics** (EB
+Garamond italic at ~11–13 px) still lost pixels, because delicate slanted
+hairline serifs are the worst case for 1-bit rendering and TrueType hinting is
+weakest on italics. Two fixes were compared on rendered paper samples: switching
+small text to a hinted sans (crisp, but changes the serif look) versus
+**supersampling** the render. Supersampling won: rendering the page at 3× with
+anti-aliasing on and box-averaging back down to the target resolution before the
+threshold captures sub-pixel strokes and reconstructs them crisply **while
+keeping every theme's font and the serif italic look**. It also improves all
+other text uniformly, independent of any font's hinting quality.
+
+**Shipped default: supersampling at 3× (AA on) with a box-average downscale.**
+The AA-off path is retained for `supersample=1`. The factor is exposed as
+`--supersample` (and a layout `render.supersample`) so callers can trade quality
+for speed (3× ≈ 2.5 s, 2× ≈ 1.9 s, 1× ≈ 1 s on the sample page). No theme fonts
+were changed. A hinted/pixel small-text face remains available as future polish
+for the very smallest captions if wanted.
+
 ## 5. The font toolchain
 
 The bundled PCF fonts live at

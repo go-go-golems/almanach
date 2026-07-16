@@ -15,6 +15,8 @@ RelatedFiles:
     - Path: internal/app/renderer.go
     - Path: repo://internal/app/fontconfig.go
       Note: AA-off fontconfig + renderFontEnv (commit 93abdd3)
+    - Path: repo://internal/app/supersample.go
+      Note: Supersample downscale + pngToBitmapSupersampled (commit f61ec55)
     - Path: web/src/almanach-studio.jsx
 ExternalSources: []
 Summary: 'Chronological diary of the ALMANACH-PIXELFONT work: making small text render crisp in the thermal pipeline via pixel/bitmap fonts.'
@@ -22,6 +24,7 @@ LastUpdated: 0001-01-01T00:00:00Z
 WhatFor: Record what was tried, what worked, what failed, and what to do next.
 WhenToUse: Read before resuming ALMANACH-PIXELFONT work.
 ---
+
 
 
 # Diary
@@ -266,3 +269,64 @@ the serif-vs-hinted-sans small-text choice as a user aesthetic decision.
 - Compared crops: `/tmp/ks/screenshot-off-crop2x.png` vs `-on-crop2x.png`.
 - Printed: `print --layout examples/layouts/03-knowledge-strip.yaml
   --printer-ip 192.168.0.126 --chrome-path /usr/bin/google-chrome-stable`.
+
+## Step 5: Supersampling — the shipped fix for small serif italics
+
+On the printed AA-off strip the user reported the smaller text, "especially the
+italic," was still missing pixels and asked whether it was "rasterized as an
+image." It is not: all text is real font glyphs (EB Garamond has 14 real italic
+faces embedded — the italic is genuine, not synthetic) screenshotted and
+thresholded. The residual is that a delicate serif *italic* at ~12 px is the
+worst case for 1-bit, and italic hinting is weak.
+
+I compared two fixes on rendered paper samples: a hinted sans for small text
+(crisp but changes the serif look) versus **supersampling**. The user said "both,
+you decide," so I chose supersampling because it fixes the problem *without*
+changing any theme font: render the page at 3× with AA on, box-average down to
+the target, then threshold. On the real page the small italic quote went from
+broken to complete and legible while staying serif; printed to the K118.
+
+### Prompt Context
+
+**User prompt (verbatim):** "it's better but i think the smaller text is still maybe missing out on some pixels, especially the italic one (which i suspect is still rasterized as an image?"
+
+**User prompt (verbatim):** "I guess both? you deide what's best"
+
+**Assistant interpretation:** Fix the residual small-italic pixel loss; decide the
+best approach, keeping the serif aesthetic if possible.
+
+**Commit (code):** f61ec55.
+
+### What I did
+- `internal/app/supersample.go`: fast integer box-average downscale (indexes a
+  packed RGBA buffer via `draw.Draw` then Pix, ~2–3× faster than `image.At`) +
+  `pngToBitmapSupersampled`; tests in `supersample_test.go`.
+- `renderer.go`: `RenderOptions.SupersampleScale` (default 3),
+  `chromedp.EmulateScale` + device-scale-factor set to the factor, AA kept on when
+  supersampling (AA-off retained for scale 1).
+- `--supersample` flag on render/print + layout `render.supersample`.
+
+### What worked
+- 3× render: screenshot 1152 px → box-average → 384 px bitmap; small serif italic
+  complete and legible; printed to paper. Speeds: 3× ≈ 2.5 s, 2× ≈ 1.9 s.
+
+### What didn't work (then fixed)
+- First naive downscale used `image.At().RGBA()` per sample → 17 s render.
+  Rewrote to draw into a packed RGBA buffer and index `Pix` with fixed-point
+  luminance → ~2.5 s at 3×.
+
+### What was tricky to build
+- Making the 3× actually take: `chromedp.EmulateViewport` defaults device scale to
+  1 and would override the launch flag, so the scale must be passed via
+  `chromedp.EmulateScale`; verified by the 1152-px screenshot.
+
+### What warrants a second pair of eyes
+- The box-average uses an integer scale and drops a partial last row/column if the
+  screenshot isn't an exact multiple of the scale (paper widths are, so fine).
+
+### What should be done in the future
+- Optional: a hinted/pixel small-text face for the very smallest captions.
+
+### Technical details
+- Default scale `defaultSupersampleScale=3`; tunable `--supersample` (1 disables,
+  using the AA-off path). Verified: `render ... --supersample 2|3 --format bitmap`.

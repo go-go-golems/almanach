@@ -24,3 +24,8 @@ Step 3 (Phase 1): Shipped AA-off in render browser via fontconfig+FONTCONFIG_FIL
 
 Step 4 (Phases 3-4): Verified AA-off on real page (0.01% vs 4.58% gray, all strokes complete/legible); printed to K118 via production pipeline. Phase 2 decision: serif roughness at low-res is aesthetic; do not swap theme fonts unilaterally; recommend sans theme / optional future pixel face.
 
+
+## 2026-07-16
+
+Step 5: Supersampling (3x render + box-average downscale) shipped as default fix for small serif italics; keeps theme fonts; --supersample flag; AA-off kept for scale 1. Printed to K118. lint+tests green (commit f61ec55).
+
