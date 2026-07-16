@@ -381,3 +381,51 @@ font direction is a user aesthetic decision).
 ### What should be done next
 - On the user's font choice: switch theme body/small-text font to a hinted face
   (and likely default supersample back to 1 for those, since 1x is sharper).
+
+## Step 7: Labeled sheets, heat/speed sweep, x-height-matched fonts
+
+Two user directives arrived: label the sheets (couldn't tell technique apart) and
+experiment with printer heat/speed; plus paper feedback that the italic is only
+legible in DejaVu Sans and the first (1x AA-off) sheet was better. I baked a
+technique+density+speed header into every sheet, added richer italic rows, and
+added `set_heat` + `--densities/--speeds` to sweep printer heat. I printed the
+1x-AA-off matrix at d22/s80, d30/s62, d38/s37.
+
+The user then reported **d38/s37 (dark, slow) was the best** heat, and made a
+typographic point: **EB Garamond renders ~2–3 px smaller than DejaVu at the same
+nominal size** (Garamond 13 ≈ DejaVu 10–11), so it must be set larger. I rebuilt
+the sheet with x-height-matched sizes — EB Garamond 13–16, DejaVu Serif/Sans
+10–13 — and printed it at d38/s37, d34/s37, and d39/s25 (max heat) to confirm the
+heat around the winner.
+
+### Prompt Context
+
+**User prompt (verbatim):** "how do I know which technique is which, but really, t 11px the italic is not legible, except maybe dejavu sans. The first group you printed was better"
+
+**User prompt (verbatim):** "in general the default should be bigger text, especially for serif"
+
+**User prompt (verbatim):** "also experiment with printer heat and speed"
+
+**User prompt (verbatim):** "print depth 38 was the best so far (the last one). do more experiments.  use deja serif, or use bigger sizes for EB garamond, because it is much smaller at the same given size. (garmong 13 seems to be about dejavu 10 or 11"
+
+**Assistant interpretation:** Label sheets; sweep heat/speed; compare
+x-height-matched EB Garamond (bigger) vs DejaVu Serif/Sans; converge on
+density ~38 + slow speed.
+
+**Commit (code):** 07c931a + this step.
+
+### Findings (paper)
+- **Heat:** density ~38 + slow speed (~37) is the best text heat so far.
+- **X-height:** EB Garamond ~15–16 px ≈ DejaVu Serif ~11–12 px. To keep EB
+  Garamond, set it ~+3 px larger; or use DejaVu Serif at the smaller size.
+- **Italic:** DejaVu Sans best; DejaVu Serif good at ≥12; EB Garamond needs ≥16.
+
+### What should be done next
+- Confirm the exact heat from the 3 x-height sheets (d38/s37 vs d34/s37 vs
+  d39/s25), then implement production defaults: bigger serif sizes (or DejaVu
+  Serif), hinted font for small/italic, default 1x AA-off, chosen density/speed.
+
+### Technical details
+- `02-font-matrix.py` now uses per-font `(sizes, italic_sizes)`; sheet header
+  baked; `--densities/--speeds` sweep with `set_heat`. Sheets in `scripts/mtmp/`
+  and `scripts/matrix/`.

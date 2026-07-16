@@ -32,16 +32,14 @@ NOAA = os.path.join(HERE, "fonts-noaa.conf")
 FONTS_CSS = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", "..", "web", "dist", "fonts.css"))
 
 SAMPLE = "Illegibility eagso mw 0123456789"
-# (label, css font-family, has_italic)
+# (label, css font-family, upright sizes, italic sizes) — x-height matched:
+# EB Garamond runs ~2-3px smaller than DejaVu at the same nominal size, so it is
+# tested larger to reach a comparable effective x-height.
 FONTS = [
-    ("EB Garamond (SPA serif)", "'EB Garamond', serif", True),
-    ("DejaVu Serif (hinted)", "'DejaVu Serif', serif", True),
-    ("DM Sans (SPA sans)", "'DM Sans', sans-serif", False),
-    ("DejaVu Sans (hinted)", "'DejaVu Sans', sans-serif", True),
-    ("Noto Sans (hinted)", "'Noto Sans', sans-serif", False),
-    ("JetBrains Mono (SPA)", "'JetBrains Mono', monospace", True),
+    ("EB Garamond (SPA serif) BIG", "'EB Garamond', serif", [13, 14, 15, 16], [14, 15, 16]),
+    ("DejaVu Serif (hinted)", "'DejaVu Serif', serif", [10, 11, 12, 13], [11, 12, 13]),
+    ("DejaVu Sans (hinted)", "'DejaVu Sans', sans-serif", [10, 11, 12], [11, 12]),
 ]
-SIZES = [8, 9, 10, 11, 12, 13]
 
 # scale, aa_off, threshold
 TECHNIQUES = {
@@ -58,15 +56,14 @@ ITALIC_SAMPLE = "We stood enjoying the brief apricity 0123"
 
 def build_html(title="MATRIX"):
     rows = [f'<div class="hdr">{title}</div>']
-    for label, fam, ital in FONTS:
+    for label, fam, sizes, ital_sizes in FONTS:
         rows.append(f'<div class="lbl">{label}</div>')
-        for sz in (9, 10, 11):
+        for sz in sizes:
             rows.append(f'<div class="s" style="font-family:{fam};font-size:{sz}px;line-height:{sz+2}px">'
                         f'{sz}&nbsp; {SAMPLE}</div>')
-        if ital:
-            for sz in (11, 12, 13):
-                rows.append(f'<div class="s" style="font-family:{fam};font-style:italic;font-size:{sz}px;line-height:{sz+2}px">'
-                            f'{sz}i {ITALIC_SAMPLE}</div>')
+        for sz in ital_sizes:
+            rows.append(f'<div class="s" style="font-family:{fam};font-style:italic;font-size:{sz}px;line-height:{sz+2}px">'
+                        f'{sz}i {ITALIC_SAMPLE}</div>')
         rows.append('<div class="gap"></div>')
     link = f'<link rel="stylesheet" href="file://{FONTS_CSS}">' if os.path.exists(FONTS_CSS) else ""
     html = f"""<!doctype html><meta charset=utf-8>{link}<style>

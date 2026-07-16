@@ -39,3 +39,8 @@ Step 6: Font x size x technique matrix (02-font-matrix.py). Finding: hinted font
 
 Step 7: Labeled matrix sheets (baked technique+density+speed header); added heat/speed sweep (set_heat + --densities/--speeds). Printed 1x-aaoff at d22/s80, d30/s62, d38/s37. Confirmed DejaVu Sans best italic; 1x AA-off best technique. User wants bigger default text esp serif.
 
+
+## 2026-07-16
+
+Step 8: x-height-matched font sheet (EB Garamond 13-16 vs DejaVu Serif/Sans 10-13); confirmed EB Garamond ~15-16 = DejaVu ~11-12. Printed at d38/s37, d34/s37, d39/s25. Heat winner ~density 38 + slow speed.
+
