@@ -157,3 +157,23 @@ func stringFromRenderOptions(options map[string]interface{}, key, fallback strin
 	}
 	return fallback
 }
+
+func floatFromRenderOptions(options map[string]interface{}, key string, fallback float64) float64 {
+	v, ok := options[key]
+	if !ok {
+		return fallback
+	}
+	switch t := v.(type) {
+	case float64:
+		return t
+	case int:
+		return float64(t)
+	case int64:
+		return float64(t)
+	case json.Number:
+		if f, err := t.Float64(); err == nil {
+			return f
+		}
+	}
+	return fallback
+}

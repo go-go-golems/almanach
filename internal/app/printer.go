@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -65,6 +66,54 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	}
 	lastResp["segments"] = len(segments)
 	return lastResp, nil
+}
+
+// printerBaseFromBitmapURL derives the device base URL (scheme://host) from a
+// full bitmap endpoint URL like http://host/api/print/bitmap.
+func printerBaseFromBitmapURL(bitmapURL string) string {
+	if i := strings.Index(bitmapURL, "/api/"); i >= 0 {
+		return bitmapURL[:i]
+	}
+	return strings.TrimRight(bitmapURL, "/")
+}
+
+// setPrinterHeat sets the K118 density (0..39, the "heat"/darkness knob) and/or
+// speed (lower = more heat dwell = darker) before a print. Either may be nil to
+// leave the firmware default. baseOrBitmapURL may be the device base URL or the
+// full bitmap endpoint URL. Errors are returned so callers can surface them.
+func setPrinterHeat(baseOrBitmapURL string, density, speed *int) error {
+	base := printerBaseFromBitmapURL(baseOrBitmapURL)
+	if density != nil {
+		if err := postPrinterJSON(base+"/api/printer/density", fmt.Sprintf(`{"density":%d}`, *density)); err != nil {
+			return fmt.Errorf("set density: %w", err)
+		}
+	}
+	if speed != nil {
+		if err := postPrinterJSON(base+"/api/printer/speed", fmt.Sprintf(`{"speed":%d}`, *speed)); err != nil {
+			return fmt.Errorf("set speed: %w", err)
+		}
+	}
+	return nil
+}
+
+func postPrinterJSON(url, body string) error {
+	req, err := http.NewRequest("POST", url, bytes.NewReader([]byte(body)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Connection", "close")
+	client := &http.Client{Timeout: 30 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("printer returned %d: %s", resp.StatusCode, respBody)
+	}
+	return nil
 }
 
 // sendSingleBitmap sends one bitmap chunk to the printer.

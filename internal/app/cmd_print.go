@@ -20,22 +20,28 @@ type PrintCommand struct {
 }
 
 type PrintSettings struct {
-	Layout         string `glazed:"layout"`
-	PrinterIP      string `glazed:"printer-ip"`
-	PrinterURL     string `glazed:"printer-url"`
-	FeedLines      int    `glazed:"feed-lines"`
-	DryRun         bool   `glazed:"dry-run"`
-	Selector       string `glazed:"selector"`
-	Threshold      int    `glazed:"threshold"`
-	ViewportWidth  int    `glazed:"viewport-width"`
-	ViewportHeight int    `glazed:"viewport-height"`
-	WaitMS         int    `glazed:"wait-ms"`
-	DebugDir       string `glazed:"debug-dir"`
-	WebDir         string `glazed:"web-dir"`
-	ChromePath     string `glazed:"chrome-path"`
-	ChromeWSURL    string `glazed:"chrome-ws-url"`
-	Data           string `glazed:"data"`
-	Define         string `glazed:"define"`
+	Layout         string  `glazed:"layout"`
+	PrinterIP      string  `glazed:"printer-ip"`
+	PrinterURL     string  `glazed:"printer-url"`
+	FeedLines      int     `glazed:"feed-lines"`
+	DryRun         bool    `glazed:"dry-run"`
+	Selector       string  `glazed:"selector"`
+	Threshold      int     `glazed:"threshold"`
+	RasterMode     string  `glazed:"raster-mode"`
+	Gamma          float64 `glazed:"gamma"`
+	Brightness     float64 `glazed:"brightness"`
+	Contrast       float64 `glazed:"contrast"`
+	Density        int     `glazed:"density"`
+	Speed          int     `glazed:"speed"`
+	ViewportWidth  int     `glazed:"viewport-width"`
+	ViewportHeight int     `glazed:"viewport-height"`
+	WaitMS         int     `glazed:"wait-ms"`
+	DebugDir       string  `glazed:"debug-dir"`
+	WebDir         string  `glazed:"web-dir"`
+	ChromePath     string  `glazed:"chrome-path"`
+	ChromeWSURL    string  `glazed:"chrome-ws-url"`
+	Data           string  `glazed:"data"`
+	Define         string  `glazed:"define"`
 }
 
 func newPrintCommand() (*PrintCommand, error) {
@@ -66,6 +72,12 @@ Examples:
 			fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Render but do not post to printer")),
 			fields.New("selector", fields.TypeString, fields.WithDefault(".paper-body"), fields.WithHelp("CSS selector to screenshot")),
 			fields.New("threshold", fields.TypeInteger, fields.WithDefault(128), fields.WithHelp("Grayscale threshold for bitmap conversion")),
+			fields.New("raster-mode", fields.TypeString, fields.WithDefault("threshold"), fields.WithHelp("1-bit conversion: threshold|atkinson|floyd-steinberg|bayer8. atkinson suits photos")),
+			fields.New("gamma", fields.TypeFloat, fields.WithDefault(1.0), fields.WithHelp("Tone-curve exponent for dither modes; <1 lightens midtones (photo default 0.8)")),
+			fields.New("brightness", fields.TypeFloat, fields.WithDefault(0.0), fields.WithHelp("Brightness added to normalized gray (dither modes)")),
+			fields.New("contrast", fields.TypeFloat, fields.WithDefault(1.0), fields.WithHelp("Contrast scale around 0.5 (dither modes)")),
+			fields.New("density", fields.TypeInteger, fields.WithDefault(-1), fields.WithHelp("Printer heat/density 0..39; -1 leaves firmware default")),
+			fields.New("speed", fields.TypeInteger, fields.WithDefault(-1), fields.WithHelp("Printer speed; lower = darker; -1 leaves firmware default")),
 			fields.New("viewport-width", fields.TypeInteger, fields.WithDefault(800), fields.WithHelp("Chrome viewport width")),
 			fields.New("viewport-height", fields.TypeInteger, fields.WithDefault(3000), fields.WithHelp("Chrome viewport height")),
 			fields.New("wait-ms", fields.TypeInteger, fields.WithDefault(250), fields.WithHelp("Extra wait after loading layout")),
@@ -102,6 +114,10 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	opts := RenderOptions{
 		Selector:       stringFromRenderOptions(layoutSource.RenderOptions, "selector", s.Selector),
 		Threshold:      clampToUint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
+		RasterMode:     stringFromRenderOptions(layoutSource.RenderOptions, "rasterMode", s.RasterMode),
+		Gamma:          floatFromRenderOptions(layoutSource.RenderOptions, "gamma", s.Gamma),
+		Brightness:     floatFromRenderOptions(layoutSource.RenderOptions, "brightness", s.Brightness),
+		Contrast:       floatFromRenderOptions(layoutSource.RenderOptions, "contrast", s.Contrast),
 		ViewportWidth:  intFromRenderOptions(layoutSource.RenderOptions, "viewportWidth", s.ViewportWidth),
 		ViewportHeight: intFromRenderOptions(layoutSource.RenderOptions, "viewportHeight", s.ViewportHeight),
 		WaitAfterLoad:  time.Duration(s.WaitMS) * time.Millisecond,
@@ -132,6 +148,20 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	printerOK := false
 	var printerResponse map[string]any
 	if !s.DryRun {
+		// Set printer heat (density/speed) before the bitmap. -1 leaves the
+		// firmware default. Photo default is a cooler density; text wants hotter.
+		var density, speed *int
+		if s.Density >= 0 {
+			density = &s.Density
+		}
+		if s.Speed >= 0 {
+			speed = &s.Speed
+		}
+		if density != nil || speed != nil {
+			if err = setPrinterHeat(printerURL, density, speed); err != nil {
+				return err
+			}
+		}
 		printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
 		if err != nil {
 			return err

@@ -30,6 +30,10 @@ type RenderOptions struct {
 	BaseURL        string
 	Selector       string
 	Threshold      uint8
+	RasterMode     string  // "", "threshold", "atkinson", "floyd-steinberg", "bayer8"
+	Gamma          float64 // tone-curve exponent for dither modes (<1 lightens)
+	Brightness     float64
+	Contrast       float64
 	ViewportWidth  int
 	ViewportHeight int
 	WaitAfterLoad  time.Duration
@@ -221,7 +225,13 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 
 	log.Printf("[render] Screenshot captured: %d bytes PNG", len(screenshotBuf))
 
-	bitmap, err := PngToBitmap(screenshotBuf, opts.Threshold)
+	bitmap, err := PngToBitmapRaster(screenshotBuf, RasterOptions{
+		Mode:       RasterMode(opts.RasterMode),
+		Threshold:  opts.Threshold,
+		Gamma:      opts.Gamma,
+		Brightness: opts.Brightness,
+		Contrast:   opts.Contrast,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("bitmap convert: %w", err)
 	}
