@@ -15,6 +15,9 @@ RelatedFiles:
     - Path: firmware/atoms3r/main/printer_drv.c
     - Path: internal/app/bitmap.go
     - Path: internal/app/printer.go
+      Note: setPrinterHeat density/speed client (commit d3b79b0)
+    - Path: repo://internal/app/raster.go
+      Note: Pluggable rasterizer (threshold/atkinson/floyd/bayer + tone curve) (commit d3b79b0)
     - Path: repo://ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/01-thermal-lab.py
       Note: 'Experiment harness: mixed card + tone curve + dither + density + print'
     - Path: repo://ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/02-mixed-page.py
@@ -25,6 +28,7 @@ LastUpdated: 0001-01-01T00:00:00Z
 WhatFor: Record what was tried, what worked, what failed, and what to do next.
 WhenToUse: Read before resuming ALMANACH-RASTER-LAB work.
 ---
+
 
 
 
@@ -588,3 +592,50 @@ to production Go.
 - Recipes in code: TEXT d30/s37, PHOTO d20/s80/gamma0.8.
 - Cmd: `python3 02-mixed-page.py --printer http://192.168.0.126`
   (preview: `--dry-run --out ./out`).
+
+## Step 8: Production Go port — pluggable rasterizer + printer heat
+
+Merged the lab findings into the real service. Added `internal/app/raster.go`
+with `Rasterize(img, RasterOptions)`: threshold (delegates to the legacy
+`imageToBitmap`, byte-identical), Atkinson, Floyd-Steinberg, and Bayer8, with a
+`v'=v^γ` tone curve (gamma/brightness/contrast) applied before dithering.
+`RasterMode/Gamma/Brightness/Contrast` now flow through `RenderOptions`, the
+renderer's screenshot→bitmap step (`PngToBitmapRaster`), and the `print` CLI
+(also readable from a layout `render:` block). Added `setPrinterHeat()` in
+`printer.go` posting `/api/printer/density` and `/api/printer/speed` before the
+bitmap, exposed as `--density`/`--speed`. Default mode stays `threshold`, so
+existing output is unchanged until opted in.
+
+### Prompt Context
+
+**User prompt (verbatim):** "both. Also write a detailed project report for the obsidian vault ..." (this step covers the "both" = start the Go port).
+
+**Assistant interpretation:** Ship the self-contained, low-risk half of the
+port (rasterizer + heat control) with tests, keeping threshold byte-identical.
+
+**Commit (code):** d3b79b0 — "feat(raster): pluggable rasterizer ... and printer heat control".
+
+### What I did
+- `internal/app/raster.go` (+ `raster_test.go`), edits to `renderer.go`,
+  `render_oneshot.go` (`floatFromRenderOptions`), `cmd_print.go`, `printer.go`.
+- go build, go vet, golangci-lint, go test all pass; verified new print flags.
+
+### What was tricky to build
+- Byte-identity: my initial `if Threshold==0 {128}` default clobbered an explicit
+  threshold of 0; a unit test caught it. Fixed by defaulting only in the dither
+  path and passing the threshold through untouched for threshold mode.
+- `exhaustive` linter required `RasterThreshold` in the dither switch even though
+  it returns early; added a defensive (unreachable) case.
+
+### What warrants a second pair of eyes
+- Only threshold is byte-identical-tested; dither modes are shape/coverage-tested,
+  not golden-image tested. Paper is the real oracle (already validated in labs).
+
+### What should be done in the future
+- Per-segment heat in the render/print flow (needs block/segment awareness).
+- Small-text bitmap/pixel webfont in the renderer (Chrome side).
+
+### Code review instructions
+- Start at `internal/app/raster.go` (`Rasterize`, `errorDiffuse`, `applyTone`).
+- Byte-identity proof: `go test ./internal/app -run TestThresholdByteIdentical`.
+- Heat: `setPrinterHeat` in `printer.go`; flags in `cmd_print.go`.

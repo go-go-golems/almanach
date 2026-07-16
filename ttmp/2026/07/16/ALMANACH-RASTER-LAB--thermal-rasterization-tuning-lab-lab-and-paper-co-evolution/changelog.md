@@ -51,3 +51,8 @@ Step 6: Bitmap fonts win small text (6x9/6x10 sweet spot); photo locked at Atkin
 
 Step 7: Mixed-page proof (02-mixed-page.py) prints bitmap-font text hot (d30/s37) + Atkinson cat cool (d20/s80) as per-segment-heat segments in one job; no firmware change.
 
+
+## 2026-07-16
+
+Step 8: Go port - internal/app/raster.go pluggable rasterizer (threshold byte-identical + Atkinson/Floyd/Bayer + tone curve) and setPrinterHeat density/speed; wired to CLI/render options; lint+tests green (commit d3b79b0)
+
