@@ -17,12 +17,15 @@ RelatedFiles:
     - Path: internal/app/printer.go
     - Path: repo://ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/01-thermal-lab.py
       Note: 'Experiment harness: mixed card + tone curve + dither + density + print'
+    - Path: repo://ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/02-mixed-page.py
+      Note: 'Mixed-page proof: per-segment heat (bitmap text hot, Atkinson photo cool)'
 ExternalSources: []
 Summary: 'Chronological diary of the thermal rasterization tuning-lab work: investigation, the intern guide, and the lab-and-paper co-evolution loop.'
 LastUpdated: 0001-01-01T00:00:00Z
 WhatFor: Record what was tried, what worked, what failed, and what to do next.
 WhenToUse: Read before resuming ALMANACH-RASTER-LAB work.
 ---
+
 
 
 # Diary
@@ -525,3 +528,63 @@ the cat rendering.
 - Bundled fonts: `scripts/fonts/*.pcf`; loader `load_bitmap_font(name,size)`.
 - Small-text card cmd: `... --card smalltext --algo threshold --densities 30
   --speed 37`. Photos: IMG_2711 (smalltext), IMG_2712/2713 (cats).
+
+## Step 7: Mixed-page proof — per-segment heat in one job
+
+Built `scripts/02-mixed-page.py`, a self-contained composer that prints a
+realistic Almanach page as three segments, each setting its own printer heat
+before its bitmap: (A) header + body in a **6x10 bitmap font** at density 30 /
+speed 37 (hot, even, dark text); (B) the **Atkinson cat, gamma 0.8** at density
+20 / speed 80 (cool, light, detailed); (C) caption + fact in 6x9/6x10 bitmap
+font, hot again. This proves the full recipe set and the per-segment
+density/speed split on the existing segmented print path — no firmware change.
+
+Dry-run preview composed correctly (bitmap text crisp, cat toned). Printed to
+`192.168.0.126`; segments reported rows 117 / 300 / 85 with the expected
+density/speed per segment.
+
+### Prompt Context
+
+**User prompt (verbatim):** (AskUserQuestion answer) "Mixed-page proof" —
+"Build one realistic Almanach page: bitmap-font body text printed HOT + the
+Atkinson cat printed COOL, sent as two segments with per-segment density/speed."
+
+**Assistant interpretation:** Demonstrate all locked recipes together in one
+job with per-segment heat.
+
+**Inferred user intent:** See the complete solution work on paper before porting
+to production Go.
+
+**Commit (code):** see changelog.
+
+### What I did
+- Wrote `02-mixed-page.py` (bitmap-font text blocks + Atkinson photo block +
+  per-segment `set_density`/`set_speed` around each `print_bitmap`).
+- Verified via dry-run (`out/mixed-page.png`), then printed on hardware.
+
+### Why
+- This is the culminating validation: it exercises bitmap-font small text, the
+  Atkinson/gamma photo recipe, and per-segment heat all at once, and shows the
+  mixed-page fix needs no firmware change.
+
+### What was tricky to build
+- Keeping text pure 1-bit: text blocks render with `fontmode='1'` and bitmap
+  fonts (already 1-bit), so thresholding never drops strokes.
+- Per-segment heat ordering: set density+speed, small sleep, then POST the
+  segment; feed only on the final segment.
+
+### What warrants a second pair of eyes
+- Confirm on paper the density transitions are clean and the firmware
+  "Print depth: N level" banner between segments is acceptable (or needs
+  suppressing) for production.
+
+### What should be done in the future
+- On paper confirmation, start the Go port: `internal/app/raster` (Atkinson +
+  gamma tone curve, threshold byte-identical), a density/speed client in
+  `internal/app/printer.go`, per-segment heat in the print flow, and a
+  bitmap/pixel-webfont approach for small text in the renderer.
+
+### Technical details
+- Recipes in code: TEXT d30/s37, PHOTO d20/s80/gamma0.8.
+- Cmd: `python3 02-mixed-page.py --printer http://192.168.0.126`
+  (preview: `--dry-run --out ./out`).

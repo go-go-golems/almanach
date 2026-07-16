@@ -46,3 +46,8 @@ Step 6: Bitmap fonts win small text (6x9/6x10 sweet spot); photo locked at Atkin
 
 - /home/manuel/code/wesen/go-go-golems/almanach/ttmp/2026/07/16/ALMANACH-RASTER-LAB--thermal-rasterization-tuning-lab-lab-and-paper-co-evolution/scripts/fonts — Bundled X11 PCF bitmap fonts for small-text rendering
 
+
+## 2026-07-16
+
+Step 7: Mixed-page proof (02-mixed-page.py) prints bitmap-font text hot (d30/s37) + Atkinson cat cool (d20/s80) as per-segment-heat segments in one job; no firmware change.
+
