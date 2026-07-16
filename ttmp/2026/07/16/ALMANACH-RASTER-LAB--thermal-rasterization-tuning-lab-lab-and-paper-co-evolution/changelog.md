@@ -32,3 +32,8 @@ Step 3: First paper batch (4 algos @ d20). Atkinson best photo, Floyd 2nd, Bayer
 
 Step 4: Cat locks at Atkinson gamma~0.8 (user feedback). Added text card + speed control to harness; printed text density sweep {16,24,32,39}. Noted per-segment density enables mixed-page text/photo heat split with no firmware change.
 
+
+## 2026-07-16
+
+Step 5: Text sweet spot ~d28-32 (hotter than photo). Within-line tone variation = power droop, test slower speed. Printed text (3x3 density/speed) and photo (3x2) matrices.
+

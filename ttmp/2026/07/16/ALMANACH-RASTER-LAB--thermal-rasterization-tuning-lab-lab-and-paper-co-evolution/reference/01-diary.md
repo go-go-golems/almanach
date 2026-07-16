@@ -391,3 +391,65 @@ heat, not just the host-side rasterization — while keeping the photo good.
 - Text sweep cmd: `python3 01-thermal-lab.py --printer http://192.168.0.126
   --card text --algo threshold --densities 16,24,32,39 --speed 80 --feed 4`.
 - Valid speeds (firmware): 25,30,37,50,56,62,70,80,90,100,120,150,180,200,220.
+
+## Step 5: Text density ladder result + power-droop finding + density×speed matrices
+
+Read the text density ladder {16, 24, 32, 39} at speed 80. Result: d16 too light
+(9–10 px breaks up), d24 good, **d32 best punch** (solid to ~11 px, 9–10 px just
+starting to fill), d39 darkest but the smallest lines begin to bleed/close
+counters. So the **text heat sweet spot is ~28–32** — clearly hotter than the
+cat's low-20s, confirming that text and photo want different heat and that a
+per-segment density split is worthwhile.
+
+The user noticed grey tone varying **across a single line**, most on the two
+lower-density strips, and guessed speed. That is **print-head power droop**:
+a raster row firing many dots sags the shared power rail, so dots print lighter
+across parts of the line; it shows at low density (marginal dots) and is masked
+at higher density. Slower speed gives more dwell/recovery and more even heating,
+so speed is the right lever. Also learned the "Print depth: N level" banners
+between strips are printed by the *firmware* on each density change, not by the
+harness.
+
+Per the user's "make extensive matrix work," I printed two density×speed
+matrices.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, last 4 images again. What's weird is grey tone changing over a single line, at least on the first 2, maybe it the's the speed? anyway, you know best, make extensive matrix work"
+
+**Assistant interpretation:** Diagnose the within-line tone variation (power
+droop; speed-related) and run a comprehensive density×speed matrix for text and
+photo to find the sweet spots and the evenness behavior.
+
+**Inferred user intent:** Nail down the printer heat settings (density + speed)
+that give even, legible text and a good photo, with data across the full grid.
+
+**Commit (code):** N/A (analysis + matrix prints); harness already committed.
+
+### What I did
+- Analyzed the 4 text strips (IMG_2707..2710 = d16/24/32/39).
+- Printed TEXT matrix: density {20,28,36} × speed {37,62,100} (9 strips).
+- Printed PHOTO matrix: Atkinson γ0.8, density {18,24,30} × speed {37,100} (6).
+
+### What worked / findings
+- Text sweet spot ~28–32 density; d39 over-bleeds small glyphs.
+- Within-line tone variation = power droop, expected to ease at slower speed.
+- Text wants more heat than the photo → per-segment density split justified.
+
+### What warrants a second pair of eyes
+- Confirm on paper that slower speed (37) visibly evens out the within-line tone
+  vs. fast (100), at matched density.
+
+### What should be done in the future
+- Read the 15 matrix strips; pick (density, speed) for text and for photo.
+- Prototype per-segment density (text hot, photo cooler) and print a full mixed
+  Almanach page to prove the mixed-page fix.
+- Then port the locked recipe(s) into `internal/app/raster` + a density/speed
+  client for `internal/app/printer.go`.
+
+### Technical details
+- TEXT matrix cmd: `... --card text --algo threshold --densities 20,28,36
+  --speeds 37,62,100 --feed 4` (combos ordered speed-outer, density-inner).
+- PHOTO matrix cmd: `... --card mixed --algo atkinson --gamma 0.8
+  --densities 18,24,30 --speeds 37,100 --feed 4`.
+- Text strips IMG_2707=d16, 2708=d24, 2709=d32, 2710=d39 (all speed 80).
