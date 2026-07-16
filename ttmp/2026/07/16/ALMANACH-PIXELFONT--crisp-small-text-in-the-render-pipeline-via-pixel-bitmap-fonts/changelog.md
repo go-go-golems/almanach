@@ -54,3 +54,8 @@ Step 9: Enumerated remaining levers (weight, tracking, hinting, stem-darkening, 
 
 Step 10: Added compact heat card (--mode heat) with trailing-blank-row trim; printed a density x speed grid (d{24,32,38} x s{37,80}) to isolate the two heat levers.
 
+
+## 2026-07-16
+
+Step 11 (wrap-up): density 38 best, speed indistinguishable; bold biggest remaining lever. Flipped default supersample 3->1 (1x AA-off default, ~3x faster; supersample opt-in). Printed final default at d38. Recipe locked; theme size/font tuning recommended as optional follow-up.
+

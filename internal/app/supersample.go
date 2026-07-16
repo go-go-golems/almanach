@@ -9,11 +9,17 @@ import (
 )
 
 // defaultSupersampleScale is the render oversampling factor. The page is drawn at
-// scale x device pixels (anti-aliased), then box-averaged back down to the target
-// resolution before the 1-bit conversion. Oversampling captures glyph strokes
-// thinner than one target pixel — especially small serif italics — that a 1x
-// render would lose entirely to the threshold. 3 is the value validated on paper.
-const defaultSupersampleScale = 3
+// scale x device pixels, then box-averaged back down to the target resolution
+// before the 1-bit conversion.
+//
+// Default 1: a font/size/technique matrix on real paper (ALMANACH-PIXELFONT)
+// showed that for a well-hinted font at a reasonable size, plain 1x rendering
+// with anti-aliasing OFF is as crisp as — often crisper than — supersampling,
+// because bytecode hinting is designed for exact-pixel rendering and
+// supersampling bypasses it (and 1x is ~3x faster). Supersampling (scale>1, AA
+// on) remains available via --supersample as a fallback for delicate,
+// lightly-hinted display fonts (e.g. EB Garamond) rendered small.
+const defaultSupersampleScale = 1
 
 // downscaleBoxGray reduces img by an integer factor using box averaging, returning
 // an 8-bit grayscale image at (w/scale) x (h/scale). Each output pixel is the mean

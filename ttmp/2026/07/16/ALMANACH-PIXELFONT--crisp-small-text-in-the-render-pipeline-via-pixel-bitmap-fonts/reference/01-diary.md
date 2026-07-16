@@ -429,3 +429,46 @@ density ~38 + slow speed.
 - `02-font-matrix.py` now uses per-font `(sizes, italic_sizes)`; sheet header
   baked; `--densities/--speeds` sweep with `set_heat`. Sheets in `scripts/mtmp/`
   and `scripts/matrix/`.
+
+## Step 11: Wrap-up — flip default to 1x AA-off; recipe locked
+
+Density × speed grid (d{24,32,38} × s{37,80}, compact heat card) confirmed on
+paper: **density 38 is best and speed is not distinguishable** (37 vs 80), so the
+faster default speed stays. The weight sweep confirmed **bold is the biggest
+remaining lever, especially for italics**. With the matrix showing 1x AA-off is
+as crisp as / crisper than supersampling for hinted fonts (and 3x faster) and the
+user preferring the 1x sheets, I flipped the shipped default:
+`defaultSupersampleScale` 3 → 1. Verified end-to-end (render is 384px, 0.01% gray,
+~0.95s vs ~2.5s) and printed the real knowledge-strip at density 38.
+
+### Prompt Context
+
+**User prompt (verbatim):** "can you play with speed and heat and stuff? or did you already? or print more experiments ?"
+
+**User prompt (verbatim):** "ok i think the last one is the best. i can' really tell a diff between 37 and 80. Let's wrap it up here, except you have better ideas"
+
+**Assistant interpretation:** Do a clean density×speed grid, then wrap up by
+baking the proven finding into the default.
+
+**Commit (code):** see changelog.
+
+### What I did
+- `internal/app/supersample.go`: `defaultSupersampleScale` 3 → 1 (1x AA-off is
+  the default; supersample opt-in via `--supersample`). Updated design doc.
+- Verified default render (1x AA-off, ~1s) and printed at density 38.
+
+### Locked recipe
+- Render: **1x AA-off** (default); supersample opt-in for delicate fonts.
+- Heat: **density ~38**, speed either (37/80 indistinguishable).
+- Recommended theme tuning (aesthetic, maintainer's call): bigger text esp
+  serif; hinted font (DejaVu Serif/Sans) or EB Garamond ~16–17; bold for small/
+  italic text.
+
+### What warrants a second pair of eyes
+- Flipping the default to 1x is best *with* hinted/bigger fonts; with the current
+  small EB Garamond, supersampling helped its italics — hence the theme tuning is
+  recommended alongside. Documented; not forced.
+
+### What should be done in the future (optional theme change)
+- Bump default text sizes / bodyScale; switch small/italic text to a hinted or
+  bold face; set a print density default of ~38 (via the raster-lab `--density`).

@@ -195,12 +195,34 @@ threshold captures sub-pixel strokes and reconstructs them crisply **while
 keeping every theme's font and the serif italic look**. It also improves all
 other text uniformly, independent of any font's hinting quality.
 
-**Shipped default: supersampling at 3× (AA on) with a box-average downscale.**
-The AA-off path is retained for `supersample=1`. The factor is exposed as
-`--supersample` (and a layout `render.supersample`) so callers can trade quality
-for speed (3× ≈ 2.5 s, 2× ≈ 1.9 s, 1× ≈ 1 s on the sample page). No theme fonts
-were changed. A hinted/pixel small-text face remains available as future polish
-for the very smallest captions if wanted.
+Supersampling at 3× (AA on) with a box-average downscale was shipped first. The
+factor is exposed as `--supersample` (and a layout `render.supersample`); 3× ≈
+2.5 s, 1× ≈ 1 s on the sample page.
+
+### Final decision (after the font/size/technique matrix)
+
+A large paper matrix (`scripts/02-font-matrix.py`) over fonts × sizes × techniques
+× printer heat overturned the supersampling default:
+
+- **1× AA-off is as crisp as — usually crisper than — supersampling** for a
+  well-hinted font at a reasonable size, because hinting targets exact-pixel
+  rendering and supersampling bypasses it. It is also ~3× faster. The user
+  confirmed the 1× sheets read better on paper. **The shipped default is now
+  `supersample=1` (1× AA-off);** supersampling remains an opt-in fallback for
+  delicate, lightly-hinted display fonts (EB Garamond) rendered small.
+- **The font's hinting quality and size dominate.** DejaVu Serif/Sans are crisp
+  small; EB Garamond and DM Sans are not. EB Garamond has a small x-height and
+  must be set ~+3–4 px larger to match (Garamond 16–17 ≈ DejaVu 11–12).
+- **Weight is the biggest remaining lever:** bold/medium strokes survive the
+  threshold far better, and **bold italic is legible where normal italic is not.**
+- **Printer heat:** density ≈ 38 is best; speed is not visibly distinguishable
+  (37 vs 80), so keep the faster default.
+
+**Recommended production recipe (for the themes — a further, aesthetic change the
+maintainer can apply):** 1× AA-off (shipped); bigger default text, especially
+serif; a hinted body/small-text font (DejaVu Serif for a serif look, DejaVu Sans
+for max crispness) or EB Garamond at ~16–17; medium/bold weight for small and
+italic text; print density ≈ 38.
 
 ## 5. The font toolchain
 
