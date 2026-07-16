@@ -98,6 +98,32 @@ lab-and-paper loop, before we commit code.
 
 ---
 
+## 1b. Paper-verified calibration results (living summary)
+
+These are the recipes confirmed on the real K118 during this ticket (see the
+diary for the run-by-run evidence). Update as tuning continues.
+
+- **Photo / continuous-tone:** **Atkinson dither, gamma 0.8, density 20,
+  speed 80.** Beats threshold (which collapses midtones), Floyd (slightly dark),
+  and Bayer8 (visible grid). Gamma 0.8 (`v'=v^γ`, γ<1 lightens) opens shadow
+  detail; the ramp crush confirmed the lighten direction on paper.
+- **Small text:** **use a bitmap font (6x9 or 6x10 sweet spot).** Anti-aliased
+  vector text + threshold drops sub-pixel strokes at 8–9 px; bitmap glyphs are
+  pure 1-bit with no AA, so nothing drops — 6x9 bitmap out-reads 11 px AA vector.
+  Host-side algorithm/threshold tweaks help less than switching the font.
+- **Text heat:** **density ~28–32** (hotter than the photo); above ~36 the
+  smallest glyphs bleed/close counters. **Slower speed** (e.g. 37) reduces the
+  within-line grey variation caused by **print-head power droop** (many
+  simultaneous dots sag the rail).
+- **Mixed page:** text and photo want *different* heat, so **set density/speed
+  per segment** — text hot+slower, photo cool (density 20) + speed 80. The
+  existing segmented print path (`printer.go`) can set density between segment
+  POSTs, so this needs **no firmware change**.
+- **Printer facts:** "heat" = the density register (`ESC ## STDP`, 0..39); there
+  is no separate contrast register. Speed (`ESC ## STSP`) is the second heat
+  lever. The firmware prints a "Print depth: N level" banner on each density
+  change.
+
 ## 2. System overview
 
 ### 2.1 The end-to-end pipeline

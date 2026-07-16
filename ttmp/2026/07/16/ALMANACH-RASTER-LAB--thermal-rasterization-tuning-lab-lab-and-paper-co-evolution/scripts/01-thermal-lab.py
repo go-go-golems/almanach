@@ -31,6 +31,7 @@ Levers:
 """
 import argparse
 import io
+import os
 import sys
 import time
 import urllib.request
@@ -159,6 +160,56 @@ def build_text_card(width):
     d.text((6, y + 8), "REVERSE 12px white-on-black bleed test 0123", font=load_font(12, bold=True), fill=255)
     y += bar_h + 8
     return canvas.crop((0, 0, W, min(y + 4, H)))
+
+def load_bitmap_font(name, size):
+    """Load a bundled PCF bitmap font at its native pixel size."""
+    p = os.path.join(os.path.dirname(__file__), "fonts", f"{name}.pcf")
+    return ImageFont.truetype(p, size)
+
+def build_smalltext_card(width):
+    """Compare small-text rendering strategies on one card:
+       (A) vector + anti-aliasing  -> gets threshold-dropped strokes,
+       (B) vector with AA OFF (fontmode='1'),
+       (C) bundled BITMAP (PCF) fonts at native pixel size.
+    The whole card is grayscale; the pipeline's threshold then hits (A) only,
+    since (B)/(C) are already pure black. This isolates why small text drops."""
+    W = width
+    canvas = Image.new("L", (W, 1100), 255)
+    d = ImageDraw.Draw(canvas)
+    y = 6
+    d.text((6, y), "SMALL TEXT STRATEGIES", font=load_font(18, bold=True), fill=0); y += 26
+    sample = "eagso mw 3809 Illegibility: the quick brown fox"
+
+    def section(title):
+        nonlocal y
+        d.rectangle([0, y, W - 1, y + 15], fill=0)
+        d.text((4, y + 2), title, font=load_font(11, bold=True), fill=255)
+        y += 20
+
+    # (A) vector, anti-aliased (default fontmode 'L')
+    section("A: vector + anti-aliasing (current, threshold drops strokes)")
+    d.fontmode = "L"
+    for sz in [11, 10, 9, 8]:
+        d.text((6, y), f"{sz}px AA  {sample}", font=load_font(sz), fill=0); y += sz + 5
+
+    # (B) vector, anti-aliasing OFF
+    section("B: vector, AA OFF (fontmode=1)")
+    d.fontmode = "1"
+    for sz in [11, 10, 9, 8]:
+        d.text((6, y), f"{sz}px 1b  {sample}", font=load_font(sz), fill=0); y += sz + 5
+    d.fontmode = "L"
+
+    # (C) bundled bitmap PCF fonts at native size
+    section("C: bitmap PCF fonts (native pixels)")
+    for name, sz in [("7x14", 14), ("6x12", 12), ("6x10", 10), ("6x9", 9),
+                     ("5x8", 8), ("5x7", 7), ("4x6", 6)]:
+        try:
+            bf = load_bitmap_font(name, sz)
+            d.text((6, y), f"{name}  {sample}", font=bf, fill=0); y += sz + 5
+        except Exception as e:
+            d.text((6, y), f"{name} load failed: {e}", font=load_font(9), fill=0); y += 14
+
+    return canvas.crop((0, 0, W, min(y + 6, 1100)))
 
 # ---------------------------------------------------------------------------
 # Tone curve (lever 1): applied to normalized gray v in [0,1]
@@ -311,7 +362,7 @@ def candidate_lines(name, algo, density, speed, gamma, brightness, contrast, T, 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--printer", default="", help="printer base URL, e.g. http://192.168.0.126")
-    ap.add_argument("--card", default="mixed", choices=["mixed", "text"], help="which test card")
+    ap.add_argument("--card", default="mixed", choices=["mixed", "text", "smalltext"], help="which test card")
     ap.add_argument("--algo", default="atkinson")
     ap.add_argument("--algos", default="", help="comma list for --grid")
     ap.add_argument("--density", type=int, default=20)
@@ -332,6 +383,9 @@ def main():
     if args.card == "text":
         card = np.array(build_text_card(args.width))
         print(f"[card] text {card.shape[1]}x{card.shape[0]}", file=sys.stderr)
+    elif args.card == "smalltext":
+        card = np.array(build_smalltext_card(args.width))
+        print(f"[card] smalltext {card.shape[1]}x{card.shape[0]}", file=sys.stderr)
     else:
         photo = find_photo()
         card = np.array(build_card(args.width, photo))

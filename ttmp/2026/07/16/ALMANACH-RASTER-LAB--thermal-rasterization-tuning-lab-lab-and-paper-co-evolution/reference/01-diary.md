@@ -453,3 +453,75 @@ that give even, legible text and a good photo, with data across the full grid.
 - PHOTO matrix cmd: `... --card mixed --algo atkinson --gamma 0.8
   --densities 18,24,30 --speeds 37,100 --feed 4`.
 - Text strips IMG_2707=d16, 2708=d24, 2709=d32, 2710=d39 (all speed 80).
+
+## Step 6: Bitmap fonts win small text; photo recipe locked
+
+Two user insights drove this step: (1) at 8–9 px, anti-aliased vector text drops
+strokes under threshold; (2) maybe use bitmap fonts for small sizes. Both are
+correct. The root cause is that sub-pixel strokes are rendered as *light gray* by
+anti-aliasing and a hard threshold at 128 discards them — small text is secretly
+a continuous-tone problem. I bundled classic X11 PCF bitmap fonts into the ticket
+and built a `smalltext` comparison card rendering the same text three ways:
+(A) vector+AA+threshold, (B) vector AA-off (`fontmode='1'`), (C) bitmap PCF.
+
+Paper result (printed d30/s37): **(C) bitmap fonts win decisively.** 6x9 and 6x10
+are cleaner and more legible than 11 px AA vector text; counters stay open down to
+5x7, and 4x6 is still readable. (A) breaks up badly by 8 px; (B) helps but is
+blocky at 8 px. Recommendation: **use a bitmap font for small text**, 6x9/6x10 as
+the sweet spot.
+
+Separately, the photo recipe is now **locked**: the user picked the density-20
+strip (Atkinson, gamma 0.8, speed 80) as the favorite. The earlier photo matrix's
+speed-37 cats printed too dark — confirming the photo wants *less* heat than text
+(faster speed / lower density), reinforcing the per-segment split.
+
+### Prompt Context
+
+**User prompt (verbatim, msg 1):** "you can see in the rasterization of the 9px text that some parts of letter will be missing, especially in the 8px. so maybe a different raster algorithm might make sense there?"
+
+**User prompt (verbatim, msg 2):** "or maybe it's possible to use bitmap fonts instead of rasterizing fonts, when doing small fonts?"
+
+**User prompt (verbatim, msg 3):** "I meant the last cat strip you printed. Anyway, I downloaded the photo of the small text strategies and 2 cats. I prefer the d=20 level print depth cat (the top one)"
+
+**Assistant interpretation:** Diagnose the small-text dropout, prove the
+bitmap-font fix on paper, and lock the photo recipe at the user's chosen strip.
+
+**Inferred user intent:** Get crisp small text (via bitmap fonts) and finalize
+the cat rendering.
+
+**Commit (code):** see changelog.
+
+### What I did
+- Bundled X11 PCF fonts (4x6,5x7,5x8,6x9,6x10,6x12,6x13,7x14) into
+  `scripts/fonts/`; verified PIL/FreeType loads them at native pixel size.
+- Added `build_smalltext_card()` + `--card smalltext` to the harness.
+- Printed the small-text comparison (d30/s37) and two locked-cat candidates
+  (Atkinson g0.8 s80, density 20 and 18).
+
+### PAPER-VERIFIED LOCKED RECIPES
+- **Photo:** Atkinson, gamma 0.8, density 20, speed 80. (user-selected)
+- **Small text:** bitmap font (6x9/6x10 sweet spot), NOT AA-vector+threshold.
+- **Text heat:** density ~28–32; slower speed reduces within-line power droop.
+- **Mixed page:** split heat/speed per segment — text hot+slower, photo cool+80.
+
+### What I learned
+- Correcting Step 3's claim: text survives dithering only when strokes have a
+  solid black core (large sizes). Small text has no core → needs bitmap fonts.
+- FreeType requires the exact native pixel size for PCF bitmap fonts
+  ("invalid pixel size" otherwise).
+
+### What warrants a second pair of eyes
+- Production uses Chrome, not PIL: getting bitmap crispness needs a pixel webfont
+  (font-smoothing off, native device px) OR a bitmap/ESC-POS text segment path.
+
+### What should be done in the future
+- Build the culminating **mixed-page proof**: bitmap-font body text at hot
+  density + Atkinson cat at cool density, printed as two segments with
+  per-segment density/speed.
+- Then port: `internal/app/raster` (Atkinson+tone) + density/speed client in
+  `internal/app/printer.go` + a small-text bitmap-font approach for the renderer.
+
+### Technical details
+- Bundled fonts: `scripts/fonts/*.pcf`; loader `load_bitmap_font(name,size)`.
+- Small-text card cmd: `... --card smalltext --algo threshold --densities 30
+  --speed 37`. Photos: IMG_2711 (smalltext), IMG_2712/2713 (cats).
