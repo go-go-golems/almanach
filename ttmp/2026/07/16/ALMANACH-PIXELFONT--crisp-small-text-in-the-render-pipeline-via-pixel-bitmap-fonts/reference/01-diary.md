@@ -106,3 +106,67 @@ reviewable production change, tracked and documented like the previous ticket.
 ### Technical details
 - Ticket: `ttmp/2026/07/16/ALMANACH-PIXELFONT--.../`.
 - Bundled PCF sources: `ttmp/2026/07/16/ALMANACH-RASTER-LAB--.../scripts/fonts/*.pcf`.
+
+## Step 2: Phase 0 spike — Approach A rejected, Approach B (AA off) adopted
+
+The spike reversed the design's initial recommendation, which is exactly why it
+ran first. I converted a bundled PCF (6x10, 6x9) to an OpenType font with an
+embedded bitmap strike (fontforge via `APPIMAGE_EXTRACT_AND_RUN=1`), embedded it
+in an HTML page via `@font-face`, rendered at 384 px in headless Chrome
+(`force-device-scale-factor=1`), and thresholded the screenshot to 1-bit with the
+`PngToBitmap` rule.
+
+Chrome did **not** use the embedded bitmap strike. Blink renders the font's
+vector outlines and ignores `EBDT`/`EBLC` for normal text; fontforge's
+auto-traced outlines were crude, so the custom font rendered *worse* than the
+stock font. Approach A is dead.
+
+Then I disabled anti-aliasing via a fontconfig file (`antialias=false`) supplied
+through `FONTCONFIG_FILE` and re-rendered. The render contained **0.00% gray
+pixels** — pure 1-bit — and a stock hinted font (DejaVu Sans) was crisp and fully
+legible down to 8 px. Rendering the SPA's real body font (DM Sans, extracted from
+`web/src/fonts-embedded.css`) AA-off showed it crisp to ~10–11 px but degraded at
+8–9 px, because DM Sans is lightly hinted compared to DejaVu.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1)
+
+**Assistant interpretation:** Run the spike to pick the approach before wiring.
+
+**Commit (code):** see changelog.
+
+### What I did
+- `scripts/convert_font.py` (fontforge PCF→OTB), produced AlmanachPixel9/10.
+- `scripts/fonts-noaa.conf` (fontconfig AA-off), `scripts/spike*.html`, render +
+  1-bit checks (`scripts/spike-*.png`).
+- Updated the design doc decision and phased plan to Approach B.
+
+### What worked
+- fontconfig `antialias=false` via `FONTCONFIG_FILE` makes headless Chrome
+  rasterize text monochrome (0% gray), which is the production lever.
+- Hinted vector fonts (DejaVu) render crisp 1-bit to 8 px AA-off.
+
+### What didn't work
+- Embedded-bitmap web font: Chrome ignores the strike, renders outlines. Rejected.
+- `woff2` export blocked locally (no brotli); will ship `woff` (zlib) if a
+  bundled small-text font is needed — Chrome decodes both.
+
+### What I learned
+- The real fix is not a custom font; it is moving the 1-bit decision from the
+  luminance threshold to FreeType's hint-aware monochrome rasterizer by turning
+  AA off. Small-text quality then follows the font's hinting, so ≤9 px wants a
+  strongly-hinted (or pixel-vector) face.
+
+### What warrants a second pair of eyes
+- Whether AA-off regresses large serif display type (Cormorant/EB Garamond) —
+  checked end-to-end in Phase 3 on the real page.
+
+### What should be done in the future
+- Phase 1: wire AA-off into `newChromeAllocatorWithViewport` via `FONTCONFIG_FILE`.
+- Phase 2: small-text CSS class using a strongly-hinted font.
+
+### Technical details
+- AA-off conf: `scripts/fonts-noaa.conf`. Spike renders: `spike-1bit.png`
+  (AA on, dropped strokes), `spike-noaa-1bit.png` (AA off, crisp),
+  `spike-dmsans-noaa-1bit.png` (real DM Sans AA-off).

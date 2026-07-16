@@ -149,13 +149,38 @@ Python harness does) and paste them into the screenshot region.
   geometry; abandons the HTML-first model that is the point of Almanach. Reserved
   as a last resort.
 
-### Decision
+### Decision (updated by the Phase 0 spike)
 
-Pursue **Approach A**, with **Approach B (AA off) as a paired enhancement and
-fallback**. Gate the choice on an early rendering spike (Task 1) that prints a
-candidate bitmap web font in headless Chrome at 384 px and checks, by converting
-the screenshot to 1-bit, that small glyphs are pure black/white with open
-counters. If Blink blurs the strike, fall back to B.
+The Phase 0 spike settled this empirically, and it **reverses the initial
+recommendation**. A custom font carrying an embedded bitmap strike was converted
+(fontforge PCF → OpenType) and loaded in headless Chrome at 384 px. Chrome did
+**not** use the embedded strike — Blink renders the font's vector outlines and
+ignores `EBDT`/`EBLC` for normal text. The auto-traced outlines were crude, so
+the custom font rendered *worse* than the stock font. **Approach A is rejected.**
+
+The same spike proved **Approach B**. With anti-aliasing disabled via fontconfig,
+the render contained zero gray pixels, and a stock hinted vector font (DejaVu
+Sans) rendered crisp and fully legible down to 8 px — because FreeType's hinted
+monochrome rasterizer preserves stems that the post-hoc luminance threshold was
+discarding. Testing the SPA's actual body font (DM Sans) AA-off showed it stays
+crisp to about 10–11 px but degrades at 8–9 px, because DM Sans has lighter
+bytecode hinting than DejaVu.
+
+**Adopted design:**
+
+1. **Disable anti-aliasing for the render browser** (Approach B). This is the
+   core change and it improves *all* text, because the 1-bit decision moves from
+   a dumb luminance threshold to FreeType's hint-aware monochrome rasterizer.
+2. **Give the smallest text (≤ 9–10 px) a strongly-hinted or pixel-designed
+   font** via a small-text CSS class, since lightly-hinted display fonts break up
+   at 8–9 px even AA-off. DejaVu Sans (heavily hinted, ships on most systems) is
+   the low-effort choice; a purpose-built pixel *vector* font (clean outlines, so
+   AA-off renders exact pixels) is the higher-polish choice. A custom
+   *embedded-bitmap* font is not, because Chrome will not use the strike.
+
+The font toolchain section below is retained for reference but is **not on the
+critical path** anymore; no custom web font ships unless the polish option is
+chosen.
 
 ## 5. The font toolchain
 
@@ -260,18 +285,23 @@ the lab's method but automates the digital half:
 
 ## 10. Phased implementation plan
 
-The plan is ordered so the riskiest unknown (does a bitmap web font render crisp
-in Chrome?) is resolved first, before any SPA wiring.
+The plan was ordered so the riskiest unknown (does a bitmap web font render crisp
+in Chrome?) was resolved first. It was — negatively — so the later phases pivoted
+to Approach B.
 
-- **Phase 0 — Spike.** Produce a candidate bitmap `woff2` and prove it renders
-  1-bit-crisp in headless Chrome at 384 px, versus the current vector font.
-- **Phase 1 — Font asset.** Finalize the conversion script (PCF → embedded-bitmap
-  OpenType → woff2) for the 9 px and 10 px faces; store the script and the
-  generated fonts in the ticket and the web assets.
-- **Phase 2 — SPA integration.** Add the `@font-face` and a small-text style
-  hook; build the SPA.
+- **Phase 0 — Spike (done).** Built a custom embedded-bitmap font and a stock
+  font, rendered both in headless Chrome at 384 px, and thresholded to 1-bit.
+  Result: Chrome ignores embedded strikes (Approach A rejected); disabling AA via
+  fontconfig makes hinted vector text crisp 1-bit (Approach B adopted).
+- **Phase 1 — Render-process AA off.** Add a fontconfig file that disables
+  anti-aliasing and wire it into the Chrome exec allocator
+  (`newChromeAllocatorWithViewport`) so the render browser rasterizes text
+  monochrome. This is the core change.
+- **Phase 2 — Small-text font for ≤ 9–10 px.** Ensure the smallest text uses a
+  strongly-hinted font (DejaVu Sans, or a bundled pixel-vector face) via a
+  small-text CSS class in the SPA; build the SPA.
 - **Phase 3 — End-to-end verification.** Render a small-text layout through the
-  Almanach pipeline and confirm the 1-bit output; add an automated check.
+  Almanach pipeline and confirm the 1-bit output is crisp; add an automated check.
 - **Phase 4 — Paper confirmation + docs.** Print, read, record; update the guide
   and diary.
 
