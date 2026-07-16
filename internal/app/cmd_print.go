@@ -27,6 +27,7 @@ type PrintSettings struct {
 	DryRun         bool   `glazed:"dry-run"`
 	Selector       string `glazed:"selector"`
 	Threshold      int    `glazed:"threshold"`
+	Supersample    int    `glazed:"supersample"`
 	ViewportWidth  int    `glazed:"viewport-width"`
 	ViewportHeight int    `glazed:"viewport-height"`
 	WaitMS         int    `glazed:"wait-ms"`
@@ -66,6 +67,7 @@ Examples:
 			fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Render but do not post to printer")),
 			fields.New("selector", fields.TypeString, fields.WithDefault(".paper-body"), fields.WithHelp("CSS selector to screenshot")),
 			fields.New("threshold", fields.TypeInteger, fields.WithDefault(128), fields.WithHelp("Grayscale threshold for bitmap conversion")),
+			fields.New("supersample", fields.TypeInteger, fields.WithDefault(defaultSupersampleScale), fields.WithHelp("Render oversampling factor (2-4); higher = crisper small text, slower. 1 disables (uses AA-off)")),
 			fields.New("viewport-width", fields.TypeInteger, fields.WithDefault(800), fields.WithHelp("Chrome viewport width")),
 			fields.New("viewport-height", fields.TypeInteger, fields.WithDefault(3000), fields.WithHelp("Chrome viewport height")),
 			fields.New("wait-ms", fields.TypeInteger, fields.WithDefault(250), fields.WithHelp("Extra wait after loading layout")),
@@ -100,13 +102,14 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	}
 
 	opts := RenderOptions{
-		Selector:       stringFromRenderOptions(layoutSource.RenderOptions, "selector", s.Selector),
-		Threshold:      clampToUint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
-		ViewportWidth:  intFromRenderOptions(layoutSource.RenderOptions, "viewportWidth", s.ViewportWidth),
-		ViewportHeight: intFromRenderOptions(layoutSource.RenderOptions, "viewportHeight", s.ViewportHeight),
-		WaitAfterLoad:  time.Duration(s.WaitMS) * time.Millisecond,
-		DebugDir:       s.DebugDir,
-		CollectMetrics: s.DebugDir != "",
+		Selector:         stringFromRenderOptions(layoutSource.RenderOptions, "selector", s.Selector),
+		Threshold:        clampToUint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
+		SupersampleScale: intFromRenderOptions(layoutSource.RenderOptions, "supersample", s.Supersample),
+		ViewportWidth:    intFromRenderOptions(layoutSource.RenderOptions, "viewportWidth", s.ViewportWidth),
+		ViewportHeight:   intFromRenderOptions(layoutSource.RenderOptions, "viewportHeight", s.ViewportHeight),
+		WaitAfterLoad:    time.Duration(s.WaitMS) * time.Millisecond,
+		DebugDir:         s.DebugDir,
+		CollectMetrics:   s.DebugDir != "",
 	}
 
 	result, err := renderOneShot(ctx, oneShotRenderRequest{

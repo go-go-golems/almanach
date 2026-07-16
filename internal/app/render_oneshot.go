@@ -61,7 +61,7 @@ func renderOneShot(ctx context.Context, req oneShotRenderRequest) (*RenderResult
 	opts := req.Options.withDefaults()
 	opts.BaseURL = "http://" + ln.Addr().String()
 
-	allocatorCtx, allocatorCancel := newChromeAllocatorWithViewport(cfg, opts.ViewportWidth, opts.ViewportHeight)
+	allocatorCtx, allocatorCancel := newChromeAllocatorWithViewport(cfg, opts.ViewportWidth, opts.ViewportHeight, opts.SupersampleScale)
 	defer allocatorCancel()
 
 	select {

@@ -27,14 +27,15 @@ const (
 // defaults for compatibility; CLI commands can override these fields for
 // one-shot preview/print/debug workflows.
 type RenderOptions struct {
-	BaseURL        string
-	Selector       string
-	Threshold      uint8
-	ViewportWidth  int
-	ViewportHeight int
-	WaitAfterLoad  time.Duration
-	DebugDir       string
-	CollectMetrics bool
+	BaseURL          string
+	Selector         string
+	Threshold        uint8
+	SupersampleScale int // render oversampling factor; downscaled before 1-bit conversion
+	ViewportWidth    int
+	ViewportHeight   int
+	WaitAfterLoad    time.Duration
+	DebugDir         string
+	CollectMetrics   bool
 }
 
 // RenderMetrics contains browser layout measurements for important elements.
@@ -162,6 +163,9 @@ func (o RenderOptions) withDefaults() RenderOptions {
 	if o.WaitAfterLoad <= 0 {
 		o.WaitAfterLoad = defaultRenderWait
 	}
+	if o.SupersampleScale <= 0 {
+		o.SupersampleScale = defaultSupersampleScale
+	}
 	if o.DebugDir != "" {
 		o.CollectMetrics = true
 	}
@@ -197,7 +201,7 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	}
 
 	actions := []chromedp.Action{
-		chromedp.EmulateViewport(int64(opts.ViewportWidth), int64(opts.ViewportHeight)),
+		chromedp.EmulateViewport(int64(opts.ViewportWidth), int64(opts.ViewportHeight), chromedp.EmulateScale(float64(opts.SupersampleScale))),
 		chromedp.Navigate(opts.BaseURL + "/almanach"),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.Poll(`window.almanachReady === true`, nil, chromedp.WithPollingTimeout(10*time.Second)),
@@ -221,7 +225,9 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 
 	log.Printf("[render] Screenshot captured: %d bytes PNG", len(screenshotBuf))
 
-	bitmap, err := PngToBitmap(screenshotBuf, opts.Threshold)
+	// Downscale the oversampled screenshot back to the target resolution, then
+	// convert to 1-bit. At scale 1 this is the plain threshold path.
+	bitmap, err := pngToBitmapSupersampled(screenshotBuf, opts.Threshold, opts.SupersampleScale)
 	if err != nil {
 		return nil, fmt.Errorf("bitmap convert: %w", err)
 	}
@@ -399,10 +405,10 @@ func writePrettyJSON(path string, v any) error {
 //     headless-shell container. This is the Docker/production mode.
 //   - Otherwise, launches a local Chrome process. This is the dev mode.
 func newChromeAllocator(cfg Config) (context.Context, context.CancelFunc) {
-	return newChromeAllocatorWithViewport(cfg, defaultRenderViewportWidth, defaultRenderViewportHeight)
+	return newChromeAllocatorWithViewport(cfg, defaultRenderViewportWidth, defaultRenderViewportHeight, defaultSupersampleScale)
 }
 
-func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight int) (context.Context, context.CancelFunc) {
+func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight, scale int) (context.Context, context.CancelFunc) {
 	if cfg.ChromeWSURL != "" {
 		log.Printf("Chrome mode: remote (%s)", cfg.ChromeWSURL)
 		allocCtx, cancel := chromedp.NewRemoteAllocator(context.Background(), cfg.ChromeWSURL)
@@ -415,8 +421,11 @@ func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight in
 	if viewportHeight <= 0 {
 		viewportHeight = defaultRenderViewportHeight
 	}
+	if scale <= 0 {
+		scale = defaultSupersampleScale
+	}
 
-	log.Printf("Chrome mode: local (launching Chrome)")
+	log.Printf("Chrome mode: local (launching Chrome, supersample=%dx)", scale)
 	opts := []chromedp.ExecAllocatorOption{
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
@@ -425,14 +434,20 @@ func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight in
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.Flag("hide-scrollbars", true),
-		chromedp.Flag("force-device-scale-factor", "1.0"),
-		chromedp.WindowSize(viewportWidth, viewportHeight),
+		chromedp.Flag("force-device-scale-factor", fmt.Sprintf("%d", scale)),
+		chromedp.WindowSize(viewportWidth*scale, viewportHeight*scale),
 	}
 
-	// Disable font anti-aliasing in the render browser so text rasterizes
-	// monochrome and small strokes survive the 1-bit conversion (ALMANACH-PIXELFONT).
-	if env := renderFontEnv(); len(env) > 0 {
-		opts = append(opts, chromedp.Env(env...))
+	// At 1x, disable font anti-aliasing so text rasterizes monochrome and small
+	// strokes survive the 1-bit conversion. When supersampling (scale>1) we keep
+	// AA on: the oversampled render captures thin strokes, and the box-average
+	// downscale + threshold reconstructs them crisply while preserving the font's
+	// shape — including small serif italics that AA-off at 1x renders roughly
+	// (ALMANACH-PIXELFONT).
+	if scale <= 1 {
+		if env := renderFontEnv(); len(env) > 0 {
+			opts = append(opts, chromedp.Env(env...))
+		}
 	}
 
 	if cfg.ChromePath != "" {
