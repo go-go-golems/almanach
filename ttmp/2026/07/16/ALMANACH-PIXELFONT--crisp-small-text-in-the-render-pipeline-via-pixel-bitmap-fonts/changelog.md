@@ -29,3 +29,8 @@ Step 4 (Phases 3-4): Verified AA-off on real page (0.01% vs 4.58% gray, all stro
 
 Step 5: Supersampling (3x render + box-average downscale) shipped as default fix for small serif italics; keeps theme fonts; --supersample flag; AA-off kept for scale 1. Printed to K118. lint+tests green (commit f61ec55).
 
+
+## 2026-07-16
+
+Step 6: Font x size x technique matrix (02-font-matrix.py). Finding: hinted font @ 1x AA-off beats supersampling for small text. Best small: JetBrains Mono (8px), DejaVu Sans/Serif. EB Garamond/DM Sans/Noto rough small. Printed 1x-aaoff and 3x sheets.
+

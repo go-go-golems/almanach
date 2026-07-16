@@ -330,3 +330,54 @@ best approach, keeping the serif aesthetic if possible.
 ### Technical details
 - Default scale `defaultSupersampleScale=3`; tunable `--supersample` (1 disables,
   using the AA-off path). Verified: `render ... --supersample 2|3 --format bitmap`.
+
+## Step 6: Font/size/technique matrix — hinted font at 1x AA-off wins
+
+The user said the result "is not great yet" and asked for a matrix over fonts,
+sizes, and techniques. I built `scripts/02-font-matrix.py`: it renders the same
+small text across 6 fonts (EB Garamond, DejaVu Serif, DM Sans, DejaVu Sans, Noto
+Sans, JetBrains Mono) at sizes 8–13 (plus an 11px italic), through 5 techniques
+(1x AA-off, 2x/3x/4x supersample, 3x threshold 160), each downsampled to the
+384px 1-bit target exactly like the pipeline. Rendered all five and printed the
+1x-AA-off and 3x sheets to the K118.
+
+The matrix reframed the whole problem: **the font's hinting quality dominates,
+and for a well-hinted font 1x AA-off is *sharper* than supersampling at small
+sizes**, because bytecode hinting is designed for exact-pixel rendering and
+supersampling bypasses it. Concretely, at 1x AA-off:
+
+- **JetBrains Mono** (already in the SPA): crisp and legible at **8 px**.
+- **DejaVu Sans** (hinted): crisp to ~9 px.
+- **DejaVu Serif** (hinted): legible to ~9–10 px and keeps a serif look.
+- **EB Garamond, DM Sans, Noto Sans**: rough/broken at 8–9 px in every technique
+  (light hinting) — supersampling helps them a little at medium sizes only.
+
+So the shipped supersampling default helps a *specific delicate font* (EB
+Garamond) but is not the best general answer: the best small text comes from
+choosing a **hinted font** and rendering **1x AA-off**.
+
+### Prompt Context
+
+**User prompt (verbatim):** "ok, now do a matrix over different fonts and sizes and techniques and such. It's not great yet."
+
+**Assistant interpretation:** Systematically compare fonts x sizes x techniques
+to find the actually-legible small-text recipe.
+
+**Commit (code):** see changelog (harness only; no production change yet — the
+font direction is a user aesthetic decision).
+
+### What I did
+- `scripts/02-font-matrix.py` (grid HTML + supersample/threshold render +
+  print); result sheets `scripts/matrix/{1x-aaoff,2x,3x,4x,3x-T160}.png`.
+- Fixed a geometry bug (window-size is CSS px; must be the paper width, not
+  width×scale) and PIL's decompression-bomb guard for our own screenshots.
+
+### Findings / recommendation
+- Best small text = hinted font @ 1x AA-off. Options: DejaVu Serif (serif look),
+  DejaVu Sans, or JetBrains Mono (crispest, to 8px).
+- Supersampling is a fallback for keeping a delicate font (EB Garamond) as-is.
+- Decision is the user's: which font direction for body/small text.
+
+### What should be done next
+- On the user's font choice: switch theme body/small-text font to a hinted face
+  (and likely default supersample back to 1 for those, since 1x is sharper).
