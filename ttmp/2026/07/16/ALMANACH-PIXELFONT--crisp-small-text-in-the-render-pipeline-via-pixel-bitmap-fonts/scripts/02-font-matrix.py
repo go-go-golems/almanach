@@ -53,6 +53,43 @@ TECHNIQUES = {
 
 ITALIC_SAMPLE = "We stood enjoying the brief apricity 0123"
 
+# Style sweep: (label, css font-family, size) x weight/tracking variants.
+STYLE_FONTS = [
+    ("EB Garamond 17", "'EB Garamond', serif", 17),
+    ("DejaVu Serif 11", "'DejaVu Serif', serif", 11),
+    ("DejaVu Sans 11", "'DejaVu Sans', sans-serif", 11),
+]
+STYLE_VARIANTS = [
+    ("normal 400", "font-weight:400"),
+    ("bold 700", "font-weight:700"),
+    ("track +0.4", "font-weight:400;letter-spacing:0.4px"),
+    ("bold+track", "font-weight:700;letter-spacing:0.3px"),
+    ("italic 400", "font-weight:400;font-style:italic"),
+    ("italic bold", "font-weight:700;font-style:italic"),
+]
+
+
+def build_style_html(title="STYLE"):
+    rows = [f'<div class="hdr">{title}</div>']
+    for label, fam, sz in STYLE_FONTS:
+        rows.append(f'<div class="lbl">{label}</div>')
+        for vlabel, css in STYLE_VARIANTS:
+            samp = ITALIC_SAMPLE if "italic" in css else SAMPLE
+            rows.append(f'<div class="s" style="font-family:{fam};font-size:{sz}px;line-height:{sz+3}px;{css}">'
+                        f'{vlabel}: {samp}</div>')
+        rows.append('<div class="gap"></div>')
+    link = f'<link rel="stylesheet" href="file://{FONTS_CSS}">' if os.path.exists(FONTS_CSS) else ""
+    html = f"""<!doctype html><meta charset=utf-8>{link}<style>
+html,body{{margin:0;background:#fff}}
+.p{{width:{W}px;padding:6px 4px;color:#000;box-sizing:border-box}}
+.hdr{{font-family:'DejaVu Sans',sans-serif;font-size:15px;font-weight:bold;background:#000;color:#fff;padding:3px 4px;margin-bottom:3px}}
+.lbl{{font-family:'DejaVu Sans',sans-serif;font-size:11px;font-weight:bold;border-bottom:2px solid #000;padding:1px 3px;margin-top:5px}}
+.s{{color:#000;margin:1px 0;white-space:nowrap;overflow:hidden}}
+.gap{{height:5px}}</style><div class="p">{''.join(rows)}</div>"""
+    path = os.path.join(HERE, "matrix.html")
+    open(path, "w").write(html)
+    return path
+
 
 def build_html(title="MATRIX"):
     rows = [f'<div class="hdr">{title}</div>']
@@ -151,7 +188,10 @@ def main():
     ap.add_argument("--tech", default="", help="single technique to render/print")
     ap.add_argument("--densities", default="", help="comma list; sweep printer density per print")
     ap.add_argument("--speeds", default="", help="comma list; sweep printer speed per print")
+    ap.add_argument("--mode", default="grid", choices=["grid", "style"], help="grid=font/size, style=weight/tracking")
     args = ap.parse_args()
+
+    build = build_style_html if args.mode == "style" else build_html
 
     techs = [args.tech] if args.tech else list(TECHNIQUES)
     densities = [int(x) for x in args.densities.split(",")] if args.densities else [None]
@@ -165,8 +205,8 @@ def main():
                 # Bake the technique + heat into the sheet header so every printed
                 # strip is self-identifying.
                 heat = (f"  d={d}" if d is not None else "") + (f" s={s}" if s is not None else "")
-                title = f"{t}  scale={scale} aa_off={int(aa_off)} thr={thr}{heat}"
-                html = build_html(title)
+                title = f"{args.mode} {t} aa_off={int(aa_off)}{heat}"
+                html = build(title)
                 black = render(html, scale, aa_off, thr)
                 print(f"[{title}] {black.shape[1]}x{black.shape[0]} black={black.mean()*100:.1f}%", file=sys.stderr)
                 tag = t + (f"_d{d}" if d is not None else "") + (f"_s{s}" if s is not None else "")

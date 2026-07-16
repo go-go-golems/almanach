@@ -44,3 +44,8 @@ Step 7: Labeled matrix sheets (baked technique+density+speed header); added heat
 
 Step 8: x-height-matched font sheet (EB Garamond 13-16 vs DejaVu Serif/Sans 10-13); confirmed EB Garamond ~15-16 = DejaVu ~11-12. Printed at d38/s37, d34/s37, d39/s25. Heat winner ~density 38 + slow speed.
 
+
+## 2026-07-16
+
+Step 9: Enumerated remaining levers (weight, tracking, hinting, stem-darkening, threshold, numerals, case, graphics-mode). Style sweep (weight x tracking x italic) printed at d38/s37: BOLD is the big win, esp for italics (bold italic legible where normal isn't); tracking helps mildly; EB Garamond 17 italic legible. Heat differences 34-39 marginal.
+
