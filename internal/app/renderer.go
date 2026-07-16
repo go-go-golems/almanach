@@ -429,6 +429,12 @@ func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight in
 		chromedp.WindowSize(viewportWidth, viewportHeight),
 	}
 
+	// Disable font anti-aliasing in the render browser so text rasterizes
+	// monochrome and small strokes survive the 1-bit conversion (ALMANACH-PIXELFONT).
+	if env := renderFontEnv(); len(env) > 0 {
+		opts = append(opts, chromedp.Env(env...))
+	}
+
 	if cfg.ChromePath != "" {
 		opts = append(opts, chromedp.ExecPath(cfg.ChromePath))
 	}
