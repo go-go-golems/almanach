@@ -7,6 +7,7 @@ import {
   Sun, Moon, Leaf, Mountain, Rocket, BookMarked, Coffee,
   Image as ImageIcon, Upload
 } from "lucide-react";
+import { defineBlock, createBlockRegistry, resolveBlockAdapter } from "./blocks/registry.js";
 
 /* ================================================================
    ALMANACH STUDIO — thermal-printer almanac layout designer
@@ -753,24 +754,53 @@ const ReflectionBlock = ({ data, theme }) => (
 
 const DividerBlock = ({ data, theme }) => <Ornament theme={theme} kind={data.style} />;
 
-const RENDERERS = {
-  title: TitleBlock,
-  date: DateBlock,
-  plan: PlanBlock,
-  news: NewsBlock,
-  weather: WeatherBlock,
-  note: NoteBlock,
-  image: ImageBlock,
-  habits: HabitsBlock,
-  quote: QuoteBlock,
-  word: WordBlock,
-  history: HistoryBlock,
-  did: DidBlock,
-  mood: MoodBlock,
-  reading: ReadingBlock,
-  reflection: ReflectionBlock,
-  divider: DividerBlock,
-};
+// Visible placeholder for a block whose `type` is not in the registry. Unknown
+// types render this instead of being dropped at parse or crashing the render.
+const UnknownBlock = ({ type, theme }) => (
+  <div style={{
+    border: `1px dashed ${theme.rule}`,
+    padding: "8px 10px",
+    fontFamily: theme.fontBody,
+    fontSize: theme.fs(11),
+    color: theme.muted,
+    textAlign: "center",
+    lineHeight: 1.4,
+  }}>
+    Unknown block type: “{type}” — not registered.
+  </div>
+);
+
+// Block registry (DSL v2, Phase 2): type -> adapter. Each adapter wraps its
+// existing component; `render(data, ctx)` returns the paper node. Building the
+// registry from an array (not a bare object) gives us the duplicate-type guard
+// and a single place to compose future sub-registries.
+const BLOCK_ADAPTERS = [
+  defineBlock({ type: "title", module: "studio", render: (data, ctx) => <TitleBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "date", module: "studio", render: (data, ctx) => <DateBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "plan", module: "studio", render: (data, ctx) => <PlanBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "news", module: "studio", render: (data, ctx) => <NewsBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "weather", module: "studio", render: (data, ctx) => <WeatherBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "note", module: "studio", render: (data, ctx) => <NoteBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "image", module: "studio", render: (data, ctx) => <ImageBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "habits", module: "studio", render: (data, ctx) => <HabitsBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "quote", module: "studio", render: (data, ctx) => <QuoteBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "word", module: "studio", render: (data, ctx) => <WordBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "history", module: "studio", render: (data, ctx) => <HistoryBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "did", module: "studio", render: (data, ctx) => <DidBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "mood", module: "studio", render: (data, ctx) => <MoodBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "reading", module: "studio", render: (data, ctx) => <ReadingBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "reflection", module: "studio", render: (data, ctx) => <ReflectionBlock data={data} theme={ctx.theme} /> }),
+  defineBlock({ type: "divider", module: "studio", render: (data, ctx) => <DividerBlock data={data} theme={ctx.theme} /> }),
+];
+
+const BLOCK_REGISTRY = createBlockRegistry(BLOCK_ADAPTERS);
+
+// Render one block through the registry, falling back to a visible placeholder.
+function renderBlock(block, ctx) {
+  const adapter = resolveBlockAdapter(ctx.registry, block.type);
+  if (!adapter) return <UnknownBlock type={block.type} theme={ctx.theme} />;
+  return adapter.render(block.data, { ...ctx, block });
+}
 
 // =================================================================
 // EDITORS — right-panel forms for each block type
@@ -1248,7 +1278,6 @@ const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, on
 
         <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: theme.ornateFrame ? 12 : 14 }}>
           {blocks.map((b, i) => {
-            const Renderer = RENDERERS[b.type];
             const isSelected = b.id === selectedId;
             const isBoxed = theme.boxed && b.type !== "title" && b.type !== "date" && b.type !== "divider";
 
@@ -1262,7 +1291,7 @@ const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, on
                   padding: isBoxed ? "10px 12px" : 0,
                   border: isBoxed ? `1px solid ${theme.rule}` : "none",
                 }}>
-                  <Renderer data={b.data} theme={theme} />
+                  {renderBlock(b, { theme, registry: BLOCK_REGISTRY })}
                 </div>
                 <div className="block-controls" onClick={(e) => e.stopPropagation()}>
                   <button onClick={() => onMove(b.id, -1)} disabled={i === 0} title="Move up"><ChevronUp size={11} /></button>
@@ -1458,17 +1487,19 @@ function parseLayoutJson(text) {
   if (!parsed || !Array.isArray(parsed.blocks)) {
     throw new Error("File is not a valid Almanach Studio layout.");
   }
-  // Validate / normalize blocks
-  const validTypes = new Set(BLOCK_TYPES.map((b) => b.type));
+  // Normalize blocks. Unknown types are kept (not dropped) so the renderer can
+  // show a visible placeholder; only their defaults are unavailable.
   const blocks = parsed.blocks
-    .filter((b) => b && validTypes.has(b.type))
-    .map((b) => ({
-      id: b.id || uid(),
-      type: b.type,
-      data: b.data && typeof b.data === "object"
-        ? { ...DEFAULTS[b.type], ...b.data }
-        : JSON.parse(JSON.stringify(DEFAULTS[b.type])),
-    }));
+    .filter((b) => b && typeof b.type === "string")
+    .map((b) => {
+      const defaults = DEFAULTS[b.type]; // undefined for unregistered types
+      const data = b.data && typeof b.data === "object"
+        ? { ...(defaults || {}), ...b.data }
+        : defaults
+          ? JSON.parse(JSON.stringify(defaults))
+          : {};
+      return { id: b.id || uid(), type: b.type, data };
+    });
 
   const themeKey = THEMES[parsed.theme] ? parsed.theme : "classic";
   const paperWidth =

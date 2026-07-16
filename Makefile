@@ -1,4 +1,4 @@
-.PHONY: all build build-web test clean run lint lintmax gosec govulncheck goreleaser proto test-proto
+.PHONY: all build build-web test clean run lint lintmax gosec govulncheck goreleaser proto test-proto test-web
 
 BINARY := almanach-render-service
 GORELEASER_ARGS ?= --skip=sign --snapshot --clean
@@ -21,7 +21,12 @@ proto:
 # Round-trip decode tests locking the layout wire contract on both sides.
 test-proto:
 	GOWORK=off go test ./internal/layoutpb/...
-	node web/src/pb/layout.roundtrip.test.mjs
+	node web/test/layout.roundtrip.test.mjs
+
+# Runner-free web unit tests (proto round-trip + block registry).
+test-web:
+	node web/test/layout.roundtrip.test.mjs
+	node web/src/blocks/registry.test.mjs
 
 build: build-web
 	GOWORK=off go build -tags embed -o ./dist/$(BINARY) ./cmd/almanach-render-service

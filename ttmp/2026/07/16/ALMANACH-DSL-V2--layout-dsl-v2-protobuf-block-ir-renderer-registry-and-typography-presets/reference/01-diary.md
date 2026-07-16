@@ -108,7 +108,7 @@ codegen, no behavior change (nothing wired into the render path yet).
   normalize, JSON + binary). A shared golden `proto/.../testdata/layout_golden.json`
   is read by **both** the Go test (`internal/layoutpb/codec_test.go`, field
   assertions + proto.Equal round-trip) and a runner-free TS test
-  (`web/src/pb/layout.roundtrip.test.mjs`, `fromJson`/`toJson`, run with `node`).
+  (`web/test/layout.roundtrip.test.mjs`, `fromJson`/`toJson`, run with `node`).
 - **Wiring.** `make proto`, `make test-proto`, `pnpm --dir web test:proto`.
 
 ### What was tricky / gotchas (read before Phase 2+)
@@ -137,3 +137,55 @@ codegen, no behavior change (nothing wired into the render path yet).
   (`web/src/pb/.../layout_pb`) are now importable in the studio; build the
   `type -> adapter` registry against `Block`/`Layout` and a graceful
   unknown-type placeholder.
+
+## Step 3: Phase 2 — React renderer registry
+
+Refactored the studio's block dispatch from a bare `RENDERERS` object map into a
+proper adapter registry with a graceful unknown-type fallback. Behavior for
+known types is unchanged (verified on paper); unknown types now render a visible
+placeholder instead of being dropped at parse or crashing.
+
+### What I did
+- **`web/src/blocks/registry.js`** — a React-free, side-effect-free registry:
+  `defineBlock` (shape validation), `createBlockRegistry` (array -> Map, throws
+  on duplicate type), `mergeBlockRegistries`, `resolveBlockAdapter`. Mirrors the
+  rag-evaluation-system widget-IR pattern (adapter objects + Map + merge +
+  graceful fallback) minus the interactivity plumbing a print DSL doesn't need.
+  Kept pure JS (not `.jsx`) so it unit-tests in plain Node.
+- **`web/src/blocks/registry.test.mjs`** — runner-free node test: defineBlock
+  validation, dup guard, lookup hit/miss, merge + merge-dup guard, render
+  passthrough of `(data, ctx)`.
+- **Studio wiring (`almanach-studio.jsx`)** — replaced the `RENDERERS` object
+  with `BLOCK_ADAPTERS` (one `defineBlock` per existing component, each wrapping
+  the unchanged `*Block` component) -> `BLOCK_REGISTRY`. Added an `UnknownBlock`
+  placeholder component and a `renderBlock(block, ctx)` helper (ctx =
+  `{ theme, registry, block }`). The paper render loop now calls
+  `renderBlock(b, { theme, registry: BLOCK_REGISTRY })`.
+- **`parseLayoutJson`** no longer drops unknown-type blocks; it keeps any block
+  with a string `type`, guarding the `DEFAULTS[type]` lookup (unknown -> `{}`).
+  Both feed paths (`window.almanachLoadLayout` headless + file import) go through
+  this function, so the placeholder shows in the print pipeline too.
+
+### Gotcha fixed (important)
+- **`buf.gen.yaml` has `clean: true`**, so `buf generate` wipes the entire
+  `web/src/pb` output dir. The Phase 1 proto round-trip test was originally
+  written *inside* `web/src/pb/`, so `make proto` deleted it (and it never made
+  it into the Phase 1 commit). Moved it to **`web/test/layout.roundtrip.test.mjs`**
+  — never put hand-written files under a buf `clean:true` out dir. This commit
+  restores that test at the safe location.
+
+### Verified
+- `make test-web` green (proto round-trip 13 assertions + registry unit test).
+  `make proto` re-run confirms the relocated test survives regen.
+- End-to-end render through the real pipeline (`google-chrome-stable`, 384px):
+  - `examples/layouts/03-knowledge-strip.yaml` renders identically to before
+    (384x1000) — no behavior change for known blocks.
+  - A layout with an unknown `sparkline` block renders the title and quote
+    normally and shows a dashed "Unknown block type 'sparkline' — not registered"
+    placeholder between them (previously the block vanished at parse).
+- `GOWORK=off go test ./...` and `pnpm run build` (studio bundle) both clean.
+
+### What should be done next
+- Phase 3: typography presets. With the registry in place and `Typography`/
+  `TextStyle` already in the proto, introduce the preset model + paper-verified
+  defaults and migrate components off inline `theme.fs(n)` sizes. Ship + print.
