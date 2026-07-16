@@ -84,7 +84,25 @@ losing any of the accumulated context or the product decisions.
 ## Step 2: Phase 1 — protobuf layout schema + codegen + round-trip tests
 
 Executed Phase 1 of the handoff: the shared block-IR schema and its Go/TS
-codegen, no behavior change (nothing wired into the render path yet).
+codegen, no behavior change (nothing wired into the render path yet). This
+establishes the single source of truth (`layout.proto`) both the Go service and
+the TS studio import, replacing the implicit React-defined contract.
+
+It unlocks everything downstream: the registry (Phase 2) dispatches on the
+generated `Block.type`, and the typography/theme/render work (Phases 3-5) fills
+in messages this schema already declares.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Work on ttmp/2026/07/16/ALMANACH-DSL-V2--layout-dsl-v2-protobuf-block-ir-renderer-registry-and-typography-presets/design-doc/01-handoff-layout-dsl-v2-protobuf-block-ir-renderer-registry-typography-presets.md"
+
+**Assistant interpretation:** Start executing the handoff's phased plan; Phase 0
+is orientation, so begin Phase 1 (proto schema + Buf codegen + round-trip test).
+
+**Inferred user intent:** Actually build the DSL v2 described in the handoff,
+in order, verifying each phase.
+
+**Commit (code):** d777d80 — "feat(dsl-v2): Phase 1 — protobuf layout block IR + Go/TS codegen"
 
 ### What I did
 - **Buf setup.** Root `buf.yaml` (v2) scoped to `proto/` via `modules: [{path:
@@ -111,26 +129,57 @@ codegen, no behavior change (nothing wired into the render path yet).
   (`web/test/layout.roundtrip.test.mjs`, `fromJson`/`toJson`, run with `node`).
 - **Wiring.** `make proto`, `make test-proto`, `pnpm --dir web test:proto`.
 
-### What was tricky / gotchas (read before Phase 2+)
-- **pnpm store is read-only in this sandbox.** The global `~/.config/pnpm/rc`
-  sets `store-dir` to an archived, read-only workspace path, so any install that
-  needs a *new* tarball fails with `ERR_PNPM_EROFS`, and `$HOME` itself is
-  read-only. Worked around by reinstalling into a repo-local store:
-  `pnpm install --store-dir ../.tmp-pnpm-store --config.confirmModulesPurge=false`
-  (the dir is git-ignored). `node_modules` is now linked to that store; a plain
-  `pnpm install` will error `UNEXPECTED_STORE` until you pass the same
-  `--store-dir` (or fix the global config on a normal machine).
-- **protobuf-es `tsEnum` strips the enum prefix at runtime**: the value is
-  `RasterMode.THRESHOLD`, not `RASTER_MODE_THRESHOLD` (the JSON wire form keeps
-  the full name). The `.d.ts` shows full names; runtime keys are short.
-- No `int64` in the schema, so no `bigint` round-trip hazard yet — keep it that
-  way, or add a `toJson` round-trip before any `JSON.stringify` if you introduce
-  one.
+### Why
+- The DSL contract was implicit and lived inside one React file; unknown fields
+  vanished silently. A protobuf schema makes it explicit, validated, versioned,
+  and shared by both languages — the prerequisite the handoff calls out.
+
+### What worked
+- Local-plugin codegen produced clean Go + TS; the shared golden fixture decodes
+  identically on both sides; round-trip is stable (`proto.Equal`, `toJson`).
+
+### What didn't work (verbatim)
+- Remote Buf plugins: `buf generate` -> `Failure: your Buf API token for
+  buf.build is invalid. Run "buf registry login"...`. Switched to local plugins.
+- pnpm adds failed: `ERR_PNPM_EROFS: read-only file system, open
+  '/home/manuel/workspaces/2026-05-03/.../.pnpm-store/...'`; then
+  `ERR_PNPM_UNEXPECTED_STORE` after pointing at a new store; resolved by a full
+  `pnpm install --store-dir ../.tmp-pnpm-store --config.confirmModulesPurge=false`.
+
+### What I learned
+- With a v2 `modules: [{path: proto}]` workspace, the module root is `proto/`, so
+  `paths=source_relative` output has no `proto/` prefix — `go_package` must be
+  `.../gen/almanach/layout/v1`, not `.../gen/proto/...`.
+- protobuf-es `tsEnum` strips the enum-name prefix at runtime.
+
+### What was tricky to build
+- **pnpm store is read-only in this sandbox.** Cause: the global
+  `~/.config/pnpm/rc` sets `store-dir` to an archived, read-only workspace path,
+  and `$HOME` is read-only. Symptom: `ERR_PNPM_EROFS` on any new tarball.
+  Solution: install into a git-ignored repo-local store
+  (`--store-dir ../.tmp-pnpm-store`); `node_modules` is now bound to it, so a
+  plain `pnpm install` errors `UNEXPECTED_STORE` until the same `--store-dir` is
+  passed. Documented in the `almanach-dsl-v2-build` memory.
+- **`tsEnum` prefix stripping**: `RasterMode.THRESHOLD`, not
+  `RASTER_MODE_THRESHOLD` (JSON wire form keeps the full name; `.d.ts` shows full
+  names but runtime keys are short) — the TS test failed until I used short keys.
+
+### What warrants a second pair of eyes
+- Block content is `google.protobuf.Struct` (free-form) for now; the open
+  question (Struct vs per-type `oneof`) is deferred. No `int64` in the schema, so
+  no `bigint` hazard yet — keep it that way or `toJson`-round-trip before any
+  `JSON.stringify`.
 
 ### Verified
 - `make test-proto` green (Go + TS). `buf generate` is idempotent (re-running
   produces no diff). `GOWORK=off go build ./...` and `go vet ./internal/layoutpb/...`
   clean.
+
+### Code review instructions
+- Start at `proto/almanach/layout/v1/layout.proto` (the contract), then
+  `internal/layoutpb/codec.go` (protojson options must stay `UseProtoNames:false`
+  to match the TS side). Validate: `make test-proto`; regenerate with `make proto`
+  and confirm no diff.
 
 ### What should be done next
 - Phase 2: the React renderer registry. The generated TS types
@@ -144,6 +193,23 @@ Refactored the studio's block dispatch from a bare `RENDERERS` object map into a
 proper adapter registry with a graceful unknown-type fallback. Behavior for
 known types is unchanged (verified on paper); unknown types now render a visible
 placeholder instead of being dropped at parse or crashing.
+
+This de-risks the phases that add block types and styling: adding a block is now
+"write a component + register an adapter", and the registry threads a `ctx`
+(theme, block) that Phase 3 uses to pass per-block style.
+
+### Prompt Context
+
+**User prompt (verbatim):** "commit all stage worthy (even if not yours). then go into phase 2."
+
+**Assistant interpretation:** Commit everything currently uncommitted (the
+pre-existing PIXELFONT ttmp artifacts and my Phase 1 work), then implement
+Phase 2, the renderer registry.
+
+**Inferred user intent:** Get a clean tree with Phase 1 recorded in history, then
+keep executing the plan.
+
+**Commit (code):** 27f663b — "feat(dsl-v2): Phase 2 — React renderer registry + graceful unknown blocks" (plus 22f1eeb, d777d80 committed first per the instruction).
 
 ### What I did
 - **`web/src/blocks/registry.js`** — a React-free, side-effect-free registry:
@@ -166,13 +232,34 @@ placeholder instead of being dropped at parse or crashing.
   Both feed paths (`window.almanachLoadLayout` headless + file import) go through
   this function, so the placeholder shows in the print pipeline too.
 
-### Gotcha fixed (important)
+### Why
+- 16 bespoke components dispatched by a bare object map; unknown types crashed
+  the render or were dropped at parse. The registry pattern (from
+  rag-evaluation-system) gives a dup-guarded, composable, gracefully-degrading
+  dispatch — the handoff's Phase 2.
+
+### What worked
+- Keeping the registry pure JS (no JSX) let it unit-test in plain Node; wrapping
+  the *unchanged* `*Block` components in adapters meant zero visual change for
+  known types, confirmed on paper.
+
+### What I learned
+- Both feed paths (`window.almanachLoadLayout` and file import) funnel through
+  `parseLayoutJson`, so relaxing its type filter is the single place that makes
+  unknown blocks reach the placeholder in the print pipeline too.
+
+### What was tricky to build
 - **`buf.gen.yaml` has `clean: true`**, so `buf generate` wipes the entire
-  `web/src/pb` output dir. The Phase 1 proto round-trip test was originally
-  written *inside* `web/src/pb/`, so `make proto` deleted it (and it never made
-  it into the Phase 1 commit). Moved it to **`web/test/layout.roundtrip.test.mjs`**
-  — never put hand-written files under a buf `clean:true` out dir. This commit
-  restores that test at the safe location.
+  `web/src/pb` output dir. Cause/symptom: the Phase 1 proto round-trip test was
+  written *inside* `web/src/pb/`, so `make proto` silently deleted it — and it
+  had never made it into the Phase 1 commit (only the generated files did).
+  Solution: moved it to **`web/test/layout.roundtrip.test.mjs`** and re-ran
+  `make proto` to confirm it survives regen. Rule: never put hand-written files
+  under a buf `clean:true` out dir.
+
+### What warrants a second pair of eyes
+- `parseLayoutJson` now keeps any block with a string `type`; unknown types get
+  `data: {}`. Confirm no downstream code assumes `DEFAULTS[type]` exists.
 
 ### Verified
 - `make test-web` green (proto round-trip 13 assertions + registry unit test).
@@ -185,6 +272,12 @@ placeholder instead of being dropped at parse or crashing.
     placeholder between them (previously the block vanished at parse).
 - `GOWORK=off go test ./...` and `pnpm run build` (studio bundle) both clean.
 
+### Code review instructions
+- Start at `web/src/blocks/registry.js` (pure logic) + `registry.test.mjs`, then
+  the `BLOCK_ADAPTERS`/`BLOCK_REGISTRY`/`renderBlock`/`UnknownBlock` region and the
+  relaxed `parseLayoutJson` in `web/src/almanach-studio.jsx`. Validate:
+  `make test-web`; render the known + an unknown-block layout and diff visually.
+
 ### What should be done next
 - Phase 3: typography presets. With the registry in place and `Typography`/
   `TextStyle` already in the proto, introduce the preset model + paper-verified
@@ -196,6 +289,23 @@ Introduced named typography presets with built-in defaults + a three-layer
 override model, baked the ALMANACH-PIXELFONT recipe into the defaults, and
 migrated every block component off inline `theme.fs(n)`/font literals. This is
 the phase where the print-legibility win lands.
+
+The recipe (bigger sizes, minSize floors, heavier body/small, bold-italic
+quotes) is now a data change, and a layout can override any preset globally or a
+block inline — turning what previously required editing React into a few lines
+of layout JSON.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Do it."
+
+**Assistant interpretation:** Proceed into Phase 3 (typography presets), which I
+had just proposed as the next step.
+
+**Inferred user intent:** Land the print-quality win the handoff flagged as the
+phase to "ship and print".
+
+**Commit (code):** d25e17b — "feat(dsl-v2): Phase 3 — typography presets with paper-verified defaults"
 
 ### What I did
 - **`web/src/typography/presets.js`** — `DEFAULT_PRESETS` (sectionLabel, overline,
@@ -217,11 +327,36 @@ the phase where the print-legibility win lands.
   per-block `style` (e.g. a quote's text = `emphasis`, its attribution =
   `caption`). Only decorative glyphs/icons still use `fs()`.
 
-### Gotcha fixed
-- The resolver originally always injected a role-derived font, which clobbered
-  the theme's title font when an ad-hoc override (no `role`/`font`) was spread
-  onto the `<h1>`. Fixed: `resolveStyle` only sets `fontFamily` when the merged
-  style actually names a `font` or a `role`. Test added.
+### Why
+- Typography was baked into components as literals (`fs(11)`) with family/weight
+  from the theme; a layout couldn't set font/size/weight/spacing/min-size. Presets
+  make the paper-verified recipe the default and let layouts/blocks override.
+
+### What worked
+- Modeling preset style objects with the **proto `TextStyle` field names** means
+  a decoded layout's `typography.presets`/`Block.style` plug straight into the
+  resolver with no adapter. On-paper diff shows the intended legibility win.
+
+### What I learned
+- `size` must be a *base* px value scaled by `bodyScale`, with `minSize` an
+  *absolute* floor applied after scaling — otherwise the floor scales too and
+  stops being a legibility guarantee.
+
+### What was tricky to build
+- **Font clobbering.** Cause: `resolveStyle` always derived a font from `role`,
+  so spreading an ad-hoc override with neither `role` nor `font` (the `<h1>`
+  title-override case) forced `fontBody` and wiped the theme's display font.
+  Symptom: the title flipped to the body font. Solution: only set `fontFamily`
+  when the merged style actually names a `font` or a `role`; added a test
+  asserting no font is injected otherwise.
+- **Which element gets `Block.style`.** Chose the block's *primary* text element
+  per type (quote text = `emphasis`, plan container = `body`, etc.), passed last
+  in the override array so it wins over layout + component tweaks.
+
+### What warrants a second pair of eyes
+- The preset-per-element mapping across 16 components is judgment-heavy; sizes
+  were tuned once on paper and may need per-theme adjustment. Decorative glyphs
+  intentionally still use `fs()`.
 
 ### Verified (on paper, google-chrome-stable, 384px)
 - `examples/layouts/03-knowledge-strip.yaml`: markedly more legible than
@@ -233,6 +368,13 @@ the phase where the print-legibility win lands.
   italic/lighter from its per-block style.
 - `make test-web` (13 + registry + presets assertions), `go test ./...`, and the
   studio bundle build all green.
+
+### Code review instructions
+- Start at `web/src/typography/presets.js` (`DEFAULT_PRESETS`, `resolveStyle`
+  merge order + minSize/font rules) + `presets.test.mjs`. Then the `theme.preset`
+  binding and per-component preset calls in `web/src/almanach-studio.jsx`, and the
+  `typography`/`style` plumbing in `parseLayoutJson`/`buildLayoutJson`. Validate:
+  `make test-web`; render the knowledge-strip + an override layout and eyeball.
 
 ### What should be done next
 - Phase 4: data-driven themes + embed the hinted DejaVu Serif/Sans fonts in the
