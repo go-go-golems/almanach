@@ -50,11 +50,131 @@ blocks:
 |---|---|---:|---|
 | `almanach_studio_version` | integer | no | Layout file version. Use `1`. |
 | `exported_at` | string | no | ISO timestamp for provenance. |
-| `theme` | string | no | Theme key. Use `minimal` for thermal output. |
+| `theme` | string \| object | no | A built-in theme key (e.g. `minimal`, `crisp`) **or** an inline theme object. See [Themes](#themes). |
 | `paperWidth` | integer | no | Paper width in pixels. Use `384`. |
-| `bodyScale` | number | no | Font scale from `1.0` to `2.0`. |
+| `bodyScale` | number | no | Global font-size multiplier from `1.0` to `2.0`. Scales every typography preset. |
 | `feedLines` | integer | no | Blank trailing feed rows expressed as line units. |
+| `margin` | number \| object | no | Paper margin in px. See [Page Margin](#page-margin). |
+| `typography` | object | no | Named typography preset overrides. See [Typography Presets](#typography-presets). |
+| `render` | object | no | Page-level render/raster options. Works at the top level (flat) or under a `layout:` wrapper. See [Render Options](#render-options). |
 | `blocks` | array | yes | Ordered block list. |
+
+> **Fonts and thermal output.** For crisp small text on the printer, prefer the
+> hinted `crisp` (DejaVu Serif) or `crispsans` (DejaVu Sans) themes over the
+> delicate `minimal`/`classic` Garamond themes — thin strokes get thresholded
+> away at 1-bit. The typography defaults already bake in the paper-verified
+> recipe (bigger sizes, a minimum-size floor, bold body and bold-italic quotes).
+
+## Typography Presets
+
+Typography is modeled as **named presets**, not per-element sizes. Each preset
+maps to a concrete text style (font, size, weight, line height, letter spacing,
+case, italic). Blocks reference presets implicitly by their role — a `quote`'s
+text uses the `body`/`emphasis` presets, its attribution uses `caption`, and so
+on. You never have to set sizes to get good typography: the built-in defaults
+already encode the print-legibility recipe.
+
+You override typography at two levels, resolved as a shallow, per-field merge:
+
+```
+built-in default  <-  layout typography override  <-  per-block style
+```
+
+Override presets for the whole page under `typography.presets`:
+
+```yaml
+typography:
+  presets:
+    body:                 # bump body text everywhere on this page
+      size: 15
+      weight: 700
+    caption:
+      font: "'DejaVu Sans', sans-serif"
+```
+
+A `TextStyle` accepts these fields (all optional; unset fields inherit):
+
+| Field | Type | Description |
+|---|---|---|
+| `font` | string | CSS font-family stack. Unset inherits the theme font for the preset's role. |
+| `size` | number | Base font size in px (before `bodyScale`). |
+| `weight` | integer | Font weight, `100`–`900`. Heavier survives the 1-bit threshold. |
+| `lineHeight` | number | Unitless line-height multiplier. |
+| `letterSpacing` | number | Letter spacing in em. |
+| `textCase` | string | `TEXT_CASE_UPPER`, `TEXT_CASE_LOWER`, `TEXT_CASE_CAPITALIZE`, `TEXT_CASE_NONE`, or the plain CSS values `uppercase`/`lowercase`/etc. |
+| `italic` | boolean | Italic. Bold italic is the legible italic on thermal. |
+| `minSize` | number | Absolute floor (px) applied after `bodyScale` — the legibility guard. |
+
+Built-in preset names: `title`, `sectionLabel`, `overline`, `word`, `metric`,
+`body`, `bodyStrong`, `emphasis`, `caption`, `small`, `meta`.
+
+A single block can override its primary text with `style` (see
+[Block Object](#block-object)):
+
+```yaml
+- id: q1
+  type: quote
+  style:              # bold, non-italic just for this quote
+    italic: false
+    weight: 700
+  data:
+    text: Weight survives the threshold.
+```
+
+## Themes
+
+A theme controls fonts and colors. `theme` may be a **built-in name** or an
+**inline object** that patches a base theme with no code change ("data-driven
+themes").
+
+Built-in theme keys:
+
+| Key | Fonts | Notes |
+|---|---|---|
+| `classic`, `minimal`, `botanical`, `notebook`, `ledger`, `space` | Garamond / display fonts | Elegant on screen; thin strokes at small sizes. |
+| `crisp` | DejaVu Serif (hinted) | **Recommended for print.** Crisp small text. |
+| `crispsans` | DejaVu Sans (hinted) | Sans alternative, also crisp small. |
+
+Select a built-in theme by name:
+
+```yaml
+theme: crisp
+```
+
+Or supply an inline theme that patches a base:
+
+```yaml
+theme:
+  base: minimal                       # start from a built-in (default: classic)
+  colors:                             # any of paper/ink/muted/accent/rule
+    ink: "#000000"
+    paper: "#ffffff"
+  fontPalette:                        # [display, body, mono] in preference order
+    - "'DejaVu Sans', sans-serif"
+    - "'DejaVu Sans', sans-serif"
+  presetOverrides:                    # theme-level typography (below layout typography)
+    body:
+      weight: 700
+```
+
+Inline theme fields: `base`, `colors` (`paper`/`ink`/`muted`/`accent`/`rule`),
+`fontPalette` (array) or explicit `fontDisplay`/`fontBody`/`fontMono`,
+`titleSize`/`titleWeight`/`titleSpacing`/`titleCase`, and `presetOverrides`
+(same shape as `typography.presets`). Theme preset overrides sit **below** the
+layout's `typography` in the resolution chain.
+
+## Page Margin
+
+`margin` controls the padding of the printed page body. Omit it to keep the
+theme default (~20×22px). Three forms are accepted:
+
+```yaml
+margin: 8                                     # uniform px on all sides
+margin: { x: 6, y: 10 }                        # horizontal / vertical
+margin: { top: 10, right: 6, bottom: 10, left: 6 }
+```
+
+Use a tight margin to fit more content per strip, or a wider one for a calmer page.
 
 ## Wrapped Render Request
 
@@ -84,14 +204,58 @@ Use this form when a file should carry content, render preferences, and template
 
 ## Render Options
 
-These fields are valid under the wrapped `render` object. Command-line flags can also supply these values.
+Render options control how the screenshot becomes a 1-bit bitmap and how the
+printer burns it. They are validated up front: an out-of-range value (e.g.
+`threshold: 300`) is a hard error rather than a silent clamp. Command-line flags
+supply the same values as defaults.
+
+`render` works in **two positions**:
+
+- **Flat** — a top-level `render:` alongside `blocks:` (recommended):
+
+  ```yaml
+  theme: crisp
+  paperWidth: 384
+  render:
+    threshold: 128
+    printerDensity: 38
+  blocks:
+    - id: t1
+      type: title
+      data: { text: HELLO }
+  ```
+
+- **Wrapped** — under a `layout:` wrapper (see [Wrapped Render Request](#wrapped-render-request)).
 
 | Field | Type | Default | Description |
 |---|---|---:|---|
-| `selector` | string | `.paper-body` in CLI | CSS selector to screenshot. |
-| `threshold` | integer | `128` | Grayscale threshold for bitmap conversion. |
+| `selector` | string | `.paper-body` | CSS selector to screenshot (page-level only). |
+| `threshold` | integer | `128` | 1-bit threshold, `0`–`255`. |
+| `supersampleScale` | integer | `1` | Render oversampling factor `1`–`8`; downscaled before 1-bit. |
 | `viewportWidth` | integer | `800` | Browser viewport width. |
 | `viewportHeight` | integer | `3000` | Browser viewport height. |
+| `rasterMode` | string | `RASTER_MODE_THRESHOLD` | `RASTER_MODE_THRESHOLD`, `RASTER_MODE_ATKINSON`, `RASTER_MODE_FLOYD_STEINBERG`, `RASTER_MODE_BAYER`. |
+| `gamma` | number | unset | Tone-curve gamma applied before dithering. Photos want `~0.8`. |
+| `printerDensity` | integer | unset | Printer head heat, `0`–`255`. Text reads best `~38`, photos `~20`. |
+| `printerSpeed` | integer | unset | Printer feed speed. |
+
+### Per-block render overrides
+
+A block may carry its own `render` object with the same fields. This drives
+**block-aware rasterization** and **per-segment heat**: the block's bounding box
+becomes a raster region and/or a heat band. See
+[Block-Aware Rasterization](#block-aware-rasterization-and-per-segment-heat).
+
+```yaml
+- id: photo
+  type: image
+  render:
+    rasterMode: RASTER_MODE_ATKINSON   # dither this region
+    gamma: 0.8                          # lift shadows first
+    printerDensity: 20                  # print it cooler than the text
+  data:
+    src: data:image/png;base64,...
+```
 
 ## Block Object
 
@@ -109,8 +273,10 @@ Every block uses this envelope:
 | Field | Type | Required | Description |
 |---|---|---:|---|
 | `id` | string | recommended | Unique ID. Use stable IDs for generated layouts. |
-| `type` | string | yes | One of the supported block types. |
+| `type` | string | yes | A block type. Unknown types render a visible placeholder rather than being dropped. |
 | `data` | object | yes | Type-specific fields. |
+| `style` | object | no | Per-block typography override (a `TextStyle`) applied to the block's primary text. See [Typography Presets](#typography-presets). |
+| `render` | object | no | Per-block render/raster override. See [Per-block render overrides](#per-block-render-overrides). |
 
 Supported block types:
 
@@ -118,6 +284,10 @@ Supported block types:
 title, date, divider, plan, news, weather, note, image, habits, mood,
 reading, reflection, quote, word, history, did
 ```
+
+An unrecognized `type` is not an error: the renderer draws a dashed
+"Unknown block type" placeholder in its place, so a typo or a newer block type
+degrades visibly instead of silently vanishing.
 
 ## `title`
 
@@ -515,6 +685,54 @@ Use `reflection` for a daily journal footer.
 | `learned` | string | What was learned. |
 | `quote` | string | Optional closing quote. |
 
+## Block-Aware Rasterization and Per-Segment Heat
+
+The printer emits pure 1-bit output, and text and photographs want opposite
+treatment. Text wants a hard threshold so strokes stay crisp; photographs want
+error-diffusion dithering plus a gamma tone curve so gradients survive. On the
+printer head, text reads best hot and photographs best cool. A per-block `render`
+override lets one page do both.
+
+When a block carries a `render` override, its on-page bounding box becomes a
+region:
+
+- **Rasterization.** A `rasterMode` of `RASTER_MODE_ATKINSON` (or another dither
+  mode) converts that region with Atkinson error diffusion; a `gamma` below `1`
+  lifts shadows first so a hot head does not turn the photo into a solid mass.
+  Rows outside any region use the page `threshold`.
+- **Heat.** A `printerDensity` on the block prints that region's rows at that
+  density; the rest of the page uses the page-level `printerDensity`. The page is
+  sent to the printer in density bands.
+
+A mixed page — crisp hot text around a soft cool photo — looks like this:
+
+```yaml
+theme: crisp
+paperWidth: 384
+render:
+  printerDensity: 38            # page default: hot text
+blocks:
+  - id: t
+    type: title
+    data: { text: FIELD NOTES }
+  - id: photo
+    type: image
+    render:
+      rasterMode: RASTER_MODE_ATKINSON
+      gamma: 0.8
+      printerDensity: 20        # this band prints cooler
+    data:
+      src: data:image/png;base64,...
+      grayscale: false          # keep midtones so dithering has tones to work with
+  - id: q
+    type: quote
+    data: { text: One page, two treatments. }
+```
+
+> **Tip.** The `image` block's default thermal filter boosts contrast, which
+> pre-binarizes the source before dithering. Set `grayscale: false` on an image
+> you want dithered so its midtones reach the rasterizer.
+
 ## YAML Safety Rules
 
 Use these rules when generating YAML programmatically:
@@ -624,7 +842,10 @@ The `--define` flag accepts a comma-separated list of `key=value` pairs (e.g. `-
 
 | Problem | Cause | Solution |
 |---|---|---|
-| A block disappears | Unknown `type`. | Use one of the supported type strings exactly. |
+| A block shows a dashed "Unknown block type" box | Unknown `type`. | Use one of the supported type strings exactly (the block no longer vanishes — it placeholders). |
+| `render.threshold must be 0-255` (or similar) | Out-of-range render option. | Render options are validated; use a value in range. |
+| Small text loses strokes on paper | Delicate theme font. | Use the `crisp`/`crispsans` themes, raise `weight`, or bump `size`/`minSize`. |
+| A photo prints as a black blob | Threshold on a gradient + hot head. | Add `render.rasterMode: RASTER_MODE_ATKINSON`, `gamma: 0.8`, `grayscale: false`, and a lower `printerDensity`. |
 | A field renders blank | Wrong data key. | Compare the block against this reference. |
 | Template variable not provided | Missing key in data context. | Use `{{key:fallback}}` or provide the key via `--data` or `--define`. |
 | `unclosed {{` error | Missing `}}` in a template expression. | Close all expressions or use literal text. |
@@ -636,5 +857,6 @@ The `--define` flag accepts a comma-separated list of `key=value` pairs (e.g. `-
 
 - `almanach-render-service help layouts-getting-started`
 - `almanach-render-service help layouts-user-guide`
+- `almanach-render-service help layout-typography-and-rendering`
 - `almanach-render-service help tutorial-daily-briefing`
 - `almanach-render-service help tutorial-knowledge-strip`
