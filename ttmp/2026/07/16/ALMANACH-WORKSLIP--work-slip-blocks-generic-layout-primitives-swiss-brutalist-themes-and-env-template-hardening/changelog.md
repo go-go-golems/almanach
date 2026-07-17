@@ -59,3 +59,8 @@ Step 8: 0px default padding + blockGap token + scale up one step; decision sheet
 
 Step 9: PR #7 review fixes (content field, page-level raster, bayer/FS, printer speed, density range) + CI repair (stale embed, gosec G115, toolchain 1.26.5, TruffleHog excludes) — commits da54a8e, f282553.
 
+
+## 2026-07-17
+
+Step 10: merged upstream/main into PR branch (main had independently bumped go to 1.26.5); tidy dropped redundant toolchain directive; pushed b23b854. Lesson: pull_request checks build the merge commit.
+

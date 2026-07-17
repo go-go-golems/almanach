@@ -744,3 +744,46 @@ content fix + embed refresh), + CI commit (toolchain/TruffleHog).
   then `parseLayoutJson` in the studio.
 - Validate: `GOWORK=off go test ./internal/app/ -run 'TestBayer|TestFloyd|TestPage' -count=1`;
   render the golden fixture headless; gosec + trufflehog runs as in this step.
+
+## Step 10: The second CI round — PR checks test the merge commit, not your branch
+
+After pushing the Step 9 fixes, TruffleHog went green but the four Go jobs
+failed again with a uniform "go: updates to go.mod needed; to update it: go
+mod tidy" — which did not reproduce locally, not with a cold module cache,
+and not in a faithful Docker replica (golang:1.26.5, GOTOOLCHAIN=local, fresh
+clone of the pushed branch). The missing piece: **pull_request-event checks
+run on `refs/pull/N/merge`** — the PR merged into main — and upstream main
+had moved. Main had independently patched the same govulncheck finding by
+bumping the `go` directive to 1.26.5 (plus goldmark 1.7.8→1.7.17), so the
+merge of my `go 1.26.3` + `toolchain go1.26.5` with main's `go 1.26.5`
+produced a go.mod/go.sum combination that needed tidying — on the merge
+commit only.
+
+**Commits (code):** merge of upstream/main + "chore: go mod tidy after main
+merge" (b23b854 pushed).
+
+### What I did
+- Diagnosed by elimination: reproduced CI's exact env in Docker
+  (golang:1.26.5 image, GOTOOLCHAIN=local, fresh shallow clone) — everything
+  passed on the branch head, proving the branch itself was fine.
+- `git diff HEAD upstream/main -- go.mod go.sum` revealed main's independent
+  vuln patch (go 1.26.5 directive, goldmark bump).
+- Merged upstream/main into the branch; `go mod tidy` then dropped my
+  now-redundant `toolchain go1.26.5` line (main's `go 1.26.5` directive
+  supersedes it). Re-verified the merged state in the Docker replica
+  (build + logcopter-check + vet: ALL-OK), full local tests + lint green,
+  pushed.
+
+### What I learned
+- When a PR check fails with something you cannot reproduce on your branch,
+  diff against the base branch before debugging harder: `pull_request` events
+  build the prospective merge, so base-branch drift (here: a concurrent
+  dependency-bump PR) manifests as *your* CI failure.
+- Two PRs fixing the same vulnerability different ways (go directive bump vs
+  toolchain directive) merge textually clean but semantically untidy — the
+  `go` and `toolchain` directives interact under tidy (a toolchain equal to
+  the go directive is redundant and removed).
+
+### What warrants a second pair of eyes
+- The merge also brought in main's publish-image workflow changes (GitOps app
+  tokens) — unrelated to this ticket, came along with the merge.
