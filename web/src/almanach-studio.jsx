@@ -184,13 +184,16 @@ const THEMES = {
     grain: 0,
     // Work slips are glanced at from arm's length: tight page padding, big
     // heavy running text.
-    padding: "10px 8px",
+    // The paper strip has physical margin already — print edge to edge.
+    padding: "0px",
+    // Tight vertical rhythm: explicit `space` blocks own the spacing.
+    blockGap: 2,
     presetOverrides: {
-      body: { size: 15, weight: 600 },
-      bodyStrong: { size: 15, weight: 800 },
-      caption: { size: 13, weight: 600 },
-      overline: { size: 12, weight: 700 },
-      small: { size: 12 },
+      body: { size: 16, weight: 600 },
+      bodyStrong: { size: 16, weight: 800 },
+      caption: { size: 14, weight: 600 },
+      overline: { size: 13, weight: 700 },
+      small: { size: 13 },
     },
     tokens: {
       space: { xs: 5, s: 10, m: 16, l: 26, xl: 42 },
@@ -216,18 +219,21 @@ const THEMES = {
     titleCase: "uppercase",
     ornateFrame: false,
     grain: 0,
-    padding: "10px 8px",
+    // The paper strip has physical margin already — print edge to edge.
+    padding: "0px",
+    // Tight vertical rhythm: explicit `space` blocks own the spacing.
+    blockGap: 2,
     // Everything heavy and uppercase — slip-studio's forceCase, expressed as
     // preset data instead of a special mechanism. Nothing below weight 800.
     presetOverrides: {
-      body: { size: 15, weight: 800, textCase: "upper" },
-      bodyStrong: { size: 15, weight: 900, textCase: "upper" },
-      caption: { size: 13, weight: 800, textCase: "upper" },
-      small: { size: 12, weight: 800, textCase: "upper" },
-      h1: { size: 32, textCase: "upper" },
+      body: { size: 16, weight: 800, textCase: "upper" },
+      bodyStrong: { size: 16, weight: 900, textCase: "upper" },
+      caption: { size: 14, weight: 800, textCase: "upper" },
+      small: { size: 13, weight: 800, textCase: "upper" },
+      h1: { size: 35, textCase: "upper" },
       h2: { weight: 900, textCase: "upper" },
-      display: { size: 50, textCase: "upper" },
-      overline: { size: 12, weight: 800 },
+      display: { size: 54, textCase: "upper" },
+      overline: { size: 13, weight: 800 },
       micro: { weight: 800 },
     },
     tokens: {
@@ -254,13 +260,16 @@ const THEMES = {
     titleCase: "uppercase",
     ornateFrame: false,
     grain: 0,
-    padding: "10px 8px",
+    // The paper strip has physical margin already — print edge to edge.
+    padding: "0px",
+    // Tight vertical rhythm: explicit `space` blocks own the spacing.
+    blockGap: 2,
     presetOverrides: {
-      display: { size: 36, weight: 700 },
-      h1: { size: 23, weight: 700 },
-      h2: { size: 18, weight: 700 },
-      body: { size: 14, weight: 600 },
-      caption: { size: 12.5 },
+      display: { size: 40, weight: 700 },
+      h1: { size: 25, weight: 700 },
+      h2: { size: 20, weight: 700 },
+      body: { size: 15, weight: 600 },
+      caption: { size: 13.5 },
     },
     tokens: {
       space: { xs: 4, s: 8, m: 13, l: 21, xl: 32 },
@@ -1549,7 +1558,7 @@ const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, on
           </div>
         )}
 
-        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: theme.ornateFrame ? 12 : 14 }}>
+        <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: theme.blockGap ?? (theme.ornateFrame ? 12 : 14) }}>
           {blocks.map((b, i) => {
             const isSelected = b.id === selectedId;
             const isBoxed = theme.boxed && b.type !== "title" && b.type !== "date" && b.type !== "divider";

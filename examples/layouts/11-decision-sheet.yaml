@@ -1,8 +1,9 @@
 # Work slip: full decision sheet for one job — summary, market facts, and a
 # star/skip decision to tick with a pen (ALMANACH-WORKSLIP; from slip-studio
-# "B · Decision Sheet", pre-expanded).
+# "B · Decision Sheet" in its brutalist form, pre-expanded: the producer
+# resolves values like the #<last4> job-id suffix and the joined tag line).
 almanach_studio_version: 1
-theme: swiss
+theme: brutalist
 paperWidth: 384
 bodyScale: 1
 feedLines: 3
@@ -12,7 +13,7 @@ blocks:
     data:
       cols:
         - { w: "1fr", text: "UPWORK", preset: micro }
-        - { w: "1fr", text: "#5353", preset: micro, align: right }
+        - { w: "1fr", text: "#3790", preset: micro, align: right }
   - id: r1
     type: rule
     data: { weight: heavy }
@@ -25,7 +26,6 @@ blocks:
       text: "ESP32 Firmware Engineer for BLE Sensor Gateway"
       preset: h1
       lines: 3
-    style: { textCase: upper }
   - id: gap2
     type: space
     data: { size: "s" }
@@ -59,10 +59,10 @@ blocks:
     type: kv
     data:
       items:
-        - ["RATE", "$50 – $110 hourly"]
+        - ["RATE", "$50 – $110"]
         - ["LEVEL", "Expert"]
-        - ["CLIENT", "★4.9 · $3.2K · 82% hire"]
-        - ["MARKET", "Posted last week · 5 to 10 proposals"]
+        - ["CLIENT", "★4.9 · $3.2K · 82%"]
+        - ["MARKET", "Posted last week · 5 to 10"]
   - id: r3
     type: rule
     data: { weight: hair }
@@ -71,7 +71,7 @@ blocks:
     data:
       cols:
         - { w: "1fr", text: "CONNECTS 16", preset: caption }
-        - w: 150
+        - w: 160
           blocks:
             - id: decide-checks
               type: checks

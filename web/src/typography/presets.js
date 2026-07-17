@@ -71,13 +71,13 @@ export const DEFAULT_PRESETS = {
   // The scale is deliberately LARGE: a slip is glanced at from arm's length,
   // and paper-verified legibility favors big and heavy.
   // Huge stat numerals ("5 PROPOSALS" trios, digest weekday).
-  display: { role: "display", size: 46, weight: 900, lineHeight: 1.02 },
-  // Slip headline (job title) — ~3 words per line at 384 dots.
-  h1: { role: "display", size: 30, weight: 900, lineHeight: 1.08 },
+  display: { role: "display", size: 50, weight: 900, lineHeight: 1.02 },
+  // Slip headline (job title) — ~2-3 words per line at 384 dots.
+  h1: { role: "display", size: 33, weight: 900, lineHeight: 1.06 },
   // Secondary headline (rates, section heads).
-  h2: { role: "display", size: 22, weight: 700, lineHeight: 1.12 },
+  h2: { role: "display", size: 24, weight: 800, lineHeight: 1.1 },
   // Tracked uppercase labels (stat captions, table heads) — floored + bold.
-  micro: { role: "body", size: 11, weight: 700, letterSpacing: 0.14, textCase: "upper", lineHeight: 1.2, minSize: 10 },
+  micro: { role: "body", size: 12, weight: 700, letterSpacing: 0.14, textCase: "upper", lineHeight: 1.2, minSize: 11 },
 };
 
 /**
