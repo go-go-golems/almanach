@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -65,6 +66,43 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	}
 	lastResp["segments"] = len(segments)
 	return lastResp, nil
+}
+
+// setPrinterDensity POSTs a head density/heat value to the printer's
+// /api/printer/density endpoint, derived from the bitmap print URL. Density is a
+// per-page render option (DSL v2, Phase 5): text prints best hotter (~38),
+// photos cooler (~20). Returns an error the caller may choose to warn on rather
+// than abort.
+func setPrinterDensity(printerBitmapURL string, density int) error {
+	base := strings.TrimSuffix(printerBitmapURL, "/api/print/bitmap")
+	if base == printerBitmapURL {
+		// URL didn't match the expected shape; best-effort strip of the path.
+		if i := strings.Index(printerBitmapURL, "/api/"); i >= 0 {
+			base = printerBitmapURL[:i]
+		}
+	}
+	url := base + "/api/printer/density"
+	payload, err := json.Marshal(map[string]int{"density": density})
+	if err != nil {
+		return fmt.Errorf("marshal density: %w", err)
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("create density request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Connection", "close")
+	client := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("set density request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("set density returned %d: %s", resp.StatusCode, body)
+	}
+	return nil
 }
 
 // sendSingleBitmap sends one bitmap chunk to the printer.

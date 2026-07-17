@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
@@ -101,16 +102,20 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 		return err
 	}
 
-	opts := RenderOptions{
-		Selector:         stringFromRenderOptions(layoutSource.RenderOptions, "selector", s.Selector),
-		Threshold:        clampToUint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
-		SupersampleScale: intFromRenderOptions(layoutSource.RenderOptions, "supersample", s.Supersample),
-		ViewportWidth:    intFromRenderOptions(layoutSource.RenderOptions, "viewportWidth", s.ViewportWidth),
-		ViewportHeight:   intFromRenderOptions(layoutSource.RenderOptions, "viewportHeight", s.ViewportHeight),
+	pageRender, err := parseRenderOptions(layoutSource.RenderOptions)
+	if err != nil {
+		return err
+	}
+	opts := applyRenderOptions(RenderOptions{
+		Selector:         s.Selector,
+		Threshold:        clampToUint8(s.Threshold),
+		SupersampleScale: s.Supersample,
+		ViewportWidth:    s.ViewportWidth,
+		ViewportHeight:   s.ViewportHeight,
 		WaitAfterLoad:    time.Duration(s.WaitMS) * time.Millisecond,
 		DebugDir:         s.DebugDir,
 		CollectMetrics:   s.DebugDir != "",
-	}
+	}, pageRender)
 
 	result, err := renderOneShot(ctx, oneShotRenderRequest{
 		LayoutJSON:  layoutSource.LayoutJSON,
@@ -135,6 +140,14 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	printerOK := false
 	var printerResponse map[string]any
 	if !s.DryRun {
+		// Apply the page-level printer density (heat) render option, if set,
+		// before sending the bitmap. Text prints best hotter (~38), photos
+		// cooler (~20). A failure here is non-fatal — warn and print anyway.
+		if opts.PrinterDensity > 0 {
+			if derr := setPrinterDensity(printerURL, opts.PrinterDensity); derr != nil {
+				log.Printf("warning: could not set printer density=%d: %v", opts.PrinterDensity, derr)
+			}
+		}
 		printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
 		if err != nil {
 			return err

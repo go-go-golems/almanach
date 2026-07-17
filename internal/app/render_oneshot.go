@@ -102,10 +102,16 @@ func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config, dataC
 	renderOptions := map[string]interface{}{}
 	layoutObj := any(obj)
 	if wrappedLayout, ok := obj["layout"]; ok {
+		// Wrapped form: { layout: {...}, render: {...} }.
 		layoutObj = wrappedLayout
 		if ro, ok := obj["render"].(map[string]interface{}); ok {
 			renderOptions = ro
 		}
+	} else if ro, ok := obj["render"].(map[string]interface{}); ok {
+		// Flat form: top-level `render:` alongside `blocks:`. Extract it and drop
+		// it from the layout sent to the studio (which ignores it anyway).
+		renderOptions = ro
+		delete(obj, "render")
 	}
 
 	if layoutMap, ok := layoutObj.(map[string]interface{}); ok {
@@ -130,30 +136,6 @@ func layoutJSONFromObjectOrDefault(obj map[string]interface{}, cfg Config, dataC
 	return string(b), renderOptions, nil
 }
 
-func intFromRenderOptions(options map[string]interface{}, key string, fallback int) int {
-	v, ok := options[key]
-	if !ok {
-		return fallback
-	}
-	switch t := v.(type) {
-	case int:
-		return t
-	case int64:
-		return int(t)
-	case float64:
-		return int(t)
-	case json.Number:
-		n, err := t.Int64()
-		if err == nil {
-			return int(n)
-		}
-	}
-	return fallback
-}
-
-func stringFromRenderOptions(options map[string]interface{}, key, fallback string) string {
-	if v, ok := options[key].(string); ok && v != "" {
-		return v
-	}
-	return fallback
-}
+// The page-level `render:` block is now parsed via the typed proto
+// RenderOptions (see renderopts.go); the old intFromRenderOptions /
+// stringFromRenderOptions helpers were removed in DSL v2 Phase 5.

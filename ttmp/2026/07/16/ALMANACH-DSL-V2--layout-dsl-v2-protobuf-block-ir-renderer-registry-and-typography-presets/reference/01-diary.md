@@ -484,3 +484,102 @@ history and a faithful diary.
 - Phase 5: replace the five hand-parsed Go `render:` keys with the typed
   `RenderOptions` proto message (validated once) and add per-block render
   overrides.
+
+## Step 6: Phase 5 — typed RenderOptions (+ printed examples, + margin control)
+
+Replaced the Go side's hand-parsed `render:` keys with the typed, validated
+`layoutv1.RenderOptions` message, added per-block render-option parsing (for
+Phase 6), and made printer density a real render option applied at print time.
+This closes the "thin, hand-parsed, global-only render options" gap from the
+handoff's problem list. Two user interjections landed here too: I printed a
+couple of examples on the thermal printer, and added a layout-level page margin.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 5 — "phase 4 5 6, continue...")
+
+**Mid-turn user prompt (verbatim):** "print out a few examples btw, or tell me if i can edit them in my browser for testing (update the presets of the webapp I guess?)"
+
+**Mid-turn user prompt (verbatim):** "can you control how much margin there is?"
+
+**Assistant interpretation:** Continue Phase 5; also (1) print sample pages and
+explain the browser-editing story, and (2) make the page margin controllable.
+
+**Inferred user intent:** See real output on paper, understand how to iterate in
+the browser, and gain a margin knob for tuning.
+
+**Commit (code):** margin = c46d921; Phase 5 typed render options = <this step's commit>.
+
+### What I did
+- **Typed render options** (`internal/app/renderopts.go`): `parseRenderOptions`
+  decodes a `render:` map into `layoutv1.RenderOptions` via protojson
+  (DiscardUnknown) + range validation; `applyRenderOptions` overlays only set
+  (non-nil / non-UNSPECIFIED) fields onto the internal `RenderOptions` struct;
+  `perBlockRenderOptions` extracts each block's `render:` keyed by id;
+  `rasterModeString` maps the enum. Removed `intFromRenderOptions` /
+  `stringFromRenderOptions`.
+- **Struct + wiring**: added `RasterMode/Gamma/PrinterDensity/PrinterSpeed` to the
+  internal `RenderOptions`; refactored `renderOptionsFromSettings` (now returns an
+  error), `cmd_render`, `cmd_inspect`, and `cmd_print` to the typed path.
+- **Printer density** applied at print time via new `setPrinterDensity`
+  (POST `/api/printer/density`), non-fatal on failure.
+- **Flat `render:` fix**: `layoutJSONFromObjectOrDefault` now extracts a
+  top-level `render:` (flat layouts), not only the wrapped `{layout, render}`
+  form.
+- **Margin** (studio, commit c46d921): `marginToPadding` (number | {x,y} |
+  {t,r,b,l}) threaded through parse/state/ThermalPaper/export; added
+  `Layout.margin` (EdgeInsets) + `Layout.body_scale` to the proto with golden +
+  round-trip test coverage.
+- **Prints**: set density 38 and printed the `crisp` knowledge strip and the
+  inline DejaVu-Sans theme (both `printer_ok:true`).
+- **Tests**: `internal/app/renderopts_test.go` (parse/validate/overlay/per-block).
+
+### Why
+- The old render options were an unschema'd `map[string]interface{}` read via
+  ad-hoc helpers — no validation, no per-block support, only the wrapped form.
+  The typed message makes them validated, per-block-capable, and shared with the
+  studio's contract.
+
+### What worked
+- `render.threshold: 90` now flows to the bitmap threshold (reported 90);
+  `threshold: 300` is rejected with a clear error. Per-block parsing returns the
+  right map. Printer density endpoint returns `{"ok":true,"density":38}`.
+
+### What didn't work (then fixed)
+- First end-to-end test showed `render.threshold: 90` ignored (reported 128) and
+  `300` not rejected. Cause: `layoutJSONFromObjectOrDefault` only pulled `render`
+  from the wrapped form, so a flat layout's top-level `render:` never reached the
+  parser. Fixed with the flat-form `else if` + `delete(obj, "render")`.
+
+### What was tricky to build
+- **Signature change ripple.** Making `renderOptionsFromSettings` return an error
+  (so validation can surface) broke two call sites (`cmd_render`, `cmd_inspect`);
+  updated both, plus refactored `cmd_print`'s inline construction to the shared
+  `applyRenderOptions` overlay.
+- **proto `optional` presence.** Overlaying "only set fields" relies on the
+  generated pointer fields (`*uint32` etc.) for scalars and `!= UNSPECIFIED` for
+  the `RasterMode` enum — mixing the two presence models in one overlay function.
+
+### What warrants a second pair of eyes
+- `perBlockRenderOptions` is parsed and tested but not yet consumed — Phase 6
+  wires it into block-aware rasterization. Confirm the keying by block `id`
+  matches what the metrics/bounding-box path will use.
+- `setPrinterDensity` derives the base URL by trimming `/api/print/bitmap`;
+  verify against any non-standard `--printer-url`.
+
+### Verified
+- `go test ./...` (incl. new renderopts tests), `make test-web` (16 + registry +
+  presets), Go build with `-tags embed`. On-paper: two prints; `threshold:90`
+  applies, `:300` errors.
+
+### Code review instructions
+- Start at `internal/app/renderopts.go` (+ `renderopts_test.go`), then the
+  refactors in `cmd_render.go`/`cmd_print.go`/`cmd_inspect.go`, the flat-`render`
+  fix in `render_oneshot.go`, and `setPrinterDensity` in `printer.go`. Validate:
+  `go test ./internal/app/...`; `render --layout <flat yaml with render.threshold>`.
+
+### What should be done next
+- Phase 6: block-aware rasterization + per-segment heat. Combine
+  `perBlockRenderOptions` with the per-element bounding boxes from
+  `collectMetricsJS` to threshold text vs dither images and set per-segment
+  printer density in one page.

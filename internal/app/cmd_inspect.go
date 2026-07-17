@@ -95,7 +95,10 @@ func (c *InspectCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values
 		WaitMS:         s.WaitMS,
 		DebugDir:       s.DebugDir,
 	}
-	opts := renderOptionsFromSettings(renderSettings, layoutSource.RenderOptions)
+	opts, err := renderOptionsFromSettings(renderSettings, layoutSource.RenderOptions)
+	if err != nil {
+		return err
+	}
 	opts.CollectMetrics = true
 
 	result, err := renderOneShot(ctx, oneShotRenderRequest{
