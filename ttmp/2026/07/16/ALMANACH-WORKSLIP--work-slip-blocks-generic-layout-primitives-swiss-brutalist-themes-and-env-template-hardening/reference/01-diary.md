@@ -590,3 +590,62 @@ the physical strip.
   was broken).
 - On paper: whether the printer head reaches the outermost dots or clips the
   full-bleed banner edge.
+
+## Step 8: Edge-to-edge defaults, one step bigger, the brutalist decision sheet
+
+Two more feedback rounds folded into the defaults: work themes now print
+truly edge to edge (`padding: "0px"` — the paper strip has physical margin
+already) with the type scale up one more step, and the decision-sheet example
+was converted to its brutalist slip-studio form to match the user's reference
+mock. Matching the mock's tight vertical rhythm surfaced that the paper's
+fixed 14px flex gap between blocks was stacking on top of explicit `space`
+blocks, so themes gained a `blockGap` token (work themes: 2px) and `space`
+blocks now own the rhythm.
+
+### Prompt Context
+
+**User prompt (verbatim):** "alright, 0px margin by default, the paper has enough margin already anyway. make font size one step bolder still." — followed mid-turn by the brutalist decision-sheet mock image with its original slip-studio JSON: "maybe even something like that (which was the original json ...)"
+
+**Assistant interpretation:** Bake 0 margin + a bigger scale into the theme
+defaults; make example 11 reproduce the brutalist mock.
+
+**Inferred user intent:** The slips should look like the slip-studio mocks —
+dense, loud, edge to edge.
+
+**Commit (code):** a4f3c6d — "feat(slip): edge-to-edge defaults, one step bigger, brutalist decision sheet"
+
+### What I did
+- Work themes: `padding: "0px"`, `blockGap: 2` (new `theme.blockGap`,
+  consumed in `ThermalPaper`'s block column gap with the old 12/14 fallback).
+- Scale: h1 33 (brutalist 35), h2 24/800, display 50 (brutalist 54), micro 12;
+  swiss/brutalist body 16, caption 14; terminal display 40/h1 25/body 15.
+- `11-decision-sheet.yaml` → brutalist, exact mock block sequence, `#3790`
+  (correct last4 of the job id — the old placeholder said `#5353`).
+- Refreshed all five screenshots; printed job slip, triage card, and the
+  decision sheet.
+
+### What worked
+- The decision-sheet render now matches the mock closely: same rhythm, same
+  hierarchy, uppercase 800 body, kv slab separators.
+
+### What didn't work
+- N/A this step (the earlier margin-0 render in Step 7 already flushed out
+  the setMargin bug).
+
+### What I learned
+- Vertical whitespace on the paper is the sum of three sources: the paper's
+  flex gap between `.block-wrap`s, the capture CSS's `.block-wrap { padding:
+  4px 0 }`, and explicit `space` blocks. Only the first is now theme-tunable;
+  the capture padding still adds 8px per block everywhere.
+
+### What warrants a second pair of eyes
+- Almanac themes are untouched (`blockGap` falls back to 12/14), but any slip
+  layout relying on the old inter-block air will tighten up — that is the
+  point, but re-render anything saved earlier.
+- The digest title now clamps harder ("…FOR BLE…") at h2 24; producers should
+  budget ~2 words per h2 line at 384 dots.
+
+### Code review instructions
+- Diff `ThermalPaper` (blockGap), the three THEMES entries, DEFAULT_PRESETS,
+  and `11-decision-sheet.yaml`; compare `docs/screenshots/11-decision-sheet.png`
+  against the user's mock.

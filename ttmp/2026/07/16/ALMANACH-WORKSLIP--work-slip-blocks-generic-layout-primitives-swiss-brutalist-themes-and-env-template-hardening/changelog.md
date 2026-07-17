@@ -49,3 +49,8 @@ Step 6: bolder defaults per user feedback — bigger slip type scale, work-theme
 
 Step 7: margin:0 experiment exposed stateRef/setMargin bug — headless renders had been ignoring layout margin; fixed (commit 39447f6), edge-to-edge slip printed.
 
+
+## 2026-07-16
+
+Step 8: 0px default padding + blockGap token + scale up one step; decision sheet converted to brutalist mock form; reprinted (commit a4f3c6d).
+
