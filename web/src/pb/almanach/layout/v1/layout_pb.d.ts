@@ -95,6 +95,21 @@ export declare type Layout = Message<"almanach.layout.v1.Layout"> & {
    * @generated from field: almanach.layout.v1.RenderOptions render = 9;
    */
   render?: RenderOptions | undefined;
+
+  /**
+   * Global font-size multiplier applied to preset sizes (studio bodyScale).
+   *
+   * @generated from field: double body_scale = 10;
+   */
+  bodyScale: number;
+
+  /**
+   * Paper margin (padding of the printed body), in px. Unset uses the theme
+   * default.
+   *
+   * @generated from field: almanach.layout.v1.EdgeInsets margin = 11;
+   */
+  margin?: EdgeInsets | undefined;
 };
 
 /**
@@ -102,6 +117,39 @@ export declare type Layout = Message<"almanach.layout.v1.Layout"> & {
  * Use `create(LayoutSchema)` to create a new message.
  */
 export declare const LayoutSchema: GenMessage<Layout>;
+
+/**
+ * Per-side spacing in px.
+ *
+ * @generated from message almanach.layout.v1.EdgeInsets
+ */
+export declare type EdgeInsets = Message<"almanach.layout.v1.EdgeInsets"> & {
+  /**
+   * @generated from field: int32 top = 1;
+   */
+  top: number;
+
+  /**
+   * @generated from field: int32 right = 2;
+   */
+  right: number;
+
+  /**
+   * @generated from field: int32 bottom = 3;
+   */
+  bottom: number;
+
+  /**
+   * @generated from field: int32 left = 4;
+   */
+  left: number;
+};
+
+/**
+ * Describes the message almanach.layout.v1.EdgeInsets.
+ * Use `create(EdgeInsetsSchema)` to create a new message.
+ */
+export declare const EdgeInsetsSchema: GenMessage<EdgeInsets>;
 
 /**
  * A single block on the page: an id, a dispatch `type` resolved against the

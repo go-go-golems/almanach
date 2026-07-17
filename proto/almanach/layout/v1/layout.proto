@@ -50,6 +50,21 @@ message Layout {
 
   // Page-level render/raster options. A block may override these per-block.
   RenderOptions render = 9;
+
+  // Global font-size multiplier applied to preset sizes (studio bodyScale).
+  double body_scale = 10;
+
+  // Paper margin (padding of the printed body), in px. Unset uses the theme
+  // default.
+  EdgeInsets margin = 11;
+}
+
+// Per-side spacing in px.
+message EdgeInsets {
+  int32 top = 1;
+  int32 right = 2;
+  int32 bottom = 3;
+  int32 left = 4;
 }
 
 // A single block on the page: an id, a dispatch `type` resolved against the

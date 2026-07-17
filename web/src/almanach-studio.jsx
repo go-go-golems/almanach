@@ -161,6 +161,30 @@ const THEMES = {
   },
 };
 
+// Normalize a layout `margin` value into a CSS padding string for the paper
+// body, or null to fall back to the theme default. Accepts:
+//   number                       -> uniform px on all sides
+//   { x, y }                     -> horizontal / vertical px
+//   { top, right, bottom, left } -> per-side px (missing sides default to 0)
+function marginToPadding(margin) {
+  if (typeof margin === "number" && isFinite(margin)) {
+    return `${margin}px`;
+  }
+  if (margin && typeof margin === "object") {
+    if (typeof margin.x === "number" || typeof margin.y === "number") {
+      const y = typeof margin.y === "number" ? margin.y : 0;
+      const x = typeof margin.x === "number" ? margin.x : 0;
+      return `${y}px ${x}px`;
+    }
+    const t = typeof margin.top === "number" ? margin.top : 0;
+    const r = typeof margin.right === "number" ? margin.right : 0;
+    const b = typeof margin.bottom === "number" ? margin.bottom : 0;
+    const l = typeof margin.left === "number" ? margin.left : 0;
+    return `${t}px ${r}px ${b}px ${l}px`;
+  }
+  return null;
+}
+
 // A layout's `theme` may be a built-in name (string) OR an inline theme object
 // (the "data-driven theme" case) that patches a base built-in with no code
 // change. Returns { themeKey, patch, presetOverrides } where `patch` is merged
@@ -1281,7 +1305,7 @@ const ZigzagEdge = ({ color, flip }) => (
   </svg>
 );
 
-const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, onMove, onDelete, paperWidth }, ref) => {
+const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, onMove, onDelete, paperWidth, margin }, ref) => {
   const ornateBorder = theme.ornateFrame ? `1.5px double ${theme.accent}` : "none";
 
   return (
@@ -1293,7 +1317,7 @@ const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, on
           background: theme.paper,
           color: theme.ink,
           fontFamily: theme.fontBody,
-          padding: theme.ornateFrame ? "20px 22px" : (theme.lined ? "16px 24px" : "20px 22px"),
+          padding: marginToPadding(margin) ?? (theme.ornateFrame ? "20px 22px" : (theme.lined ? "16px 24px" : "20px 22px")),
           position: "relative",
           backgroundImage: theme.lined
             ? `repeating-linear-gradient(to bottom, transparent 0, transparent 21px, ${theme.rule} 21px, ${theme.rule} 22px)`
@@ -1529,7 +1553,7 @@ async function exportPaperToPng(paperNode, fileName, scale = 2, themeObj) {
   triggerDownload(pngBlob, fileName);
 }
 
-function buildLayoutJson({ themeKey, paperWidth, bodyScale, feedLines, blocks, typography }) {
+function buildLayoutJson({ themeKey, paperWidth, bodyScale, feedLines, blocks, typography, margin }) {
   const payload = {
     almanach_studio_version: 1,
     exported_at: new Date().toISOString(),
@@ -1543,6 +1567,9 @@ function buildLayoutJson({ themeKey, paperWidth, bodyScale, feedLines, blocks, t
   };
   if (typography && Object.keys(typography).length > 0) {
     payload.typography = { presets: typography };
+  }
+  if (margin != null) {
+    payload.margin = margin;
   }
   return payload;
 }
@@ -1605,7 +1632,12 @@ function parseLayoutJson(text) {
       ? parsed.feedLines
       : 3;
 
-  return { blocks, themeKey, themePatch, themePresets, paperWidth, bodyScale, feedLines, typography };
+  const margin =
+    typeof parsed.margin === "number" || (parsed.margin && typeof parsed.margin === "object")
+      ? parsed.margin
+      : null;
+
+  return { blocks, themeKey, themePatch, themePresets, paperWidth, bodyScale, feedLines, typography, margin };
 }
 
 // =================================================================
@@ -1636,6 +1668,9 @@ export default function AlmanachStudio() {
   // an object rather than a built-in name; null/{} for built-in themes.
   const [inlineTheme, setInlineTheme] = useState(null);
   const [themePresets, setThemePresets] = useState({});
+  // Layout-controlled paper margin (padding of .paper-body). null = theme
+  // default. See marginToPadding for accepted shapes.
+  const [margin, setMargin] = useState(null);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -1655,7 +1690,7 @@ export default function AlmanachStudio() {
   useEffect(() => { localStorage.setItem("almanach_feedLines", JSON.stringify(feedLines)); }, [feedLines]);
 
   // --- Headless API for programmatic control (Go render service) ---
-  const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, flashToast });
+  const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, setMargin, flashToast });
   stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, flashToast };
 
   useEffect(() => {
@@ -1674,6 +1709,7 @@ export default function AlmanachStudio() {
         s.setTypography(result.typography || {});
         s.setInlineTheme(result.themePatch || null);
         s.setThemePresets(result.themePresets || {});
+        s.setMargin(result.margin ?? null);
         s.setSelectedId(result.blocks[0]?.id || null);
       } catch (e) {
         console.error("almanachLoadLayout error:", e);
@@ -1962,7 +1998,7 @@ export default function AlmanachStudio() {
     try {
       const dateStamp = new Date().toISOString().slice(0, 10);
       exportLayoutJson(
-        { themeKey, paperWidth, bodyScale, feedLines, blocks, typography },
+        { themeKey, paperWidth, bodyScale, feedLines, blocks, typography, margin },
         `almanach-${dateStamp}.json`
       );
       flashToast("ok", "Layout saved");
@@ -1970,7 +2006,7 @@ export default function AlmanachStudio() {
       console.error(e);
       flashToast("err", "Save failed");
     }
-  }, [themeKey, paperWidth, bodyScale, feedLines, blocks, typography, flashToast]);
+  }, [themeKey, paperWidth, bodyScale, feedLines, blocks, typography, margin, flashToast]);
 
   const handleImportClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -1992,6 +2028,7 @@ export default function AlmanachStudio() {
         setTypography(parsed.typography || {});
         setInlineTheme(parsed.themePatch || null);
         setThemePresets(parsed.themePresets || {});
+        setMargin(parsed.margin ?? null);
         setSelectedId(parsed.blocks[0]?.id || null);
         flashToast("ok", `Loaded ${parsed.blocks.length} blocks`);
       } catch (err) {
@@ -2632,6 +2669,7 @@ export default function AlmanachStudio() {
             onMove={moveBlock}
             onDelete={deleteBlock}
             paperWidth={paperWidth}
+            margin={margin}
           />
         </div>
 

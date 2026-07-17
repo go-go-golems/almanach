@@ -40,6 +40,15 @@ func TestGoldenDecode(t *testing.T) {
 	if got := layout.GetTheme(); got != "minimal" {
 		t.Errorf("theme = %q, want minimal", got)
 	}
+	if got := layout.GetBodyScale(); got != 1.35 {
+		t.Errorf("bodyScale = %v, want 1.35", got)
+	}
+	if got := layout.GetMargin().GetLeft(); got != 6 {
+		t.Errorf("margin.left = %d, want 6", got)
+	}
+	if got := layout.GetMargin().GetTop(); got != 10 {
+		t.Errorf("margin.top = %d, want 10", got)
+	}
 	if got := len(layout.GetBlocks()); got != 3 {
 		t.Fatalf("blocks len = %d, want 3", got)
 	}

@@ -173,7 +173,12 @@ type Layout struct {
 	// Template variables interpolated into block content (e.g. {{date}}).
 	Data map[string]string `protobuf:"bytes,8,rep,name=data,proto3" json:"data,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// Page-level render/raster options. A block may override these per-block.
-	Render        *RenderOptions `protobuf:"bytes,9,opt,name=render,proto3" json:"render,omitempty"`
+	Render *RenderOptions `protobuf:"bytes,9,opt,name=render,proto3" json:"render,omitempty"`
+	// Global font-size multiplier applied to preset sizes (studio bodyScale).
+	BodyScale float64 `protobuf:"fixed64,10,opt,name=body_scale,json=bodyScale,proto3" json:"body_scale,omitempty"`
+	// Paper margin (padding of the printed body), in px. Unset uses the theme
+	// default.
+	Margin        *EdgeInsets `protobuf:"bytes,11,opt,name=margin,proto3" json:"margin,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -271,6 +276,89 @@ func (x *Layout) GetRender() *RenderOptions {
 	return nil
 }
 
+func (x *Layout) GetBodyScale() float64 {
+	if x != nil {
+		return x.BodyScale
+	}
+	return 0
+}
+
+func (x *Layout) GetMargin() *EdgeInsets {
+	if x != nil {
+		return x.Margin
+	}
+	return nil
+}
+
+// Per-side spacing in px.
+type EdgeInsets struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Top           int32                  `protobuf:"varint,1,opt,name=top,proto3" json:"top,omitempty"`
+	Right         int32                  `protobuf:"varint,2,opt,name=right,proto3" json:"right,omitempty"`
+	Bottom        int32                  `protobuf:"varint,3,opt,name=bottom,proto3" json:"bottom,omitempty"`
+	Left          int32                  `protobuf:"varint,4,opt,name=left,proto3" json:"left,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EdgeInsets) Reset() {
+	*x = EdgeInsets{}
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EdgeInsets) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EdgeInsets) ProtoMessage() {}
+
+func (x *EdgeInsets) ProtoReflect() protoreflect.Message {
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EdgeInsets.ProtoReflect.Descriptor instead.
+func (*EdgeInsets) Descriptor() ([]byte, []int) {
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *EdgeInsets) GetTop() int32 {
+	if x != nil {
+		return x.Top
+	}
+	return 0
+}
+
+func (x *EdgeInsets) GetRight() int32 {
+	if x != nil {
+		return x.Right
+	}
+	return 0
+}
+
+func (x *EdgeInsets) GetBottom() int32 {
+	if x != nil {
+		return x.Bottom
+	}
+	return 0
+}
+
+func (x *EdgeInsets) GetLeft() int32 {
+	if x != nil {
+		return x.Left
+	}
+	return 0
+}
+
 // A single block on the page: an id, a dispatch `type` resolved against the
 // studio's renderer registry, typed style overrides, free-form content, and an
 // optional per-block render override.
@@ -296,7 +384,7 @@ type Block struct {
 
 func (x *Block) Reset() {
 	*x = Block{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[1]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -308,7 +396,7 @@ func (x *Block) String() string {
 func (*Block) ProtoMessage() {}
 
 func (x *Block) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[1]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -321,7 +409,7 @@ func (x *Block) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Block.ProtoReflect.Descriptor instead.
 func (*Block) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{1}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Block) GetId() string {
@@ -388,7 +476,7 @@ type TextStyle struct {
 
 func (x *TextStyle) Reset() {
 	*x = TextStyle{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[2]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -400,7 +488,7 @@ func (x *TextStyle) String() string {
 func (*TextStyle) ProtoMessage() {}
 
 func (x *TextStyle) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[2]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -413,7 +501,7 @@ func (x *TextStyle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextStyle.ProtoReflect.Descriptor instead.
 func (*TextStyle) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{2}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TextStyle) GetFont() string {
@@ -485,7 +573,7 @@ type Typography struct {
 
 func (x *Typography) Reset() {
 	*x = Typography{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[3]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -497,7 +585,7 @@ func (x *Typography) String() string {
 func (*Typography) ProtoMessage() {}
 
 func (x *Typography) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[3]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -510,7 +598,7 @@ func (x *Typography) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Typography.ProtoReflect.Descriptor instead.
 func (*Typography) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{3}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Typography) GetPresets() map[string]*TextStyle {
@@ -535,7 +623,7 @@ type ThemeColors struct {
 
 func (x *ThemeColors) Reset() {
 	*x = ThemeColors{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[4]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -547,7 +635,7 @@ func (x *ThemeColors) String() string {
 func (*ThemeColors) ProtoMessage() {}
 
 func (x *ThemeColors) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[4]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -560,7 +648,7 @@ func (x *ThemeColors) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThemeColors.ProtoReflect.Descriptor instead.
 func (*ThemeColors) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{4}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ThemeColors) GetPaper() string {
@@ -618,7 +706,7 @@ type Theme struct {
 
 func (x *Theme) Reset() {
 	*x = Theme{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[5]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -630,7 +718,7 @@ func (x *Theme) String() string {
 func (*Theme) ProtoMessage() {}
 
 func (x *Theme) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[5]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -643,7 +731,7 @@ func (x *Theme) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Theme.ProtoReflect.Descriptor instead.
 func (*Theme) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{5}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Theme) GetName() string {
@@ -698,7 +786,7 @@ type RenderOptions struct {
 
 func (x *RenderOptions) Reset() {
 	*x = RenderOptions{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -710,7 +798,7 @@ func (x *RenderOptions) String() string {
 func (*RenderOptions) ProtoMessage() {}
 
 func (x *RenderOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -723,7 +811,7 @@ func (x *RenderOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenderOptions.ProtoReflect.Descriptor instead.
 func (*RenderOptions) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{6}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RenderOptions) GetSelector() string {
@@ -793,7 +881,7 @@ var File_almanach_layout_v1_layout_proto protoreflect.FileDescriptor
 
 const file_almanach_layout_v1_layout_proto_rawDesc = "" +
 	"\n" +
-	"\x1falmanach/layout/v1/layout.proto\x12\x12almanach.layout.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xe4\x03\n" +
+	"\x1falmanach/layout/v1/layout.proto\x12\x12almanach.layout.v1\x1a\x1cgoogle/protobuf/struct.proto\"\xbb\x04\n" +
 	"\x06Layout\x12%\n" +
 	"\x0eschema_version\x18\x01 \x01(\x05R\rschemaVersion\x12\x1f\n" +
 	"\vpaper_width\x18\x02 \x01(\x05R\n" +
@@ -807,10 +895,20 @@ const file_almanach_layout_v1_layout_proto_rawDesc = "" +
 	"typography\x121\n" +
 	"\x06blocks\x18\a \x03(\v2\x19.almanach.layout.v1.BlockR\x06blocks\x128\n" +
 	"\x04data\x18\b \x03(\v2$.almanach.layout.v1.Layout.DataEntryR\x04data\x129\n" +
-	"\x06render\x18\t \x01(\v2!.almanach.layout.v1.RenderOptionsR\x06render\x1a7\n" +
+	"\x06render\x18\t \x01(\v2!.almanach.layout.v1.RenderOptionsR\x06render\x12\x1d\n" +
+	"\n" +
+	"body_scale\x18\n" +
+	" \x01(\x01R\tbodyScale\x126\n" +
+	"\x06margin\x18\v \x01(\v2\x1e.almanach.layout.v1.EdgeInsetsR\x06margin\x1a7\n" +
 	"\tDataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xce\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"`\n" +
+	"\n" +
+	"EdgeInsets\x12\x10\n" +
+	"\x03top\x18\x01 \x01(\x05R\x03top\x12\x14\n" +
+	"\x05right\x18\x02 \x01(\x05R\x05right\x12\x16\n" +
+	"\x06bottom\x18\x03 \x01(\x05R\x06bottom\x12\x12\n" +
+	"\x04left\x18\x04 \x01(\x05R\x04left\"\xce\x01\n" +
 	"\x05Block\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x123\n" +
@@ -901,43 +999,45 @@ func file_almanach_layout_v1_layout_proto_rawDescGZIP() []byte {
 }
 
 var file_almanach_layout_v1_layout_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_almanach_layout_v1_layout_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_almanach_layout_v1_layout_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_almanach_layout_v1_layout_proto_goTypes = []any{
 	(TextCase)(0),           // 0: almanach.layout.v1.TextCase
 	(RasterMode)(0),         // 1: almanach.layout.v1.RasterMode
 	(*Layout)(nil),          // 2: almanach.layout.v1.Layout
-	(*Block)(nil),           // 3: almanach.layout.v1.Block
-	(*TextStyle)(nil),       // 4: almanach.layout.v1.TextStyle
-	(*Typography)(nil),      // 5: almanach.layout.v1.Typography
-	(*ThemeColors)(nil),     // 6: almanach.layout.v1.ThemeColors
-	(*Theme)(nil),           // 7: almanach.layout.v1.Theme
-	(*RenderOptions)(nil),   // 8: almanach.layout.v1.RenderOptions
-	nil,                     // 9: almanach.layout.v1.Layout.DataEntry
-	nil,                     // 10: almanach.layout.v1.Typography.PresetsEntry
-	nil,                     // 11: almanach.layout.v1.Theme.PresetOverridesEntry
-	(*structpb.Struct)(nil), // 12: google.protobuf.Struct
+	(*EdgeInsets)(nil),      // 3: almanach.layout.v1.EdgeInsets
+	(*Block)(nil),           // 4: almanach.layout.v1.Block
+	(*TextStyle)(nil),       // 5: almanach.layout.v1.TextStyle
+	(*Typography)(nil),      // 6: almanach.layout.v1.Typography
+	(*ThemeColors)(nil),     // 7: almanach.layout.v1.ThemeColors
+	(*Theme)(nil),           // 8: almanach.layout.v1.Theme
+	(*RenderOptions)(nil),   // 9: almanach.layout.v1.RenderOptions
+	nil,                     // 10: almanach.layout.v1.Layout.DataEntry
+	nil,                     // 11: almanach.layout.v1.Typography.PresetsEntry
+	nil,                     // 12: almanach.layout.v1.Theme.PresetOverridesEntry
+	(*structpb.Struct)(nil), // 13: google.protobuf.Struct
 }
 var file_almanach_layout_v1_layout_proto_depIdxs = []int32{
-	7,  // 0: almanach.layout.v1.Layout.inline_theme:type_name -> almanach.layout.v1.Theme
-	5,  // 1: almanach.layout.v1.Layout.typography:type_name -> almanach.layout.v1.Typography
-	3,  // 2: almanach.layout.v1.Layout.blocks:type_name -> almanach.layout.v1.Block
-	9,  // 3: almanach.layout.v1.Layout.data:type_name -> almanach.layout.v1.Layout.DataEntry
-	8,  // 4: almanach.layout.v1.Layout.render:type_name -> almanach.layout.v1.RenderOptions
-	4,  // 5: almanach.layout.v1.Block.style:type_name -> almanach.layout.v1.TextStyle
-	12, // 6: almanach.layout.v1.Block.content:type_name -> google.protobuf.Struct
-	8,  // 7: almanach.layout.v1.Block.render:type_name -> almanach.layout.v1.RenderOptions
-	0,  // 8: almanach.layout.v1.TextStyle.text_case:type_name -> almanach.layout.v1.TextCase
-	10, // 9: almanach.layout.v1.Typography.presets:type_name -> almanach.layout.v1.Typography.PresetsEntry
-	6,  // 10: almanach.layout.v1.Theme.colors:type_name -> almanach.layout.v1.ThemeColors
-	11, // 11: almanach.layout.v1.Theme.preset_overrides:type_name -> almanach.layout.v1.Theme.PresetOverridesEntry
-	1,  // 12: almanach.layout.v1.RenderOptions.raster_mode:type_name -> almanach.layout.v1.RasterMode
-	4,  // 13: almanach.layout.v1.Typography.PresetsEntry.value:type_name -> almanach.layout.v1.TextStyle
-	4,  // 14: almanach.layout.v1.Theme.PresetOverridesEntry.value:type_name -> almanach.layout.v1.TextStyle
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	8,  // 0: almanach.layout.v1.Layout.inline_theme:type_name -> almanach.layout.v1.Theme
+	6,  // 1: almanach.layout.v1.Layout.typography:type_name -> almanach.layout.v1.Typography
+	4,  // 2: almanach.layout.v1.Layout.blocks:type_name -> almanach.layout.v1.Block
+	10, // 3: almanach.layout.v1.Layout.data:type_name -> almanach.layout.v1.Layout.DataEntry
+	9,  // 4: almanach.layout.v1.Layout.render:type_name -> almanach.layout.v1.RenderOptions
+	3,  // 5: almanach.layout.v1.Layout.margin:type_name -> almanach.layout.v1.EdgeInsets
+	5,  // 6: almanach.layout.v1.Block.style:type_name -> almanach.layout.v1.TextStyle
+	13, // 7: almanach.layout.v1.Block.content:type_name -> google.protobuf.Struct
+	9,  // 8: almanach.layout.v1.Block.render:type_name -> almanach.layout.v1.RenderOptions
+	0,  // 9: almanach.layout.v1.TextStyle.text_case:type_name -> almanach.layout.v1.TextCase
+	11, // 10: almanach.layout.v1.Typography.presets:type_name -> almanach.layout.v1.Typography.PresetsEntry
+	7,  // 11: almanach.layout.v1.Theme.colors:type_name -> almanach.layout.v1.ThemeColors
+	12, // 12: almanach.layout.v1.Theme.preset_overrides:type_name -> almanach.layout.v1.Theme.PresetOverridesEntry
+	1,  // 13: almanach.layout.v1.RenderOptions.raster_mode:type_name -> almanach.layout.v1.RasterMode
+	5,  // 14: almanach.layout.v1.Typography.PresetsEntry.value:type_name -> almanach.layout.v1.TextStyle
+	5,  // 15: almanach.layout.v1.Theme.PresetOverridesEntry.value:type_name -> almanach.layout.v1.TextStyle
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_almanach_layout_v1_layout_proto_init() }
@@ -945,15 +1045,15 @@ func file_almanach_layout_v1_layout_proto_init() {
 	if File_almanach_layout_v1_layout_proto != nil {
 		return
 	}
-	file_almanach_layout_v1_layout_proto_msgTypes[2].OneofWrappers = []any{}
-	file_almanach_layout_v1_layout_proto_msgTypes[6].OneofWrappers = []any{}
+	file_almanach_layout_v1_layout_proto_msgTypes[3].OneofWrappers = []any{}
+	file_almanach_layout_v1_layout_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_almanach_layout_v1_layout_proto_rawDesc), len(file_almanach_layout_v1_layout_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   10,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -33,6 +33,9 @@ const layout = fromJson(LayoutSchema, golden);
 assert.equal(layout.schemaVersion, 1, "schemaVersion");
 assert.equal(layout.paperWidth, 384, "paperWidth");
 assert.equal(layout.theme, "minimal", "theme");
+assert.equal(layout.bodyScale, 1.35, "bodyScale");
+assert.equal(layout.margin.left, 6, "margin.left");
+assert.equal(layout.margin.top, 10, "margin.top");
 assert.equal(layout.blocks.length, 3, "blocks length");
 
 // preset with enum-valued textCase + optional scalars
@@ -75,4 +78,4 @@ assert.deepEqual(
   "toJson -> fromJson -> toJson stable",
 );
 
-console.log("✓ layout.roundtrip: %d assertions passed", 13);
+console.log("✓ layout.roundtrip: %d assertions passed", 16);
