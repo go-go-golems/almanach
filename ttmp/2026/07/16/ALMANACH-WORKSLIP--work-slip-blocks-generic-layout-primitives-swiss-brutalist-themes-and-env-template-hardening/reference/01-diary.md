@@ -554,3 +554,39 @@ target is the slip-studio mock (near edge-to-edge type, heavy everything).
   `ThermalPaper` padding line in `web/src/almanach-studio.jsx`.
 - Validate: `pnpm --dir web build`, render `examples/layouts/10-job-slip.yaml`
   and compare with `docs/screenshots/10-job-slip.png`.
+
+## Step 7: margin: 0 experiment — found and fixed a silent margin bug
+
+Rendering the job slip with `margin: 0` produced a page identical to the
+default — which exposed a real bug rather than a styling question: the
+`stateRef.current` reassignment in the studio omitted `setMargin`, so
+`window.almanachLoadLayout` threw a TypeError mid-load in headless renders
+and silently dropped every assignment after it (margin, selection). All
+headless renders had been falling back to theme padding regardless of the
+layout's `margin:`. Restored the setter, rebuilt, and the margin-0 slip now
+runs truly edge to edge (banner and rules full-bleed across all 384 dots);
+printed one for paper inspection.
+
+### Prompt Context
+
+**User prompt (verbatim):** "try one with margins 0px on each side"
+
+**Assistant interpretation:** Render/print the job slip with zero page margin.
+
+**Inferred user intent:** See how far the edge-to-edge look can be pushed on
+the physical strip.
+
+**Commit (code):** 39447f6 — "fix(studio): setMargin dropped from stateRef — headless renders ignored layout margin"
+
+### What worked / didn't
+- The experiment itself was trivial; the identical-output render was the
+  tell. The `useRef` initializer had `setMargin` but the per-render
+  reassignment (the one that actually matters) didn't — a keep-in-sync
+  hazard now called out in a comment.
+
+### What warrants a second pair of eyes
+- Whether any earlier "margin verified" renders were actually exercising this
+  path (browser imports were unaffected; only headless `almanachLoadLayout`
+  was broken).
+- On paper: whether the printer head reaches the outermost dots or clips the
+  full-bleed banner edge.
