@@ -1,7 +1,7 @@
 ---
 Title: 'Work-slip blocks: generic layout primitives, swiss/brutalist themes, and env-template hardening'
 Ticket: ALMANACH-WORKSLIP
-Status: active
+Status: complete
 Topics:
     - layout-dsl
     - thermal-printer
@@ -13,10 +13,11 @@ Owners: []
 RelatedFiles: []
 ExternalSources: []
 Summary: ""
-LastUpdated: 2026-07-16T21:06:14.217773447-04:00
+LastUpdated: 2026-07-16T21:36:40.038514049-04:00
 WhatFor: ""
 WhenToUse: ""
 ---
+
 
 # Work-slip blocks: generic layout primitives, swiss/brutalist themes, and env-template hardening
 

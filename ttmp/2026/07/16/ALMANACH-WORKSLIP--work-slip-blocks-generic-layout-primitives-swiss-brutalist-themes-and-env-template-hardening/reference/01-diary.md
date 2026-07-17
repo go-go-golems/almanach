@@ -217,3 +217,274 @@ arriving from upstream generators.
 - The self-activation path: `layoutJSONFromObjectOrDefault` → merge
   `obj["data"]` into `wrappedDataCtx` → `ResolveTemplate(layoutMap, wrappedDataCtx)`
   runs whenever that map is non-empty, on both CLI and server code paths.
+
+## Step 3: Phase 2 — the work-slip block pack
+
+Implemented the twelve generic layout primitives from slip-studio as React
+block adapters in `web/src/blocks/slip/`, registered them alongside the studio
+blocks, and verified all of them end to end with a headless render of a
+single smoke layout. The pack is theme-token driven (spacing, rule weights,
+banner style) with fallbacks, so every existing theme renders it correctly
+before Phase 3 adds token-carrying themes.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1)
+
+**Assistant interpretation:** Execute Phase 2 of the plan: the block pack,
+registry integration, editor support, tests, and a smoke render.
+
+**Inferred user intent:** Make the slip-studio page designs expressible in the
+real Almanach pipeline.
+
+**Commit (code):** ddced15 — "feat(slip): work-slip block pack — 12 generic layout primitives"
+
+### What I did
+- `web/src/blocks/slip/tokens.js`: `DEFAULT_TOKENS` + `spaceToken`/`ruleToken`/
+  `ruleStyleToken`/`bannerStyleToken`/`colWidthStyle` accessors (React-free).
+- `web/src/blocks/slip/qr.js`: `buildQrMatrix` over the new bundled
+  `qrcode-generator` dep — integer px per module so modules survive 1-bit.
+- `web/src/blocks/slip/components.jsx`: SlipText (preset + align + -webkit
+  line clamp), Banner (invert/outline via token), Rule (solid/dashed), Space,
+  Row (fixed px + fr columns; nested blocks via `ctx.renderBlock`), Kv,
+  SlipList, Checks (inline/columns), Writein, Qr (SVG rects,
+  crispEdges), Bars, SlipTable.
+- `web/src/blocks/slip/adapters.jsx`: `SLIP_ADAPTERS` (module "slip") +
+  `SLIP_DEFAULTS` + `SLIP_BLOCK_TYPES`.
+- Studio wiring: `mergeBlockRegistries(studio, slip)`; `renderBlock` now
+  injects `ctx.renderBlock = (child) => renderBlock(child, ctx)` for container
+  blocks; `ALL_DEFAULTS`/`ALL_BLOCK_TYPES` (palette group "Work Slip");
+  `GenericJsonEditor` fallback (`EDITORS[type] ?? GenericJsonEditor`) with a
+  `lastEmitted` ref so live re-parse doesn't clobber in-progress typing.
+- `slip.test.mjs` node test (tokens, widths, QR geometry); wired as
+  `test:slip` and into `test:web`. `pnpm add qrcode-generator` (store-dir
+  workaround). Rebuilt the SPA; rendered a 14-block smoke layout headless —
+  every block correct, and a bogus `repeat` type placeholders as designed.
+
+### Why
+- One adapter per primitive keeps the DSL v2 dispatch/registry contract; the
+  pack stays a data-styled leaf of the theme system rather than a fork.
+
+### What worked
+- The whole pack rendered correctly on the first headless render (382x982
+  strip) — banner inversion, kv baseline alignment, QR finder patterns, table
+  alignment all right.
+
+### What didn't work
+- One test assertion was wrong, not the code: I asserted `dark(1,1) === true`
+  for the QR finder pattern; ring row 1 is light except its border, so the
+  correct expectations are `dark(1,0)=true, dark(1,1)=false, dark(2,2)=true`.
+
+### What I learned
+- `parseLayoutJson` backfills defaults per type, so `SLIP_DEFAULTS` had to
+  merge into the same lookup (`ALL_DEFAULTS`) or imported slip layouts would
+  lose their default fields.
+
+### What was tricky to build
+- Nested block rendering without exposing studio internals to the pack: the
+  registry stays React-free and `renderBlock` lives in the studio, so the
+  studio injects a `ctx.renderBlock` closure at dispatch time. Container
+  blocks (row) call it; unknown child types still get the UnknownBlock
+  placeholder for free. The subtlety: the closure recurses with the *parent*
+  ctx so the child gets its own `block` reference but shares theme/registry.
+- The generic JSON editor's resync loop: applying parsed JSON on each
+  keystroke triggers a data-prop change that would re-format the textarea
+  under the cursor; a `lastEmitted` ref breaks the cycle by reference
+  identity.
+
+### What warrants a second pair of eyes
+- `RowBlock` column shorthand: a col without `blocks` becomes a synthetic
+  `text` block via `{ ...col, w: undefined }` — check no other col-only field
+  should be stripped.
+- Line clamp uses `-webkit-box`; fine for Chrome (the only renderer), but
+  Firefox studio users would see unclamped text.
+
+### What should be done in the future
+- Bespoke inspector forms for the most-used slip blocks (kv, checks) if JSON
+  editing proves annoying in practice.
+
+### Code review instructions
+- Start at `web/src/blocks/slip/components.jsx`, then the studio diff
+  (registry merge, `renderBlock`, `GenericJsonEditor`).
+- Validate: `pnpm --dir web test:web`, then a headless render of any layout
+  using slip types (`--web-dir web/dist` after `pnpm --dir web build`).
+
+### Technical details
+- Smoke render: 384x982 px, threshold 128, crispsans theme, bodyScale 1;
+  layout at scratchpad `slip-smoke.yaml` (all 12 types + unknown-type probe).
+
+## Step 4: Phase 3 — theme tokens, work themes, Archivo, slip type scale
+
+Extended the theme model with design tokens (proto `ThemeTokens`: spacing
+scale, rule weights, rule/banner style), added the `display/h1/h2/micro`
+presets sized for 384-dot paper, gave built-in themes the ability to carry
+`presetOverrides`, embedded the Archivo variable font, and shipped the three
+work themes: `swiss`, `brutalist`, `terminal`. Verified by rendering the
+Phase 2 smoke layout in all three — Archivo renders (distinct grotesque
+letterforms), brutalist uppercases everything with slab rules, terminal is
+all-mono with dashed rules and an outlined banner.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1)
+
+**Assistant interpretation:** Execute Phase 3: token model + presets + themes +
+fonts.
+
+**Inferred user intent:** Give the block pack the bold slip-studio looks as
+data-driven themes.
+
+**Commit (code):** 08e4b8c — "feat(themes): ThemeTokens + work themes (swiss/brutalist/terminal) + slip type scale"
+
+### What I did
+- `proto/almanach/layout/v1/layout.proto`: new `ThemeTokens` message
+  (`space` map, `rules` map, `rule_style`, `banner_style`); `Theme.tokens = 5`.
+  `make proto` regenerated Go + TS; round-trip tests still green.
+- `web/src/typography/presets.js`: added `display` (40/900), `h1` (25/900),
+  `h2` (19/700), `micro` (10/700 upper, minSize 9) — slip-studio's 576-dot
+  scale at ~x0.67.
+- `web/src/almanach-studio.jsx`: three new `THEMES` entries with `tokens` and
+  `presetOverrides`; `resolveThemeSpec` passes `spec.tokens` through;
+  the preset resolver now layers `THEMES[key].presetOverrides` below
+  inline-theme overrides and layout typography.
+- `web/src/fonts-embedded.css`: appended Archivo as a **single variable-font
+  face** (`font-weight: 100 900`, latin subset, woff2 data URI, ~63KB font).
+
+### Why
+- Tokens make the pack restylable as data (the whole point of porting themes
+  rather than hardcoding looks); built-in `presetOverrides` express
+  slip-studio's `forceCase` without a special mechanism.
+
+### What worked
+- Google Fonts was reachable, so no fonttools subsetting was needed: the css2
+  API serves already-subset woff2 that Chrome loads natively.
+
+### What didn't work
+- First download pass produced three identical 35KB payloads for weights
+  400/700/900 — Archivo is a variable font and css2 served the same file
+  three times. Verified by hashing the base64 payloads (1 distinct), then
+  replaced with one `font-weight: 100 900` face. Not a failure that shipped,
+  but 2/3 of the font bytes would have been dead weight.
+
+### What I learned
+- `fonts-embedded.css` ships verbatim as `web/dist/fonts.css` (103 @font-face
+  entries — the DejaVu faces are split per unicode-range).
+- Built-in themes previously could NOT override presets — only inline themes
+  could (state `themePresets` was fed only from `resolveThemeSpec`). The
+  work themes needed it, so the built-in entry's `presetOverrides` now merges
+  as the lowest override layer. Resolution chain is now: defaults <- built-in
+  theme presetOverrides <- inline-theme presetOverrides <- layout typography
+  <- block style.
+
+### What was tricky to build
+- Deciding where slip-studio's `forceCase` lives. A theme-level "uppercase
+  everything" flag would need plumbing into `resolveStyle`; instead the
+  brutalist theme sets `textCase: "upper"` on the affected presets via
+  `presetOverrides` — same paper result, zero new mechanism. Deviation from
+  the design guide (which sketched a `force_case` token) noted here.
+
+### What warrants a second pair of eyes
+- `patch.tokens` replaces the base theme's tokens wholesale for inline themes
+  (no deep merge); per-name gaps fall back to pack defaults, not the base
+  theme's tokens. Documented in code; revisit if inline themes start patching
+  single steps.
+- Brutalist `hair` rule = 6px makes kv/table/writein separators heavy slabs —
+  intentional look, but check on paper.
+
+### What should be done in the future
+- Consider an italic Archivo face if slip layouts ever want italic (only
+  normal style is embedded).
+
+### Code review instructions
+- Start at the proto diff, then `resolveThemeSpec`/`theme.preset` wiring in
+  `almanach-studio.jsx`, then the THEMES entries.
+- Validate: `make proto && GOWORK=off go test ./... && pnpm --dir web test:web`,
+  then render any slip layout with `theme: swiss|brutalist|terminal`.
+
+### Technical details
+- Archivo face: Google Fonts v25 latin subset, variable wght 100-900,
+  embedded as `data:font/woff2;base64` (~47KB CSS). All three theme stacks
+  fall back to DejaVu Sans.
+
+## Step 5: Phase 4 — example slips, physical prints, documentation
+
+Ported five slip-studio example documents as pre-expanded layouts
+(`examples/layouts/10-job-slip.yaml` … `14-morning-digest.yaml`), rendered all
+five headless, printed the job slip and the triage card on the K118, copied
+the renders into `docs/screenshots/`, and updated both Glazed help entries.
+This completes all four phases of the ticket.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1)
+
+**Assistant interpretation:** Execute Phase 4: examples, verification
+(including paper), docs.
+
+**Inferred user intent:** Have ready-to-copy templates for the upstream
+job-feed producer, verified on real hardware.
+
+**Commit (code):** 99502fb — "feat(examples): work-slip example layouts 10-14 + docs"
+
+### What I did
+- Five example layouts: job slip + decision sheet (swiss), triage card
+  (brutalist, includes the payment warning banner + QR), focus card
+  (terminal), morning digest (swiss, the slip-studio `repeat` expanded by
+  hand into four numbered rows). All `bodyScale: 1`, `paperWidth: 384`.
+- Rendered all five headless (all OK); printed 10 and 12 at density 38 on
+  192.168.0.126 — the triage card (868 rows) went in 2 segments
+  (`ok:true,segments:2`).
+- `docs/screenshots/10-*.png … 14-*.png`; `examples/layouts/README.md` gained
+  the work-slip section.
+- `internal/app/doc/layout-dsl-reference.md`: work-slip block table (12
+  types + data fields), theme tokens section, swiss/brutalist/terminal rows
+  in the theme table, new presets listed with the `bodyScale: 1` convention.
+- `internal/app/doc/layout-typography-and-rendering.md`: "Work slips" section
+  (primitives, themes, the two conventions: no binding language, bodyScale 1).
+- Verified both help entries load from the built binary.
+
+### Why
+- The examples are the contract for whatever generates job JSON upstream —
+  each shows the expanded form of what slip-studio expressed with bindings.
+
+### What worked
+- All five layouts rendered correctly on the first attempt; the digest's
+  nested rows (number column + title/meta stack) compose exactly like the
+  slip-studio original.
+
+### What didn't work
+- N/A — no failed attempts this step. (Observation, not a failure: the
+  brutalist h1 clamps "…Internal Tooling" to 2 lines with an ellipsis at
+  384 dots; the slip-studio original has the same `lines: 2` behavior.)
+
+### What I learned
+- Per-segment heat kicks in automatically for tall pages (38KiB firmware
+  limit), independent of per-block density overrides — `sendBitmapWithHeat`
+  reported 2 segments for the 868-row triage card.
+
+### What was tricky to build
+- Nothing new mechanically; the work was faithful porting — mapping
+  slip-studio's `style:"h1" weight:"black" case:"upper"` onto
+  `preset: h1` + block `style: { textCase: upper }` per the design guide's
+  naming rule (`style` stays a TextStyle object).
+
+### What warrants a second pair of eyes
+- The physical prints: check the brutalist slab rules and the QR scannability
+  on paper (QR at 110px, density 38 — scanned fine in the render, verify the
+  print).
+
+### What should be done in the future
+- A `15-pipeline-stats.yaml` (bars-heavy) example if the bars block earns its
+  keep on 58mm paper.
+- Upstream: point the Upwork scraper at `10-job-slip.yaml`/`11-decision-sheet.yaml`
+  as its output templates.
+
+### Code review instructions
+- Render any example:
+  `almanach-render-service render --layout examples/layouts/12-triage-card.yaml --out /tmp/t.png --format png --web-dir web/dist --chrome-path /usr/bin/google-chrome-stable`
+- Docs: `almanach-render-service help layout-dsl-reference` (Work-Slip Blocks
+  section) and `help layout-typography-and-rendering` (Work slips section).
+
+### Technical details
+- Prints: density 38, 384 dots wide; job slip 395 rows single segment, triage
+  card 868 rows in 2 segments.
