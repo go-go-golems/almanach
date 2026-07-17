@@ -3,7 +3,7 @@
 // (wired as `pnpm --dir web test:presets`).
 
 import assert from "node:assert/strict";
-import { resolveStyle, makePresetResolver, DEFAULT_PRESETS } from "./presets.js";
+import { resolveStyle, makePresetResolver, mergePresetMaps, DEFAULT_PRESETS } from "./presets.js";
 
 const theme = {
   fontDisplay: "'Display', serif",
@@ -55,6 +55,14 @@ assert.equal(
   undefined,
   "no font injected without role/font",
 );
+
+// mergePresetMaps deep-merges per preset name (later wins per field)
+const mergedMaps = mergePresetMaps(
+  { body: { font: "'A'", size: 12 } },       // theme layer
+  { body: { size: 15, weight: 700 } },        // layout layer
+);
+assert.deepEqual(mergedMaps.body, { font: "'A'", size: 15, weight: 700 }, "per-field merge");
+assert.deepEqual(mergePresetMaps(null, undefined, { x: { size: 1 } }).x, { size: 1 }, "skips nullish maps");
 
 // every default preset resolves without throwing and yields a font
 for (const name of Object.keys(DEFAULT_PRESETS)) {

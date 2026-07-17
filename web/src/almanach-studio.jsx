@@ -8,7 +8,7 @@ import {
   Image as ImageIcon, Upload
 } from "lucide-react";
 import { defineBlock, createBlockRegistry, resolveBlockAdapter } from "./blocks/registry.js";
-import { makePresetResolver } from "./typography/presets.js";
+import { makePresetResolver, mergePresetMaps } from "./typography/presets.js";
 
 /* ================================================================
    ALMANACH STUDIO — thermal-printer almanac layout designer
@@ -122,7 +122,83 @@ const THEMES = {
     space: true,
     grain: 0,
   },
+  // Hinted-font themes (ALMANACH-PIXELFONT): DejaVu prints crisp at small sizes
+  // where the delicate Garamonds lose strokes at 1-bit. Embedded in
+  // fonts-embedded.css.
+  crisp: {
+    name: "Crisp Serif (DejaVu)",
+    icon: "▪",
+    paper: "#ffffff",
+    ink: "#000000",
+    muted: "#000000",
+    accent: "#000000",
+    rule: "#000000",
+    fontDisplay: "'DejaVu Serif', 'Georgia', serif",
+    fontBody: "'DejaVu Serif', 'Georgia', serif",
+    titleSize: 28,
+    titleWeight: 700,
+    titleSpacing: "0.08em",
+    titleCase: "uppercase",
+    ornateFrame: false,
+    grain: 0,
+  },
+  crispsans: {
+    name: "Crisp Sans (DejaVu)",
+    icon: "▫",
+    paper: "#ffffff",
+    ink: "#000000",
+    muted: "#000000",
+    accent: "#000000",
+    rule: "#000000",
+    fontDisplay: "'DejaVu Sans', 'Helvetica Neue', sans-serif",
+    fontBody: "'DejaVu Sans', 'Helvetica Neue', sans-serif",
+    titleSize: 26,
+    titleWeight: 700,
+    titleSpacing: "0.06em",
+    titleCase: "uppercase",
+    ornateFrame: false,
+    grain: 0,
+  },
 };
+
+// A layout's `theme` may be a built-in name (string) OR an inline theme object
+// (the "data-driven theme" case) that patches a base built-in with no code
+// change. Returns { themeKey, patch, presetOverrides } where `patch` is merged
+// over THEMES[themeKey] and `presetOverrides` is a preset layer under the
+// layout's typography.
+function resolveThemeSpec(spec) {
+  if (typeof spec === "string") {
+    return { themeKey: THEMES[spec] ? spec : "classic", patch: null, presetOverrides: {} };
+  }
+  if (spec && typeof spec === "object") {
+    const base = THEMES[spec.base] ? spec.base : (THEMES[spec.name] ? spec.name : "classic");
+    const patch = {};
+    const c = spec.colors && typeof spec.colors === "object" ? spec.colors : {};
+    for (const k of ["paper", "ink", "muted", "accent", "rule"]) {
+      if (typeof c[k] === "string") patch[k] = c[k];
+    }
+    // font_palette: [display, body, mono] in preference order.
+    const pal = Array.isArray(spec.fontPalette) ? spec.fontPalette : null;
+    if (pal) {
+      if (pal[0]) patch.fontDisplay = pal[0];
+      if (pal[1] || pal[0]) patch.fontBody = pal[1] || pal[0];
+      if (pal[2]) patch.fontMono = pal[2];
+    }
+    // Explicit font fields win over the palette.
+    for (const k of ["fontDisplay", "fontBody", "fontMono"]) {
+      if (typeof spec[k] === "string") patch[k] = spec[k];
+    }
+    if (typeof spec.titleSize === "number") patch.titleSize = spec.titleSize;
+    if (typeof spec.titleWeight === "number") patch.titleWeight = spec.titleWeight;
+    if (typeof spec.titleSpacing === "string") patch.titleSpacing = spec.titleSpacing;
+    if (typeof spec.titleCase === "string") patch.titleCase = spec.titleCase;
+    const presetOverrides = spec.presetOverrides && typeof spec.presetOverrides === "object"
+      ? spec.presetOverrides
+      : {};
+    return { themeKey: base, patch, presetOverrides };
+  }
+  return { themeKey: "classic", patch: null, presetOverrides: {} };
+}
 
 // ---- DEFAULT BLOCK CONTENT --------------------------------------
 const DEFAULTS = {
@@ -1507,7 +1583,7 @@ function parseLayoutJson(text) {
       ? parsed.typography.presets
       : {};
 
-  const themeKey = THEMES[parsed.theme] ? parsed.theme : "classic";
+  const { themeKey, patch: themePatch, presetOverrides: themePresets } = resolveThemeSpec(parsed.theme);
   const paperWidth =
     typeof parsed.paperWidth === "number" &&
     parsed.paperWidth >= 280 &&
@@ -1529,7 +1605,7 @@ function parseLayoutJson(text) {
       ? parsed.feedLines
       : 3;
 
-  return { blocks, themeKey, paperWidth, bodyScale, feedLines, typography };
+  return { blocks, themeKey, themePatch, themePresets, paperWidth, bodyScale, feedLines, typography };
 }
 
 // =================================================================
@@ -1555,6 +1631,11 @@ export default function AlmanachStudio() {
   // means "use the built-in defaults". Set by loading a layout that carries a
   // `typography.presets` object.
   const [typography, setTypography] = useState({});
+  // Inline theme patch (data-driven theme) merged over the built-in themeKey,
+  // and theme-level preset overrides. Both come from a layout whose `theme` is
+  // an object rather than a built-in name; null/{} for built-in themes.
+  const [inlineTheme, setInlineTheme] = useState(null);
+  const [themePresets, setThemePresets] = useState({});
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -1574,8 +1655,8 @@ export default function AlmanachStudio() {
   useEffect(() => { localStorage.setItem("almanach_feedLines", JSON.stringify(feedLines)); }, [feedLines]);
 
   // --- Headless API for programmatic control (Go render service) ---
-  const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, flashToast });
-  stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, flashToast };
+  const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, flashToast });
+  stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, flashToast };
 
   useEffect(() => {
     window.almanachReady = true;
@@ -1591,6 +1672,8 @@ export default function AlmanachStudio() {
         s.setBodyScale(result.bodyScale);
         s.setFeedLines(result.feedLines);
         s.setTypography(result.typography || {});
+        s.setInlineTheme(result.themePatch || null);
+        s.setThemePresets(result.themePresets || {});
         s.setSelectedId(result.blocks[0]?.id || null);
       } catch (e) {
         console.error("almanachLoadLayout error:", e);
@@ -1680,12 +1763,15 @@ export default function AlmanachStudio() {
   }, []);
 
   const fsRaw = (base) => Math.round(base * bodyScale * 10) / 10;
-  const theme = { ...THEMES[themeKey], bodyScale, fs: fsRaw };
-  // Typography preset resolver bound to this theme, the layout's preset
-  // overrides, and bodyScale. Blocks call theme.preset("body"), etc., and spread
-  // the returned CSS. See web/src/typography/presets.js.
+  // Built-in theme, patched by an inline (data-driven) theme when a layout
+  // supplies one.
+  const theme = { ...THEMES[themeKey], ...(inlineTheme || {}), bodyScale, fs: fsRaw };
+  // Typography preset resolver bound to this theme. Preset overrides layer as
+  // default <- theme.presetOverrides <- layout.typography <- block style; the
+  // first two are merged here (layout wins per field). Blocks call
+  // theme.preset("body"), etc. See web/src/typography/presets.js.
   theme.fontMono = theme.fontMono || "'JetBrains Mono', 'DejaVu Sans Mono', monospace";
-  theme.preset = makePresetResolver({ presets: typography, theme, bodyScale });
+  theme.preset = makePresetResolver({ presets: mergePresetMaps(themePresets, typography), theme, bodyScale });
   // Convenience alias used in block renderers
   const fs = fsRaw;
   const selected = blocks.find((b) => b.id === selectedId);
@@ -1904,6 +1990,8 @@ export default function AlmanachStudio() {
         setBodyScale(parsed.bodyScale);
         setFeedLines(parsed.feedLines);
         setTypography(parsed.typography || {});
+        setInlineTheme(parsed.themePatch || null);
+        setThemePresets(parsed.themePresets || {});
         setSelectedId(parsed.blocks[0]?.id || null);
         flashToast("ok", `Loaded ${parsed.blocks.length} blocks`);
       } catch (err) {
@@ -2559,7 +2647,7 @@ export default function AlmanachStudio() {
                 {Object.entries(THEMES).map(([k, t]) => (
                   <button
                     key={k}
-                    onClick={() => setThemeKey(k)}
+                    onClick={() => { setThemeKey(k); setInlineTheme(null); setThemePresets({}); }}
                     className={`theme-card ${themeKey === k ? "active" : ""}`}
                   >
                     <div className="swatch" style={{ background: t.paper, color: t.ink }}>

@@ -112,6 +112,24 @@ export function resolveStyle(name, { presets = {}, theme = {}, bodyScale = 1, ov
 }
 
 /**
+ * Deep-merge several preset-override maps (name -> partial TextStyle) into one,
+ * shallow-merging the TextStyle objects per preset name. Later maps win per
+ * field, so a theme's `body.size` and a layout's `body.weight` both survive.
+ * Used to combine theme `presetOverrides` (lower) with layout `typography`
+ * (higher) before resolution.
+ */
+export function mergePresetMaps(...maps) {
+  const out = {};
+  for (const map of maps) {
+    if (!map) continue;
+    for (const [name, style] of Object.entries(map)) {
+      out[name] = { ...(out[name] || {}), ...(style || {}) };
+    }
+  }
+  return out;
+}
+
+/**
  * Bind a resolver to a theme + layout presets + bodyScale. Returns
  * `preset(name, ...overrides)` for components to spread into style objects.
  */

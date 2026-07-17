@@ -380,3 +380,107 @@ phase to "ship and print".
 - Phase 4: data-driven themes + embed the hinted DejaVu Serif/Sans fonts in the
   palette, then let presets/themes select them (the presets already accept an
   explicit `font`; only the embedded families + theme-as-data are missing).
+
+## Step 5: Phase 4 — data-driven themes + hinted DejaVu fonts
+
+Made "theme" a piece of data a layout can carry, not just a built-in name, and
+embedded the hinted DejaVu families so the *font* half of the ALMANACH-PIXELFONT
+recipe (crisp small text) is finally expressible. A layout's `theme` can now be
+an object that patches a base built-in with colors, a font palette, and preset
+overrides — no code change, no redeploy.
+
+This closes the "what does data-driven mean concretely" question from the
+handoff: built-in themes are seed data, and a user theme is the same shape
+supplied inline.
+
+### Prompt Context
+
+**User prompt (verbatim):** "phase 4 5 6, continue. Keep a detailed diary as usual (see skill), and commit at appropriate intervals"
+
+**Assistant interpretation:** Implement Phases 4, 5, and 6 in order, maintaining
+the strict-format diary and committing at sensible boundaries. (Also, mid-turn:
+"retroactively update the diary to get the proper formatting" — reformatted
+Steps 2-4 first, commit d96edb6.)
+
+**Inferred user intent:** Finish the DSL v2 build to completion with reviewable
+history and a faithful diary.
+
+**Commit (code):** <this step's commit>
+
+### What I did
+- **Embedded DejaVu.** Subset DejaVu Serif (regular/bold/italic/bold-italic) +
+  DejaVu Sans (regular/bold) to Latin + punctuation/symbol/dingbat ranges via
+  `fonttools subset --flavor=woff` and base64-appended them to
+  `web/src/fonts-embedded.css` (~422KB woff -> ~564KB base64, 6 faces).
+- **Built-in DejaVu themes.** Added `crisp` (DejaVu Serif) and `crispsans`
+  (DejaVu Sans) to `THEMES`.
+- **Data-driven `theme`.** `resolveThemeSpec(spec)` accepts a string (built-in
+  name, unchanged) or an object `{ base, colors, fontPalette|fontDisplay/
+  fontBody/fontMono, titleSize/…, presetOverrides }`, returning
+  `{ themeKey, patch, presetOverrides }`. The patch merges over `THEMES[base]`;
+  `presetOverrides` becomes a preset layer.
+- **Wiring.** `parseLayoutJson` returns `themePatch`/`themePresets`; new
+  `inlineTheme`/`themePresets` state set on headless load + file import; theme is
+  built as `{...THEMES[themeKey], ...inlineTheme}`; the resolver's preset map is
+  `mergePresetMaps(themePresets, typography)` (default <- theme <- layout <-
+  block). Selecting a built-in theme in the UI clears the inline patch.
+- **`mergePresetMaps`** added to `presets.js` (+ test): per-preset, per-field
+  deep merge so theme `body.size` and layout `body.weight` both survive.
+
+### Why
+- Previously a theme was JavaScript compiled into the SPA; adding/tweaking one
+  meant editing and redeploying React. Making it data lets a layout define or
+  patch a theme inline, and embedding hinted fonts makes the crisp-small recipe
+  achievable without code.
+
+### What worked
+- On paper (384px): built-in `crisp` renders DejaVu Serif with visibly heavier,
+  crisper strokes than EB Garamond and legible bold-italic quotes; an inline
+  theme patching `minimal` to DejaVu Sans with `body.weight:700` prints a fully
+  sans page with bold body — all from layout JSON.
+- Subsetting kept the decorative glyphs (✦ ❦ ❀ ☾ ●) so DejaVu body text still
+  shows them.
+
+### What didn't work (verbatim)
+- woff2 failed: `ImportError: No module named brotli` (fonttools woff2 writer
+  needs brotli; not installable to the read-only store). Fell back to
+  `--flavor=woff` (zlib), still ~4x smaller than raw TTF after subsetting.
+- First subset attempt: `ERROR: Unknown option 'no-hinting=false'` — hinting is
+  preserved by default; dropped the flag.
+
+### What was tricky to build
+- **Preset layering across theme + layout.** A single replace-merge of preset
+  maps would drop fields (theme sets `body.size`, layout sets `body.weight` —
+  both needed). Solved with `mergePresetMaps` doing a per-preset shallow merge,
+  applied theme-first so layout wins per field, then the block style wins last in
+  `resolveStyle`'s `overrides`.
+- **Stale inline theme.** Loading an inline-theme layout then clicking a built-in
+  theme card would keep the old patch; fixed by clearing `inlineTheme`/
+  `themePresets` in the theme-card onClick.
+
+### What warrants a second pair of eyes
+- Embedded font weight: +564KB base64 in `fonts-embedded.css` (copied to
+  `dist/fonts.css`, not the JS bundle). Fine for the render service; confirm it's
+  acceptable for any ESP32-served path. Could drop DejaVu Sans (~230KB) if size
+  matters, since the serif is the primary crisp-small win.
+- `buildLayoutJson` still exports `theme` as the built-in `themeKey` string; an
+  inline theme loaded from JSON is applied but not re-serialized on export
+  (authoring feature, not a studio-edited one). Round-trip of inline themes is a
+  follow-up if needed.
+
+### Verified
+- `make test-web` (round-trip + registry + presets incl. `mergePresetMaps`),
+  `go test ./...`, and the studio build all green. Two on-paper renders above.
+
+### Code review instructions
+- Start at `resolveThemeSpec` + the `crisp`/`crispsans` entries and the
+  `theme`/`theme.preset` construction in `web/src/almanach-studio.jsx`, and
+  `mergePresetMaps` in `web/src/typography/presets.js`. Font faces are the tail of
+  `web/src/fonts-embedded.css`. Validate: `make test-web`; render a layout with
+  `"theme": {"base":"minimal","fontPalette":["'DejaVu Sans',sans-serif"],
+  "presetOverrides":{"body":{"weight":700}}}` and eyeball the sans + bold.
+
+### What should be done next
+- Phase 5: replace the five hand-parsed Go `render:` keys with the typed
+  `RenderOptions` proto message (validated once) and add per-block render
+  overrides.
