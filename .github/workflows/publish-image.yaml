@@ -54,6 +54,6 @@ jobs:
       vault_role: almanach-render-service-gitops-pr
       gitops_app_secret_path: kv/data/ci/github/almanach-render-service/gitops-pr-app
       gitops_app_owner: wesen
-      gitops_app_repositories: 2026-03-27--hetzner-k3s
+      gitops_app_repositories: crib-k3s
       tooling_repository: go-go-golems/infra-tooling
       tooling_ref: main
