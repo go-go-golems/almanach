@@ -763,8 +763,12 @@ When a data context is provided (via `--data` file or `--define` flag), all `{{e
 |---|---|
 | `{{key}}` | Look up `key` in the data context. Error if missing. |
 | `{{key:fallback value}}` | Look up `key`. Use fallback string if missing. First colon separates key from fallback. |
-| `{{$ENV_VAR}}` | Look up environment variable `ENV_VAR`. Error if unset. |
-| `{{$ENV_VAR:fallback}}` | Look up environment variable. Use fallback if unset. |
+
+Environment variables are deliberately **not** resolvable from a layout. A
+layout file is passive data that may come from another person or system;
+letting it name process environment variables would leak them into rendered
+PNGs, prints, and debug artifacts. Every value must arrive explicitly via
+`--data` or `--define`.
 
 ### Example Template
 
@@ -825,10 +829,10 @@ almanach-render-service render --layout template.yaml --data data.yaml --define 
 ### Data Context Priority
 
 ```
---define flags  >  --data file  >  environment variable fallbacks in expressions
+--define flags  >  --data file  >  in-expression fallbacks ({{key:fallback}})
 ```
 
-The `--define` flag accepts a comma-separated list of `key=value` pairs (e.g. `--define "title=HELLO,day=Monday"`). Values from `--define` always override the same keys from the `--data` file. Environment variable fallbacks (`{{$ENV_VAR:fallback}}`) are used only when neither `--data` nor `--define` provides a value for that key.
+The `--define` flag accepts a comma-separated list of `key=value` pairs (e.g. `--define "title=HELLO,day=Monday"`). Values from `--define` always override the same keys from the `--data` file. An in-expression fallback is used only when neither `--data` nor `--define` provides the key.
 
 ### Rules
 

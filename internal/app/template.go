@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"os"
 	"strings"
 )
 
@@ -83,7 +82,13 @@ func resolveValue(s string, ctx map[string]string) (string, error) {
 	return result.String(), nil
 }
 
-// resolveExpr resolves a single expression: key, key:fallback, $ENV, $ENV:fallback.
+// resolveExpr resolves a single expression: key or key:fallback.
+//
+// Environment variables are deliberately NOT resolvable here. Layout files are
+// passive data that may come from other people or systems; letting a layout
+// name process env vars ({{$SECRET}}) would leak them into rendered PNGs,
+// prints, and debug artifacts (ALMANACH-WORKSLIP Phase 1). All values must
+// arrive explicitly via --data / --define.
 func resolveExpr(expr string, ctx map[string]string) (string, error) {
 	// Split on first colon for fallback value.
 	parts := strings.SplitN(expr, ":", 2)
@@ -92,18 +97,6 @@ func resolveExpr(expr string, ctx map[string]string) (string, error) {
 	fallback := ""
 	if hasFallback {
 		fallback = parts[1]
-	}
-
-	// Environment variable syntax: $NAME
-	if strings.HasPrefix(key, "$") {
-		envKey := key[1:]
-		if val, ok := os.LookupEnv(envKey); ok {
-			return val, nil
-		}
-		if hasFallback {
-			return fallback, nil
-		}
-		return "", fmt.Errorf("environment variable %s not set", envKey)
 	}
 
 	// Regular key lookup in data context.
