@@ -201,6 +201,50 @@ To inspect the dithering without a printer, render with `--debug-dir` and unpack
 the 1-bit `bitmap.bin`: a dithered region shows scattered dots (many black/white
 transitions per row), a thresholded region shows a single hard edge.
 
+## Work slips: generic blocks and the work themes
+
+Almanac blocks (history, quote, weather) carry a fixed content shape. For
+work and logistics printouts — job slips, triage cards, daily digests — the
+work-slip pack provides *layout primitives* instead: `text`, `banner`, `rule`,
+`space`, `row`, `kv`, `list`, `checks`, `writein`, `qr`, `bars`, `table`.
+Three themes carry the matching look: `swiss` (Archivo grotesque, hairlines),
+`brutalist` (heavy, all-uppercase, slab rules), `terminal` (mono, dashed
+rules, outlined banners). The full field reference lives in
+`layout-dsl-reference`; the flavor is:
+
+```yaml
+theme: swiss
+paperWidth: 384
+bodyScale: 1              # slip presets are print-ready absolute sizes
+blocks:
+  - id: head
+    type: banner
+    data: { text: "TRIAGE", pad: "m" }
+  - id: title
+    type: text
+    data: { text: "Go Developer: MCP Server", preset: h1, lines: 2 }
+  - id: actions
+    type: checks
+    data: { items: ["shortlist", "apply", "archive", "follow-up"], columns: 2 }
+  - id: notes
+    type: writein
+    data: { label: "NOTES", lines: 2 }
+  - id: link
+    type: qr
+    data: { value: "https://www.upwork.com/jobs/~123/", size: 110, align: right }
+```
+
+Two conventions matter. First, there is no binding language — no `repeat`, no
+`if`, no filters: the system that generates the layout (a scraper, an agent, a
+script) emits the final expanded block list, and the `{{key}}` data context
+remains available for simple value injection via `--data`/`--define`. Second,
+slip layouts set `bodyScale: 1`, because the work-slip presets (`display`,
+`h1`, `h2`, `micro`) are print-ready absolute sizes — the almanac default of
+1.35–1.6 would blow them up.
+
+Printable examples live at `examples/layouts/10-job-slip.yaml` through
+`14-morning-digest.yaml`.
+
 ## Preview-first workflow
 
 Iterate on screen before spending paper. Render to PNG to see the screenshot,

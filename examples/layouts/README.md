@@ -29,4 +29,14 @@ Examples:
 - `08-image-block.yaml` — embedded image-block smoke test.
 - `09-picocalc-uf2-nerd-card.yaml` — PicoCalc UF2 loader technical card with embedded SVG.
 
+Work-slip examples (ALMANACH-WORKSLIP; generic layout primitives + the
+`swiss`/`brutalist`/`terminal` work themes, `bodyScale: 1`; pre-expanded — the
+producer fills in concrete values, there is no binding language):
+
+- `10-job-slip.yaml` — one incoming job at a glance (banner, h1 title, rate row).
+- `11-decision-sheet.yaml` — summary, market facts (kv), star/skip decision checks.
+- `12-triage-card.yaml` — fit rating, action checkboxes, write-in notes, QR link (brutalist).
+- `13-focus-card.yaml` — daily one-thing + time slots (terminal/mono).
+- `14-morning-digest.yaml` — numbered digest of the day's new jobs (a pre-expanded "repeat").
+
 Use `.paper-body` for print-oriented output and `.paper-shell` when you explicitly want the decorative zigzag edges included in the preview image. For layouts with separate image files, use a ZIP bundle from `examples/bundles/`.

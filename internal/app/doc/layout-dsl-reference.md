@@ -106,7 +106,10 @@ A `TextStyle` accepts these fields (all optional; unset fields inherit):
 | `minSize` | number | Absolute floor (px) applied after `bodyScale` — the legibility guard. |
 
 Built-in preset names: `title`, `sectionLabel`, `overline`, `word`, `metric`,
-`body`, `bodyStrong`, `emphasis`, `caption`, `small`, `meta`.
+`body`, `bodyStrong`, `emphasis`, `caption`, `small`, `meta` — plus the
+work-slip scale `display` (huge stat numerals), `h1` (slip headline), `h2`
+(secondary headline), and `micro` (tracked uppercase labels). The work-slip
+sizes are print-ready absolutes; slip layouts should set `bodyScale: 1`.
 
 A single block can override its primary text with `style` (see
 [Block Object](#block-object)):
@@ -134,6 +137,9 @@ Built-in theme keys:
 | `classic`, `minimal`, `botanical`, `notebook`, `ledger`, `space` | Garamond / display fonts | Elegant on screen; thin strokes at small sizes. |
 | `crisp` | DejaVu Serif (hinted) | **Recommended for print.** Crisp small text. |
 | `crispsans` | DejaVu Sans (hinted) | Sans alternative, also crisp small. |
+| `swiss` | Archivo (embedded variable font) | Bold modern grotesque for work slips; hairline rules. |
+| `brutalist` | Archivo | Everything heavy and uppercase; slab rules. |
+| `terminal` | DejaVu Sans Mono | All-mono; dashed rules, outlined banners. |
 
 Select a built-in theme by name:
 
@@ -159,9 +165,29 @@ theme:
 
 Inline theme fields: `base`, `colors` (`paper`/`ink`/`muted`/`accent`/`rule`),
 `fontPalette` (array) or explicit `fontDisplay`/`fontBody`/`fontMono`,
-`titleSize`/`titleWeight`/`titleSpacing`/`titleCase`, and `presetOverrides`
-(same shape as `typography.presets`). Theme preset overrides sit **below** the
-layout's `typography` in the resolution chain.
+`titleSize`/`titleWeight`/`titleSpacing`/`titleCase`, `presetOverrides`
+(same shape as `typography.presets`), and `tokens`. Theme preset overrides sit
+**below** the layout's `typography` in the resolution chain.
+
+### Theme design tokens
+
+Layout-primitive blocks (the work-slip pack below) draw spacing, rule
+thickness, and banner style from the theme's `tokens` rather than hardcoded
+px, so a theme restyles the whole pack as data:
+
+```yaml
+theme:
+  base: swiss
+  tokens:
+    space: { xs: 5, s: 10, m: 16, l: 26, xl: 42 }   # named vertical steps, px
+    rules: { hair: 1, thick: 3, heavy: 7 }            # named rule weights, px
+    ruleStyle: solid                                  # solid | dashed
+    bannerStyle: invert                               # invert (filled) | outline
+```
+
+Unset names fall back to built-in defaults, so themes without tokens (all the
+almanac themes) render the pack correctly. An inline `tokens` object replaces
+the base theme's tokens wholesale.
 
 ## Page Margin
 
@@ -684,6 +710,69 @@ Use `reflection` for a daily journal footer.
 | `better` | string | What could be better. |
 | `learned` | string | What was learned. |
 | `quote` | string | Optional closing quote. |
+
+## Work-Slip Blocks (Layout Primitives)
+
+The work-slip pack (ALMANACH-WORKSLIP) adds twelve *generic* layout
+primitives, aimed at work/logistics printouts (job slips, triage cards,
+digests) rather than almanac content. They compose with everything above:
+per-block `style` overrides, per-block `render` overrides, themes, and
+typography presets. Most take a `preset` field in their data to pick their
+type role, and draw spacing/rules/banner styling from the theme's `tokens`.
+
+There is deliberately **no binding language** (no `repeat`/`if`/variables
+beyond the `{{key}}` data context): whatever produces the layout emits the
+final expanded block list. See `examples/layouts/10-*.yaml` through
+`14-*.yaml` for complete, printable slips.
+
+| Type | Purpose | Data fields |
+|---|---|---|
+| `text` | One text run | `text`, `preset` (default `body`), `align` (`left`/`center`/`right`), `lines` (clamp with ellipsis) |
+| `banner` | Emphasis bar (filled or outlined per theme `bannerStyle`) | `text`, `right` (right-aligned secondary), `preset`, `pad` (`s`/`m`/`l`) |
+| `rule` | Horizontal rule (dashed in `terminal`) | `weight` (`hair`/`thick`/`heavy` or px) |
+| `space` | Vertical gap | `size` (`xs`/`s`/`m`/`l`/`xl` or px) |
+| `row` | Columns | `gap`, `cols`: array of `{ w, ...textData }` shorthand or `{ w, blocks: [...] }` nested blocks. `w` is px (number) or `"1fr"`/`"2fr"` |
+| `kv` | Aligned key/value rows | `items`: array of `[key, value]` pairs |
+| `list` | Marker list | `items`, `marker` (default `—`), `preset`, `lines` |
+| `checks` | Checkboxes to tick with a pen | `items`, `inline: true` or `columns: N`, `preset` |
+| `writein` | Blank ruled lines to write on | `label`, `lines` |
+| `qr` | QR code (SVG, integer-px modules) | `value`, `size` (px), `align`, `caption` |
+| `bars` | Horizontal bar chart | `values`: `[{label, value}]`, `height` |
+| `table` | Simple table | `cols`: `[{label, w?, align?}]`, `rows`: array of cell arrays, `preset` |
+
+A compact example:
+
+```yaml
+theme: swiss
+paperWidth: 384
+bodyScale: 1            # slip presets are print-ready absolutes
+blocks:
+  - id: head
+    type: banner
+    data: { text: "NEW JOB", right: "14:32", pad: "m" }
+  - id: title
+    type: text
+    data: { text: "ESP32 Firmware Engineer", preset: h1, lines: 3 }
+    style: { textCase: upper }
+  - id: split
+    type: row
+    data:
+      cols:
+        - { w: "1fr", text: "$50 – $110/hr", preset: h2 }
+        - { w: "1fr", text: "EXPERT", preset: h2, align: right }
+  - id: link
+    type: qr
+    data: { value: "https://example.com/job/123", size: 110, align: right }
+```
+
+Notes:
+
+- `row` is the only container. Nested blocks render through the same registry
+  (unknown nested types placeholder too), but they do **not** get their own
+  `data-block-id`, so per-block `render`/heat overrides apply to top-level
+  blocks only.
+- QR modules are laid out on integer pixel boundaries; keep `size` roughly in
+  the 90–140 range at 384 dots so codes stay scannable after thresholding.
 
 ## Block-Aware Rasterization and Per-Segment Heat
 

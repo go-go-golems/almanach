@@ -1,0 +1,58 @@
+# Work slip: daily focus card — one thing, a few time slots, a done check
+# (ALMANACH-WORKSLIP; from slip-studio "G · Focus Card", pre-expanded).
+almanach_studio_version: 1
+theme: terminal
+paperWidth: 384
+bodyScale: 1
+feedLines: 3
+margin: { x: 12, y: 14 }
+blocks:
+  - id: day
+    type: text
+    data: { text: "THURSDAY", preset: h1 }
+  - id: r1
+    type: rule
+    data: { weight: heavy }
+  - id: gap1
+    type: space
+    data: { size: "s" }
+  - id: onething-label
+    type: text
+    data: { text: "TODAY'S ONE THING", preset: micro }
+  - id: onething
+    type: text
+    data:
+      text: "Ship importer --availability-checks"
+      preset: h2
+      lines: 2
+    style: { textCase: upper }
+  - id: gap2
+    type: space
+    data: { size: "m" }
+  - id: r2
+    type: rule
+    data: { weight: hair }
+  - id: slot1
+    type: row
+    data:
+      cols:
+        - { w: 64, text: "09:00", preset: bodyStrong }
+        - { w: "1fr", text: "Deep work: importer", preset: body }
+  - id: slot2
+    type: row
+    data:
+      cols:
+        - { w: 64, text: "13:00", preset: bodyStrong }
+        - { w: "1fr", text: "Client call — BLE gateway", preset: body }
+  - id: slot3
+    type: row
+    data:
+      cols:
+        - { w: 64, text: "15:30", preset: bodyStrong }
+        - { w: "1fr", text: "Triage new job slips", preset: body }
+  - id: r3
+    type: rule
+    data: { weight: hair }
+  - id: done
+    type: checks
+    data: { items: ["done by 18:00?"], preset: caption }
