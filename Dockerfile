@@ -1,3 +1,10 @@
+FROM node:22-bookworm AS web-builder
+WORKDIR /build/web
+COPY web/package.json web/pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+COPY web/ ./
+RUN pnpm run build
+
 FROM golang:1.26-bookworm AS builder
 WORKDIR /build
 COPY go.mod go.sum ./
@@ -8,10 +15,11 @@ RUN CGO_ENABLED=1 go build -tags=embed -o /almanach-render-service ./cmd/almanac
 FROM chromedp/headless-shell:latest
 
 COPY --from=builder /almanach-render-service /usr/local/bin/almanach-render-service
-COPY --from=builder /build/web/ /opt/almanach/web/
+COPY --from=web-builder /build/web/dist/ /opt/almanach/web/dist/
 
 ENV ALMANACH_PORT=8199 \
     ALMANACH_WEB_DIR=/opt/almanach/web/dist \
+    ALMANACH_RENDER_TIMEOUT=2m \
     ALMANACH_PRINTER_IP= \
     ALMANACH_CHROME_PATH=/headless-shell/headless-shell \
     ALMANACH_DEFAULT_THEME=minimal \

@@ -66,3 +66,10 @@ export function colWidthStyle(w) {
   }
   return { flex: "1 1 0%", minWidth: 0 };
 }
+
+// Accept both the compact tuple form and YAML-friendly { k, v } objects.
+export function normalizeKVItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) =>
+    Array.isArray(item) ? item : [item?.k ?? "", item?.v ?? ""]
+  );
+}

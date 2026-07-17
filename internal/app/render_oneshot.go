@@ -59,6 +59,9 @@ func renderOneShot(ctx context.Context, req oneShotRenderRequest) (*RenderResult
 	cfg.ChromeWSURL = req.ChromeWSURL
 
 	opts := req.Options.withDefaults()
+	if req.Options.RenderTimeout <= 0 {
+		opts.RenderTimeout = cfg.RenderTimeout
+	}
 	opts.BaseURL = "http://" + ln.Addr().String()
 
 	// Per-block render overrides drive block-aware rasterization (Phase 6).

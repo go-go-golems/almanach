@@ -4,36 +4,39 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 // Config holds all service configuration, loaded from environment variables.
 type Config struct {
-	Port         int    // HTTP listen port (default 8199)
-	WebDir       string // Directory serving almanach SPA static files
-	PrinterIP    string // ESP32 stoms3r device IP address
-	ChromePath   string // Path to Chrome/Chromium binary (empty = auto-detect)
-	ChromeWSURL  string // WebSocket URL for remote Chrome (e.g. "ws://chrome:9222")
-	PaperWidth   int    // Default paper width in pixels (default 384)
-	BodyScale    float64
-	FeedLines    int // Default feed lines after printing (default 3)
-	DefaultTheme string
-	LogLevel     string // debug, info, warn, error
-	StateFile    string // Local render/setup server state file
+	Port          int    // HTTP listen port (default 8199)
+	WebDir        string // Directory serving almanach SPA static files
+	PrinterIP     string // ESP32 stoms3r device IP address
+	ChromePath    string // Path to Chrome/Chromium binary (empty = auto-detect)
+	ChromeWSURL   string // WebSocket URL for remote Chrome (e.g. "ws://chrome:9222")
+	PaperWidth    int    // Default paper width in pixels (default 384)
+	BodyScale     float64
+	FeedLines     int // Default feed lines after printing (default 3)
+	DefaultTheme  string
+	LogLevel      string        // debug, info, warn, error
+	StateFile     string        // Local render/setup server state file
+	RenderTimeout time.Duration // Maximum duration of one Chrome render
 }
 
 func LoadConfig() Config {
 	return Config{
-		Port:         envInt("ALMANACH_PORT", 8199),
-		WebDir:       envStr("ALMANACH_WEB_DIR", "./web/dist"),
-		PrinterIP:    envStr("ALMANACH_PRINTER_IP", ""),
-		ChromePath:   envStr("ALMANACH_CHROME_PATH", ""),
-		ChromeWSURL:  envStr("CHROME_WS_URL", ""),
-		PaperWidth:   envInt("ALMANACH_PAPER_WIDTH", 384),
-		BodyScale:    envFloat("ALMANACH_FONT_SCALE", 1.4),
-		FeedLines:    envInt("ALMANACH_DEFAULT_FEED", 3),
-		DefaultTheme: envStr("ALMANACH_DEFAULT_THEME", "minimal"),
-		LogLevel:     envStr("ALMANACH_LOG_LEVEL", "info"),
-		StateFile:    envStr("ALMANACH_STATE_FILE", defaultStateFile()),
+		Port:          envInt("ALMANACH_PORT", 8199),
+		WebDir:        envStr("ALMANACH_WEB_DIR", "./web/dist"),
+		PrinterIP:     envStr("ALMANACH_PRINTER_IP", ""),
+		ChromePath:    envStr("ALMANACH_CHROME_PATH", ""),
+		ChromeWSURL:   envStr("CHROME_WS_URL", ""),
+		PaperWidth:    envInt("ALMANACH_PAPER_WIDTH", 384),
+		BodyScale:     envFloat("ALMANACH_FONT_SCALE", 1.4),
+		FeedLines:     envInt("ALMANACH_DEFAULT_FEED", 3),
+		DefaultTheme:  envStr("ALMANACH_DEFAULT_THEME", "minimal"),
+		LogLevel:      envStr("ALMANACH_LOG_LEVEL", "info"),
+		StateFile:     envStr("ALMANACH_STATE_FILE", defaultStateFile()),
+		RenderTimeout: envDuration("ALMANACH_RENDER_TIMEOUT", defaultChromeRenderTimeout),
 	}
 }
 
@@ -64,6 +67,15 @@ func envFloat(key string, fallback float64) float64 {
 	if v := os.Getenv(key); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			return f
+		}
+	}
+	return fallback
+}
+
+func envDuration(key string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
 		}
 	}
 	return fallback

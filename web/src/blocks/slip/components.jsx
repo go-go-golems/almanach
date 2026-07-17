@@ -1,5 +1,5 @@
 import React from "react";
-import { spaceToken, ruleToken, ruleStyleToken, bannerStyleToken, colWidthStyle } from "./tokens.js";
+import { spaceToken, ruleToken, ruleStyleToken, bannerStyleToken, colWidthStyle, normalizeKVItems } from "./tokens.js";
 import { buildQrMatrix } from "./qr.js";
 
 /* ================================================================
@@ -119,13 +119,14 @@ export const RowBlock = ({ data, theme, ctx }) => {
   );
 };
 
-// Aligned key/value rows. data: { items: [[key, value], ...] }.
+// Aligned key/value rows. data: { items: [[key, value] | { k, v }, ...] }.
 export const KvBlock = ({ data, theme, blockStyle }) => {
   const kSt = { ...theme.preset("overline"), color: theme.muted };
   const vSt = { ...theme.preset("bodyStrong", blockStyle), color: theme.ink };
+  const items = normalizeKVItems(data.items);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", columnGap: 12, rowGap: 5 }}>
-      {(data.items || []).map(([k, v], i) => (
+      {items.map(([k, v], i) => (
         <React.Fragment key={i}>
           <div style={{ ...kSt, alignSelf: "baseline", paddingTop: 2 }}>{k}</div>
           <div style={{ ...vSt, overflowWrap: "break-word", minWidth: 0 }}>{v}</div>
