@@ -2,6 +2,8 @@ module github.com/go-go-golems/almanach
 
 go 1.26.3
 
+toolchain go1.26.5
+
 require (
 	dagger.io/dagger v0.20.8
 	github.com/chromedp/chromedp v0.15.1

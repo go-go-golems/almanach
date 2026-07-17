@@ -1,0 +1,7 @@
+# Paths excluded from TruffleHog secret scanning (one regex per line).
+# The embedded font CSS carries megabytes of base64 woff/woff2 payloads whose
+# random substrings pattern-match secret detectors (Sirv/Aiven false positives
+# on the DejaVu subsets). Fonts are public data, not secrets.
+web/src/fonts-embedded\.css
+web/dist/fonts\.css
+internal/web/embed/public/fonts\.css
