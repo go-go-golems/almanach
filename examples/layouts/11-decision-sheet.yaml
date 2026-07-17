@@ -1,0 +1,78 @@
+# Work slip: full decision sheet for one job — summary, market facts, and a
+# star/skip decision to tick with a pen (ALMANACH-WORKSLIP; from slip-studio
+# "B · Decision Sheet" in its brutalist form, pre-expanded: the producer
+# resolves values like the #<last4> job-id suffix and the joined tag line).
+almanach_studio_version: 1
+theme: brutalist
+paperWidth: 384
+bodyScale: 1
+feedLines: 3
+blocks:
+  - id: head
+    type: row
+    data:
+      cols:
+        - { w: "1fr", text: "UPWORK", preset: micro }
+        - { w: "1fr", text: "#3790", preset: micro, align: right }
+  - id: r1
+    type: rule
+    data: { weight: heavy }
+  - id: gap1
+    type: space
+    data: { size: "s" }
+  - id: title
+    type: text
+    data:
+      text: "ESP32 Firmware Engineer for BLE Sensor Gateway"
+      preset: h1
+      lines: 3
+  - id: gap2
+    type: space
+    data: { size: "s" }
+  - id: summary
+    type: text
+    data:
+      text: "Build BLE gateway firmware on ESP32-S3 bridging sensor data to MQTT with OTA updates."
+      preset: body
+  - id: gap3
+    type: space
+    data: { size: "m" }
+  - id: points
+    type: list
+    data:
+      marker: "—"
+      lines: 2
+      items:
+        - "\"20+ concurrent BLE connections\""
+        - "\"OTA updates via private broker\""
+        - "\"delivery in 6 weeks\""
+  - id: gap4
+    type: space
+    data: { size: "s" }
+  - id: tags
+    type: text
+    data: { text: "esp32  ·  ble  ·  mqtt", preset: micro }
+  - id: r2
+    type: rule
+    data: { weight: hair }
+  - id: facts
+    type: kv
+    data:
+      items:
+        - ["RATE", "$50 – $110"]
+        - ["LEVEL", "Expert"]
+        - ["CLIENT", "★4.9 · $3.2K · 82%"]
+        - ["MARKET", "Posted last week · 5 to 10"]
+  - id: r3
+    type: rule
+    data: { weight: hair }
+  - id: decide
+    type: row
+    data:
+      cols:
+        - { w: "1fr", text: "CONNECTS 16", preset: caption }
+        - w: 160
+          blocks:
+            - id: decide-checks
+              type: checks
+              data: { items: ["star", "skip"], inline: true, preset: caption }

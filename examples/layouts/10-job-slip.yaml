@@ -1,0 +1,44 @@
+# Work slip: one incoming job at a glance (ALMANACH-WORKSLIP).
+# Ported from slip-studio "A · Job Slip", pre-expanded: whatever produces this
+# JSON/YAML (scraper, agent, script) fills in the concrete values itself —
+# there is no binding language. Slip layouts use absolute preset sizes, so
+# bodyScale stays 1.
+almanach_studio_version: 1
+theme: swiss
+paperWidth: 384
+bodyScale: 1
+feedLines: 3
+blocks:
+  - id: head
+    type: banner
+    data: { text: "NEW JOB", right: "2026-07-16 14:32", pad: "m" }
+  - id: gap1
+    type: space
+    data: { size: "m" }
+  - id: title
+    type: text
+    data:
+      text: "ESP32 Firmware Engineer for BLE Sensor Gateway"
+      preset: h1
+      lines: 3
+    style: { textCase: upper }
+  - id: gap2
+    type: space
+    data: { size: "m" }
+  - id: r1
+    type: rule
+    data: { weight: heavy }
+  - id: rate
+    type: row
+    data:
+      cols:
+        - { w: "1fr", text: "$50 – $110/hr", preset: h2 }
+        - { w: "1fr", text: "EXPERT", preset: h2, align: right }
+  - id: r2
+    type: rule
+    data: { weight: hair }
+  - id: client
+    type: text
+    data:
+      text: "★4.9 · $3.2K spent · 82% hire · 5 to 10 proposals"
+      preset: caption

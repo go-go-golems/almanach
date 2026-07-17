@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	layoutv1 "github.com/go-go-golems/almanach/gen/almanach/layout/v1"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,14 +28,29 @@ const (
 // defaults for compatibility; CLI commands can override these fields for
 // one-shot preview/print/debug workflows.
 type RenderOptions struct {
-	BaseURL        string
-	Selector       string
-	Threshold      uint8
-	ViewportWidth  int
-	ViewportHeight int
-	WaitAfterLoad  time.Duration
-	DebugDir       string
-	CollectMetrics bool
+	BaseURL          string
+	Selector         string
+	Threshold        uint8
+	SupersampleScale int // render oversampling factor; downscaled before 1-bit conversion
+	ViewportWidth    int
+	ViewportHeight   int
+	WaitAfterLoad    time.Duration
+	DebugDir         string
+	CollectMetrics   bool
+
+	// Rasterization + printer knobs from the typed layout RenderOptions
+	// (DSL v2). Zero values mean "unset / use default". RasterMode and Gamma
+	// feed the block-aware rasterizer (Phase 6); PrinterDensity/PrinterSpeed
+	// are applied to the printer before a print.
+	RasterMode     string  // "", "threshold", "atkinson", "floydSteinberg", "bayer"
+	Gamma          float64 // 0 = unset
+	PrinterDensity int     // 0 = unset
+	PrinterSpeed   int     // 0 = unset
+
+	// PerBlockRender maps block id -> its render override, used for block-aware
+	// rasterization (Phase 6): a block's bounding box becomes a raster region
+	// with the block's mode/gamma/threshold.
+	PerBlockRender map[string]*layoutv1.RenderOptions
 }
 
 // RenderMetrics contains browser layout measurements for important elements.
@@ -64,6 +80,18 @@ type RenderResult struct {
 	LayoutJSON string
 	Metrics    RenderMetrics
 	Selector   string
+
+	// HeatRegions are row bands that request a specific printer density, derived
+	// from per-block printerDensity render options + block bounding boxes. Used
+	// for per-segment heat (Phase 6): text hotter, photos cooler in one page.
+	HeatRegions []HeatRegion
+}
+
+// HeatRegion is a [YStart, YEnd) band of bitmap rows to print at Density.
+type HeatRegion struct {
+	YStart  int
+	YEnd    int
+	Density int
 }
 
 // Bitmap represents a 1-bit monochrome image in MSB-first packed format.
@@ -162,6 +190,9 @@ func (o RenderOptions) withDefaults() RenderOptions {
 	if o.WaitAfterLoad <= 0 {
 		o.WaitAfterLoad = defaultRenderWait
 	}
+	if o.SupersampleScale <= 0 {
+		o.SupersampleScale = defaultSupersampleScale
+	}
 	if o.DebugDir != "" {
 		o.CollectMetrics = true
 	}
@@ -197,7 +228,7 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	}
 
 	actions := []chromedp.Action{
-		chromedp.EmulateViewport(int64(opts.ViewportWidth), int64(opts.ViewportHeight)),
+		chromedp.EmulateViewport(int64(opts.ViewportWidth), int64(opts.ViewportHeight), chromedp.EmulateScale(float64(opts.SupersampleScale))),
 		chromedp.Navigate(opts.BaseURL + "/almanach"),
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.Poll(`window.almanachReady === true`, nil, chromedp.WithPollingTimeout(10*time.Second)),
@@ -210,6 +241,12 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	if opts.CollectMetrics {
 		actions = append(actions, chromedp.Evaluate(collectMetricsJS(), &metrics))
 	}
+	// Collect per-block bounding boxes when any block carries a render override,
+	// so we can rasterize its region differently (Phase 6).
+	var blockMetrics []blockMetric
+	if len(opts.PerBlockRender) > 0 {
+		actions = append(actions, chromedp.Evaluate(collectBlockMetricsJS(opts.Selector), &blockMetrics))
+	}
 	actions = append(actions,
 		chromedp.Screenshot(opts.Selector, &screenshotBuf, chromedp.ByQuery, chromedp.NodeVisible),
 	)
@@ -221,19 +258,27 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 
 	log.Printf("[render] Screenshot captured: %d bytes PNG", len(screenshotBuf))
 
-	bitmap, err := PngToBitmap(screenshotBuf, opts.Threshold)
+	// Downscale the oversampled screenshot back to the target resolution, then
+	// convert to 1-bit. At scale 1 with no per-block regions this is the plain
+	// threshold path; per-block render overrides add raster regions (Phase 6).
+	// Page-level rasterMode/gamma (Layout.render) cover every row not claimed
+	// by a block override, so a full-page dither needs no per-block config.
+	regions := blockRasterRegions(blockMetrics, opts.PerBlockRender)
+	regions = append(regions, pageRasterRegions(opts.RasterMode, opts.Gamma, regions)...)
+	bitmap, err := pngToBitmapSupersampledRegions(screenshotBuf, opts.Threshold, opts.SupersampleScale, regions)
 	if err != nil {
 		return nil, fmt.Errorf("bitmap convert: %w", err)
 	}
 
 	result := &RenderResult{
-		Bitmap:     bitmap,
-		PNG:        screenshotBuf,
-		Theme:      extractThemeFromLayout(layoutJSON),
-		RenderedAt: time.Now().UTC().Format(time.RFC3339),
-		LayoutJSON: layoutJSON,
-		Metrics:    metrics,
-		Selector:   opts.Selector,
+		Bitmap:      bitmap,
+		PNG:         screenshotBuf,
+		Theme:       extractThemeFromLayout(layoutJSON),
+		RenderedAt:  time.Now().UTC().Format(time.RFC3339),
+		LayoutJSON:  layoutJSON,
+		Metrics:     metrics,
+		Selector:    opts.Selector,
+		HeatRegions: blockHeatRegions(blockMetrics, opts.PerBlockRender),
 	}
 
 	if opts.DebugDir != "" {
@@ -399,10 +444,10 @@ func writePrettyJSON(path string, v any) error {
 //     headless-shell container. This is the Docker/production mode.
 //   - Otherwise, launches a local Chrome process. This is the dev mode.
 func newChromeAllocator(cfg Config) (context.Context, context.CancelFunc) {
-	return newChromeAllocatorWithViewport(cfg, defaultRenderViewportWidth, defaultRenderViewportHeight)
+	return newChromeAllocatorWithViewport(cfg, defaultRenderViewportWidth, defaultRenderViewportHeight, defaultSupersampleScale)
 }
 
-func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight int) (context.Context, context.CancelFunc) {
+func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight, scale int) (context.Context, context.CancelFunc) {
 	if cfg.ChromeWSURL != "" {
 		log.Printf("Chrome mode: remote (%s)", cfg.ChromeWSURL)
 		allocCtx, cancel := chromedp.NewRemoteAllocator(context.Background(), cfg.ChromeWSURL)
@@ -415,8 +460,11 @@ func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight in
 	if viewportHeight <= 0 {
 		viewportHeight = defaultRenderViewportHeight
 	}
+	if scale <= 0 {
+		scale = defaultSupersampleScale
+	}
 
-	log.Printf("Chrome mode: local (launching Chrome)")
+	log.Printf("Chrome mode: local (launching Chrome, supersample=%dx)", scale)
 	opts := []chromedp.ExecAllocatorOption{
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
@@ -425,8 +473,20 @@ func newChromeAllocatorWithViewport(cfg Config, viewportWidth, viewportHeight in
 		chromedp.Flag("no-sandbox", true),
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.Flag("hide-scrollbars", true),
-		chromedp.Flag("force-device-scale-factor", "1.0"),
-		chromedp.WindowSize(viewportWidth, viewportHeight),
+		chromedp.Flag("force-device-scale-factor", fmt.Sprintf("%d", scale)),
+		chromedp.WindowSize(viewportWidth*scale, viewportHeight*scale),
+	}
+
+	// At 1x, disable font anti-aliasing so text rasterizes monochrome and small
+	// strokes survive the 1-bit conversion. When supersampling (scale>1) we keep
+	// AA on: the oversampled render captures thin strokes, and the box-average
+	// downscale + threshold reconstructs them crisply while preserving the font's
+	// shape — including small serif italics that AA-off at 1x renders roughly
+	// (ALMANACH-PIXELFONT).
+	if scale <= 1 {
+		if env := renderFontEnv(); len(env) > 0 {
+			opts = append(opts, chromedp.Env(env...))
+		}
 	}
 
 	if cfg.ChromePath != "" {

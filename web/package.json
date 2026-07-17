@@ -8,15 +8,23 @@
     "build": "node esbuild.mjs",
     "build:dev": "node esbuild.mjs --dev",
     "storybook": "storybook dev -p 6006 --host 127.0.0.1",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test:proto": "node test/layout.roundtrip.test.mjs",
+    "test:registry": "node src/blocks/registry.test.mjs",
+    "test:presets": "node src/typography/presets.test.mjs",
+    "test:slip": "node src/blocks/slip/slip.test.mjs",
+    "test:web": "node test/layout.roundtrip.test.mjs && node src/blocks/registry.test.mjs && node src/typography/presets.test.mjs && node src/blocks/slip/slip.test.mjs"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.12.1",
     "@noble/curves": "^2.2.0",
     "lucide-react": "^0.469.0",
+    "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^2.12.1",
     "@storybook/react-vite": "^10.3.6",
     "@vitejs/plugin-react": "^6.0.1",
     "esbuild": "^0.25.2",

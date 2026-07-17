@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -36,23 +35,26 @@ func TestResolveValue_MissingKeyWithFallback(t *testing.T) {
 	}
 }
 
-func TestResolveValue_EnvVar(t *testing.T) {
+// Environment variables must never resolve from a layout, even when set in the
+// process environment. A layout is passive data; {{$SECRET}} reaching prints or
+// debug artifacts would be an exfiltration channel (ALMANACH-WORKSLIP Phase 1).
+func TestResolveValue_EnvVarSyntaxDoesNotResolve(t *testing.T) {
 	t.Setenv("ALMANACH_TEST_VAR", "from-env")
 
 	ctx := map[string]string{}
-	got, err := resolveValue("value: {{$ALMANACH_TEST_VAR}}", ctx)
-	if err != nil {
-		t.Fatal(err)
+	_, err := resolveValue("value: {{$ALMANACH_TEST_VAR}}", ctx)
+	if err == nil {
+		t.Fatal("expected error: $ENV expressions must not resolve from the environment")
 	}
-	if got != "value: from-env" {
-		t.Fatalf("got %q, want %q", got, "value: from-env")
+	if strings.Contains(err.Error(), "from-env") {
+		t.Fatalf("error must not leak the env value: %v", err)
 	}
 }
 
-func TestResolveValue_EnvVarWithFallback(t *testing.T) {
-	if err := os.Unsetenv("ALMANACH_TEST_NONEXISTENT"); err != nil {
-		t.Fatal(err)
-	}
+// A $-prefixed expression with a fallback behaves like any unknown key: the
+// fallback wins, the environment is never consulted.
+func TestResolveValue_EnvVarSyntaxUsesFallbackNotEnv(t *testing.T) {
+	t.Setenv("ALMANACH_TEST_NONEXISTENT", "must-not-appear")
 	ctx := map[string]string{}
 	got, err := resolveValue("hello {{$ALMANACH_TEST_NONEXISTENT:anonymous}}", ctx)
 	if err != nil {
@@ -60,17 +62,6 @@ func TestResolveValue_EnvVarWithFallback(t *testing.T) {
 	}
 	if got != "hello anonymous" {
 		t.Fatalf("got %q, want %q", got, "hello anonymous")
-	}
-}
-
-func TestResolveValue_EnvVarMissingWithoutFallback(t *testing.T) {
-	if err := os.Unsetenv("ALMANACH_TEST_MISSING"); err != nil {
-		t.Fatal(err)
-	}
-	ctx := map[string]string{}
-	_, err := resolveValue("{{$ALMANACH_TEST_MISSING}}", ctx)
-	if err == nil {
-		t.Fatal("expected error for missing env var without fallback")
 	}
 }
 
@@ -123,12 +114,12 @@ func TestResolveValue_NoExpressions(t *testing.T) {
 	}
 }
 
-func TestResolveValue_ContextOverridesEnvFallback(t *testing.T) {
-	t.Setenv("ALMANACH_TEST_OVERRIDE", "env-value")
-
-	ctx := map[string]string{"key": "ctx-value"}
-	// Regular key lookup wins over env — they're different expression types
-	got, err := resolveValue("{{key}}", ctx)
+// A data-context key that happens to start with $ still resolves — only the
+// implicit environment lookup is gone, not the character.
+func TestResolveValue_DollarKeyResolvesFromContext(t *testing.T) {
+	t.Setenv("HOME_SWEET", "env-value")
+	ctx := map[string]string{"$HOME_SWEET": "ctx-value"}
+	got, err := resolveValue("{{$HOME_SWEET}}", ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

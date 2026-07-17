@@ -1,0 +1,61 @@
+# Changelog
+
+## 2026-07-16
+
+- Initial workspace created
+
+
+## 2026-07-16
+
+Step 1: Created ticket, design+implementation doc (embedded-bitmap web font approach), and 5 phase tasks. Grounded in DPR=1 render pipeline; fontforge usable via APPIMAGE_EXTRACT_AND_RUN.
+
+
+## 2026-07-16
+
+Step 2 (Phase 0 spike): Approach A (embedded-bitmap webfont) REJECTED - Chrome ignores strikes, renders outlines. Approach B (disable AA via fontconfig) ADOPTED - hinted vector text renders crisp 1-bit; DM Sans good to ~10px, degrades at 8-9px. Design doc + plan pivoted.
+
+
+## 2026-07-16
+
+Step 3 (Phase 1): Shipped AA-off in render browser via fontconfig+FONTCONFIG_FILE; render screenshot 2.09%->0.00% gray end-to-end; env override ALMANACH_FONT_ANTIALIAS. lint+tests green (commit 93abdd3).
+
+
+## 2026-07-16
+
+Step 4 (Phases 3-4): Verified AA-off on real page (0.01% vs 4.58% gray, all strokes complete/legible); printed to K118 via production pipeline. Phase 2 decision: serif roughness at low-res is aesthetic; do not swap theme fonts unilaterally; recommend sans theme / optional future pixel face.
+
+
+## 2026-07-16
+
+Step 5: Supersampling (3x render + box-average downscale) shipped as default fix for small serif italics; keeps theme fonts; --supersample flag; AA-off kept for scale 1. Printed to K118. lint+tests green (commit f61ec55).
+
+
+## 2026-07-16
+
+Step 6: Font x size x technique matrix (02-font-matrix.py). Finding: hinted font @ 1x AA-off beats supersampling for small text. Best small: JetBrains Mono (8px), DejaVu Sans/Serif. EB Garamond/DM Sans/Noto rough small. Printed 1x-aaoff and 3x sheets.
+
+
+## 2026-07-16
+
+Step 7: Labeled matrix sheets (baked technique+density+speed header); added heat/speed sweep (set_heat + --densities/--speeds). Printed 1x-aaoff at d22/s80, d30/s62, d38/s37. Confirmed DejaVu Sans best italic; 1x AA-off best technique. User wants bigger default text esp serif.
+
+
+## 2026-07-16
+
+Step 8: x-height-matched font sheet (EB Garamond 13-16 vs DejaVu Serif/Sans 10-13); confirmed EB Garamond ~15-16 = DejaVu ~11-12. Printed at d38/s37, d34/s37, d39/s25. Heat winner ~density 38 + slow speed.
+
+
+## 2026-07-16
+
+Step 9: Enumerated remaining levers (weight, tracking, hinting, stem-darkening, threshold, numerals, case, graphics-mode). Style sweep (weight x tracking x italic) printed at d38/s37: BOLD is the big win, esp for italics (bold italic legible where normal isn't); tracking helps mildly; EB Garamond 17 italic legible. Heat differences 34-39 marginal.
+
+
+## 2026-07-16
+
+Step 10: Added compact heat card (--mode heat) with trailing-blank-row trim; printed a density x speed grid (d{24,32,38} x s{37,80}) to isolate the two heat levers.
+
+
+## 2026-07-16
+
+Step 11 (wrap-up): density 38 best, speed indistinguishable; bold biggest remaining lever. Flipped default supersample 3->1 (1x AA-off default, ~3x faster; supersample opt-in). Printed final default at d38. Recipe locked; theme size/font tuning recommended as optional follow-up.
+

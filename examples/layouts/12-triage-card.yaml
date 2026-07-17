@@ -1,0 +1,79 @@
+# Work slip: triage card — fit rating, next-action checkboxes, write-in notes,
+# and a QR to the job posting (ALMANACH-WORKSLIP; from slip-studio
+# "C · Triage Card", pre-expanded). The payment warning banner is included by
+# the producer only when payment is unverified — there is no `if` block.
+almanach_studio_version: 1
+theme: brutalist
+paperWidth: 384
+bodyScale: 1
+feedLines: 3
+blocks:
+  - id: head
+    type: banner
+    data: { text: "TRIAGE", pad: "m" }
+  - id: gap1
+    type: space
+    data: { size: "m" }
+  - id: title
+    type: text
+    data:
+      text: "Go Developer: MCP Server for Internal Tooling"
+      preset: h1
+      lines: 3
+  - id: gap2
+    type: space
+    data: { size: "s" }
+  - id: money
+    type: row
+    data:
+      cols:
+        - { w: "1fr", text: "$2,500 fixed", preset: h2 }
+        - { w: "1fr", text: "Intermediate", preset: body, align: right }
+  - id: warn
+    type: banner
+    data: { text: "⚠ PAYMENT NOT VERIFIED", pad: "s" }
+  - id: r1
+    type: rule
+    data: { weight: hair }
+  - id: summary
+    type: text
+    data:
+      text: "Build an MCP server exposing internal CLI tooling to LLM agents."
+      preset: body
+  - id: r2
+    type: rule
+    data: { weight: hair }
+  - id: fit
+    type: row
+    data:
+      cols:
+        - { w: 60, text: "FIT", preset: micro }
+        - w: "1fr"
+          blocks:
+            - id: fit-checks
+              type: checks
+              data: { items: ["1", "2", "3", "4", "5"], inline: true, preset: caption }
+  - id: gap3
+    type: space
+    data: { size: "s" }
+  - id: actions
+    type: checks
+    data:
+      items: ["shortlist", "apply", "archive", "follow-up"]
+      columns: 2
+  - id: gap4
+    type: space
+    data: { size: "m" }
+  - id: notes
+    type: writein
+    data: { label: "NOTES", lines: 2 }
+  - id: gap5
+    type: space
+    data: { size: "m" }
+  - id: link
+    type: qr
+    data:
+      value: "https://www.upwork.com/jobs/~021998812304457190022/"
+      size: 110
+      align: right
+      caption: "0219…0022"

@@ -1,0 +1,205 @@
+syntax = "proto3";
+
+// Almanach Layout DSL v2 — the block IR shared by the Go render/print service
+// and the TypeScript studio. This schema is the single source of truth for the
+// layout contract; both sides import code generated from it (see buf.gen.yaml).
+//
+// Transport is JSON: Go emits camelCase via protojson (UseProtoNames:false), the
+// studio decodes with @bufbuild/protobuf fromJson / re-encodes with toJson.
+//
+// Phase 1 scope (ALMANACH-DSL-V2): types only — no behavior change. Block
+// content is carried as google.protobuf.Struct (free-form JSON) for now; hot
+// block types migrate to per-type messages in a oneof later.
+package almanach.layout.v1;
+
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/go-go-golems/almanach/gen/almanach/layout/v1;layoutv1";
+
+// A Layout is one almanach page: paper metadata, typography, a theme, an ordered
+// list of blocks, template data, and render options. It is what the Go service
+// hands to the studio and what the studio renders onto the paper strip.
+message Layout {
+  // Bumped when the schema changes in a way consumers must gate on. Defaults to
+  // the current version (SCHEMA_VERSION_V1) when unset.
+  int32 schema_version = 1;
+
+  // Paper width in printer dots (280-600, 384 for a 58mm head).
+  int32 paper_width = 2;
+
+  // Blank lines fed after the page prints.
+  int32 feed_lines = 3;
+
+  // Name of a built-in theme to select (e.g. "minimal"). Ignored when
+  // inline_theme is set.
+  string theme = 4;
+
+  // An inline theme carried by the layout itself — the "data-driven theme" case
+  // (Phase 4). When present it takes precedence over `theme`.
+  Theme inline_theme = 5;
+
+  // Typography presets for this layout. Merged over the built-in defaults; a
+  // block may still override individual properties via Block.style.
+  Typography typography = 6;
+
+  // The ordered blocks that make up the page.
+  repeated Block blocks = 7;
+
+  // Template variables interpolated into block content (e.g. {{date}}).
+  map<string, string> data = 8;
+
+  // Page-level render/raster options. A block may override these per-block.
+  RenderOptions render = 9;
+
+  // Global font-size multiplier applied to preset sizes (studio bodyScale).
+  double body_scale = 10;
+
+  // Paper margin (padding of the printed body), in px. Unset uses the theme
+  // default.
+  EdgeInsets margin = 11;
+}
+
+// Per-side spacing in px.
+message EdgeInsets {
+  int32 top = 1;
+  int32 right = 2;
+  int32 bottom = 3;
+  int32 left = 4;
+}
+
+// A single block on the page: an id, a dispatch `type` resolved against the
+// studio's renderer registry, typed style overrides, free-form content, and an
+// optional per-block render override.
+message Block {
+  // Stable identifier, unique within the layout.
+  string id = 1;
+
+  // Dispatch key for the renderer registry (e.g. "title", "quote", "word").
+  // Unknown types render a visible placeholder rather than vanishing.
+  string type = 2;
+
+  // Inline typography overrides for this block's primary text. Shallow-merged
+  // last: built-in preset default <- layout preset override <- this style.
+  TextStyle style = 3;
+
+  // Block content. Free-form JSON object for Phase 1; the shape is defined by
+  // the block type's renderer. Migrates to typed per-type messages later.
+  google.protobuf.Struct content = 4;
+
+  // Optional per-block render/raster override (raster mode, threshold, printer
+  // heat) for block-aware rasterization (Phase 6).
+  RenderOptions render = 5;
+}
+
+// Text case transform, mirroring CSS text-transform.
+enum TextCase {
+  TEXT_CASE_UNSPECIFIED = 0;
+  TEXT_CASE_NONE = 1;
+  TEXT_CASE_UPPER = 2;
+  TEXT_CASE_LOWER = 3;
+  TEXT_CASE_CAPITALIZE = 4;
+}
+
+// A concrete text style. Every field is optional; unset fields inherit from the
+// next layer down in the resolution chain (block <- layout preset <- built-in
+// default). Sizes are in CSS px as rendered on the 384-dot paper.
+message TextStyle {
+  // CSS font-family stack (e.g. "'DejaVu Serif', serif").
+  optional string font = 1;
+  // font-size in px.
+  optional double size = 2;
+  // font-weight (100-900).
+  optional int32 weight = 3;
+  // line-height as a unitless multiplier.
+  optional double line_height = 4;
+  // letter-spacing in em.
+  optional double letter_spacing = 5;
+  // text-transform.
+  TextCase text_case = 6;
+  // font-style: italic.
+  optional bool italic = 7;
+  // Floor for the resolved size in px — the paper-verified legibility guard so a
+  // preset override or scale never drops text below what survives the 1-bit
+  // threshold.
+  optional double min_size = 8;
+}
+
+// Named typography presets. A preset name (e.g. "title", "body", "caption") maps
+// to a TextStyle. Ships with built-in defaults that bake in the ALMANACH-PIXELFONT
+// recipe (bigger sizes, a hinted body font, bold for small/italic). A layout may
+// override any preset here; the built-in defaults fill the rest.
+message Typography {
+  map<string, TextStyle> presets = 1;
+}
+
+// Theme colors. Thermal output is monochrome, but colors are still meaningful
+// for the on-screen studio preview.
+message ThemeColors {
+  string paper = 1;
+  string ink = 2;
+  string muted = 3;
+  string accent = 4;
+  string rule = 5;
+}
+
+// Design tokens consumed by layout-primitive blocks (the work-slip pack:
+// rule, space, banner, writein, row gaps). All fields are optional; unset
+// values fall back to studio defaults, so themes without tokens keep working
+// (ALMANACH-WORKSLIP Phase 3).
+message ThemeTokens {
+  // Named vertical spacing steps in px. Known keys: xs, s, m, l, xl.
+  map<string, int32> space = 1;
+  // Named rule thicknesses in px. Known keys: hair, thick, heavy.
+  map<string, int32> rules = 2;
+  // How rules draw: "solid" (default) or "dashed".
+  string rule_style = 3;
+  // How banner blocks draw: "invert" (filled bar, default) or "outline".
+  string banner_style = 4;
+}
+
+// A theme as data (Phase 4): colors, the font families it draws from, its own
+// preset overrides, and design tokens. Built-in themes are seed data of this
+// shape; a layout may carry one inline (Layout.inline_theme) to define or
+// patch a theme with no code change.
+message Theme {
+  string name = 1;
+  ThemeColors colors = 2;
+  // The font-family stacks this theme uses, in preference order. Fonts must be
+  // present in the embedded font palette (web/src/fonts-embedded.css).
+  repeated string font_palette = 3;
+  // Preset overrides applied on top of the built-in typography defaults when
+  // this theme is active.
+  map<string, TextStyle> preset_overrides = 4;
+  // Design tokens for layout-primitive blocks.
+  ThemeTokens tokens = 5;
+}
+
+// How a screenshot region becomes a 1-bit bitmap and how the printer burns it.
+// Replaces the five hand-parsed `render:` keys with a validated message
+// (Phase 5). May appear page-level (Layout.render) or per-block (Block.render).
+enum RasterMode {
+  RASTER_MODE_UNSPECIFIED = 0;
+  RASTER_MODE_THRESHOLD = 1;
+  RASTER_MODE_ATKINSON = 2;
+  RASTER_MODE_FLOYD_STEINBERG = 3;
+  RASTER_MODE_BAYER = 4;
+}
+
+message RenderOptions {
+  // CSS selector of the element to screenshot (page-level only).
+  optional string selector = 1;
+  // 1-bit threshold, 0-255.
+  optional uint32 threshold = 2;
+  // Render oversampling factor; downscaled before 1-bit conversion.
+  optional int32 supersample_scale = 3;
+  optional int32 viewport_width = 4;
+  optional int32 viewport_height = 5;
+  // Rasterization technique for this region.
+  RasterMode raster_mode = 6;
+  // Tone-curve gamma applied before dithering (photos want ~0.8).
+  optional double gamma = 7;
+  // Printer head density/heat (text ~38, photos ~20).
+  optional int32 printer_density = 8;
+  // Printer feed speed.
+  optional int32 printer_speed = 9;
+}

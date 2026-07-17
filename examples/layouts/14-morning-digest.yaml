@@ -1,0 +1,93 @@
+# Work slip: morning digest — the new jobs of the day, numbered
+# (ALMANACH-WORKSLIP; from slip-studio "E · Morning Digest"). What slip-studio
+# expressed as a `repeat` binding is pre-expanded here: the producer emits one
+# numbered row per job.
+almanach_studio_version: 1
+theme: swiss
+paperWidth: 384
+bodyScale: 1
+feedLines: 3
+blocks:
+  - id: day
+    type: text
+    data: { text: "THURSDAY", preset: display }
+  - id: sub
+    type: text
+    data: { text: "2026-07-16  ·  4 new jobs", preset: caption }
+  - id: r0
+    type: rule
+    data: { weight: heavy }
+  - id: job1
+    type: row
+    data:
+      cols:
+        - { w: 40, text: "1", preset: h1 }
+        - w: "1fr"
+          blocks:
+            - id: job1-title
+              type: text
+              data: { text: "ESP32 Firmware Engineer for BLE Sensor Gateway", preset: h2, lines: 2 }
+              style: { textCase: upper }
+            - id: job1-meta
+              type: text
+              data: { text: "$50–110/hr · esp32 ble mqtt", preset: caption }
+  - id: r1
+    type: rule
+    data: { weight: hair }
+  - id: job2
+    type: row
+    data:
+      cols:
+        - { w: 40, text: "2", preset: h1 }
+        - w: "1fr"
+          blocks:
+            - id: job2-title
+              type: text
+              data: { text: "Go Dev: MCP Server", preset: h2, lines: 2 }
+              style: { textCase: upper }
+            - id: job2-meta
+              type: text
+              data: { text: "$70–120/hr · golang mcp ai-agent", preset: caption }
+  - id: r2
+    type: rule
+    data: { weight: hair }
+  - id: job3
+    type: row
+    data:
+      cols:
+        - { w: 40, text: "3", preset: h1 }
+        - w: "1fr"
+          blocks:
+            - id: job3-title
+              type: text
+              data: { text: "Audio DSP on M5Stack", preset: h2, lines: 2 }
+              style: { textCase: upper }
+            - id: job3-meta
+              type: text
+              data: { text: "$2,500 fixed · audio firmware", preset: caption }
+  - id: r3
+    type: rule
+    data: { weight: hair }
+  - id: job4
+    type: row
+    data:
+      cols:
+        - { w: 40, text: "4", preset: h1 }
+        - w: "1fr"
+          blocks:
+            - id: job4-title
+              type: text
+              data: { text: "YAML Pipeline Cleanup", preset: h2, lines: 2 }
+              style: { textCase: upper }
+            - id: job4-meta
+              type: text
+              data: { text: "$30–45/hr · golang cli", preset: caption }
+  - id: r4
+    type: rule
+    data: { weight: hair }
+  - id: gap
+    type: space
+    data: { size: "s" }
+  - id: foot
+    type: text
+    data: { text: "starred first · full sheets on request", preset: micro, align: center }

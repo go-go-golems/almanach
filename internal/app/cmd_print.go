@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-go-golems/glazed/pkg/cli"
@@ -27,6 +28,7 @@ type PrintSettings struct {
 	DryRun         bool   `glazed:"dry-run"`
 	Selector       string `glazed:"selector"`
 	Threshold      int    `glazed:"threshold"`
+	Supersample    int    `glazed:"supersample"`
 	ViewportWidth  int    `glazed:"viewport-width"`
 	ViewportHeight int    `glazed:"viewport-height"`
 	WaitMS         int    `glazed:"wait-ms"`
@@ -66,6 +68,7 @@ Examples:
 			fields.New("dry-run", fields.TypeBool, fields.WithDefault(false), fields.WithHelp("Render but do not post to printer")),
 			fields.New("selector", fields.TypeString, fields.WithDefault(".paper-body"), fields.WithHelp("CSS selector to screenshot")),
 			fields.New("threshold", fields.TypeInteger, fields.WithDefault(128), fields.WithHelp("Grayscale threshold for bitmap conversion")),
+			fields.New("supersample", fields.TypeInteger, fields.WithDefault(defaultSupersampleScale), fields.WithHelp("Render oversampling factor (2-4); higher = crisper small text, slower. 1 disables (uses AA-off)")),
 			fields.New("viewport-width", fields.TypeInteger, fields.WithDefault(800), fields.WithHelp("Chrome viewport width")),
 			fields.New("viewport-height", fields.TypeInteger, fields.WithDefault(3000), fields.WithHelp("Chrome viewport height")),
 			fields.New("wait-ms", fields.TypeInteger, fields.WithDefault(250), fields.WithHelp("Extra wait after loading layout")),
@@ -99,15 +102,20 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 		return err
 	}
 
-	opts := RenderOptions{
-		Selector:       stringFromRenderOptions(layoutSource.RenderOptions, "selector", s.Selector),
-		Threshold:      clampToUint8(intFromRenderOptions(layoutSource.RenderOptions, "threshold", s.Threshold)),
-		ViewportWidth:  intFromRenderOptions(layoutSource.RenderOptions, "viewportWidth", s.ViewportWidth),
-		ViewportHeight: intFromRenderOptions(layoutSource.RenderOptions, "viewportHeight", s.ViewportHeight),
-		WaitAfterLoad:  time.Duration(s.WaitMS) * time.Millisecond,
-		DebugDir:       s.DebugDir,
-		CollectMetrics: s.DebugDir != "",
+	pageRender, err := parseRenderOptions(layoutSource.RenderOptions)
+	if err != nil {
+		return err
 	}
+	opts := applyRenderOptions(RenderOptions{
+		Selector:         s.Selector,
+		Threshold:        clampToUint8(s.Threshold),
+		SupersampleScale: s.Supersample,
+		ViewportWidth:    s.ViewportWidth,
+		ViewportHeight:   s.ViewportHeight,
+		WaitAfterLoad:    time.Duration(s.WaitMS) * time.Millisecond,
+		DebugDir:         s.DebugDir,
+		CollectMetrics:   s.DebugDir != "",
+	}, pageRender)
 
 	result, err := renderOneShot(ctx, oneShotRenderRequest{
 		LayoutJSON:  layoutSource.LayoutJSON,
@@ -132,7 +140,35 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	printerOK := false
 	var printerResponse map[string]any
 	if !s.DryRun {
-		printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
+		// Apply the page-level printer speed render option before printing. The
+		// firmware validates against its supported set; we validated the layout
+		// value already, so a failure here is connectivity — warn and continue.
+		if opts.PrinterSpeed > 0 {
+			if serr := setPrinterSpeed(printerURL, opts.PrinterSpeed); serr != nil {
+				log.Printf("warning: could not set printer speed=%d: %v", opts.PrinterSpeed, serr)
+			}
+		}
+		if len(result.HeatRegions) > 0 {
+			// Per-segment heat (Phase 6): different bands print at different
+			// densities (text hot, photos cool) in one page. Gaps use the
+			// page-level density. When the page sets no density, the gaps must
+			// still restore an explicit value — the block override mutates the
+			// printer's density state, and there is no firmware endpoint to read
+			// the previous value back, so without this the rest of the page
+			// would print at the last block's density.
+			bands := densityBands(result.Bitmap.Height, result.HeatRegions, heatGapDensity(opts.PrinterDensity))
+			printerResponse, err = sendBitmapWithHeat(printerURL, result.Bitmap, s.FeedLines, bands)
+		} else {
+			// Apply the page-level printer density (heat) render option, if set,
+			// before sending the bitmap. Text prints best hotter (~38), photos
+			// cooler (~20). A failure here is non-fatal — warn and print anyway.
+			if opts.PrinterDensity > 0 {
+				if derr := setPrinterDensity(printerURL, opts.PrinterDensity); derr != nil {
+					log.Printf("warning: could not set printer density=%d: %v", opts.PrinterDensity, derr)
+				}
+			}
+			printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
+		}
 		if err != nil {
 			return err
 		}

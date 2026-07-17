@@ -26,6 +26,7 @@ type RenderSettings struct {
 	Format         string `glazed:"format"`
 	Selector       string `glazed:"selector"`
 	Threshold      int    `glazed:"threshold"`
+	Supersample    int    `glazed:"supersample"`
 	ViewportWidth  int    `glazed:"viewport-width"`
 	ViewportHeight int    `glazed:"viewport-height"`
 	WaitMS         int    `glazed:"wait-ms"`
@@ -72,6 +73,7 @@ func renderFields(cfg Config) []*fields.Definition {
 		fields.New("format", fields.TypeChoice, fields.WithDefault("png"), fields.WithChoices("png", "bitmap"), fields.WithHelp("Output format")),
 		fields.New("selector", fields.TypeString, fields.WithDefault(".paper-body"), fields.WithHelp("CSS selector to screenshot")),
 		fields.New("threshold", fields.TypeInteger, fields.WithDefault(128), fields.WithHelp("Grayscale threshold for bitmap conversion")),
+		fields.New("supersample", fields.TypeInteger, fields.WithDefault(defaultSupersampleScale), fields.WithHelp("Render oversampling factor (2-4); higher = crisper small text, slower. 1 disables (uses AA-off)")),
 		fields.New("viewport-width", fields.TypeInteger, fields.WithDefault(800), fields.WithHelp("Chrome viewport width")),
 		fields.New("viewport-height", fields.TypeInteger, fields.WithDefault(3000), fields.WithHelp("Chrome viewport height")),
 		fields.New("wait-ms", fields.TypeInteger, fields.WithDefault(250), fields.WithHelp("Extra wait after loading layout")),
@@ -102,7 +104,10 @@ func (c *RenderCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.
 		return err
 	}
 
-	opts := renderOptionsFromSettings(s, layoutSource.RenderOptions)
+	opts, err := renderOptionsFromSettings(s, layoutSource.RenderOptions)
+	if err != nil {
+		return err
+	}
 	result, err := renderOneShot(ctx, oneShotRenderRequest{
 		LayoutJSON:  layoutSource.LayoutJSON,
 		WebDir:      s.WebDir,
@@ -140,21 +145,22 @@ func (c *RenderCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.
 	))
 }
 
-func renderOptionsFromSettings(s *RenderSettings, fileOptions map[string]interface{}) RenderOptions {
-	selector := stringFromRenderOptions(fileOptions, "selector", s.Selector)
-	threshold := intFromRenderOptions(fileOptions, "threshold", s.Threshold)
-	viewportWidth := intFromRenderOptions(fileOptions, "viewportWidth", s.ViewportWidth)
-	viewportHeight := intFromRenderOptions(fileOptions, "viewportHeight", s.ViewportHeight)
-
-	return RenderOptions{
-		Selector:       selector,
-		Threshold:      clampToUint8(threshold),
-		ViewportWidth:  viewportWidth,
-		ViewportHeight: viewportHeight,
-		WaitAfterLoad:  time.Duration(s.WaitMS) * time.Millisecond,
-		DebugDir:       s.DebugDir,
-		CollectMetrics: s.DebugDir != "",
+func renderOptionsFromSettings(s *RenderSettings, fileOptions map[string]interface{}) (RenderOptions, error) {
+	base := RenderOptions{
+		Selector:         s.Selector,
+		Threshold:        clampToUint8(s.Threshold),
+		SupersampleScale: s.Supersample,
+		ViewportWidth:    s.ViewportWidth,
+		ViewportHeight:   s.ViewportHeight,
+		WaitAfterLoad:    time.Duration(s.WaitMS) * time.Millisecond,
+		DebugDir:         s.DebugDir,
+		CollectMetrics:   s.DebugDir != "",
 	}
+	p, err := parseRenderOptions(fileOptions)
+	if err != nil {
+		return RenderOptions{}, err
+	}
+	return applyRenderOptions(base, p), nil
 }
 
 // clampToUint8 clamps val to [0, 255] to prevent integer overflow on int→uint8 conversion.
