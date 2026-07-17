@@ -1876,7 +1876,10 @@ export default function AlmanachStudio() {
 
   // --- Headless API for programmatic control (Go render service) ---
   const stateRef = useRef({ blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, setMargin, flashToast });
-  stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, flashToast };
+  // Keep this list in sync with the useRef initializer above — a missing
+  // setter here makes almanachLoadLayout throw mid-load in headless renders
+  // (it reads stateRef.current), silently dropping every field after it.
+  stateRef.current = { blocks, setBlocks, setThemeKey, setPaperWidth, setBodyScale, setFeedLines, setSelectedId, setTypography, setInlineTheme, setThemePresets, setMargin, flashToast };
 
   useEffect(() => {
     window.almanachReady = true;
