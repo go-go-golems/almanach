@@ -1813,7 +1813,19 @@ function parseLayoutJson(text) {
       ? parsed.typography.presets
       : {};
 
-  const { themeKey, patch: themePatch, presetOverrides: themePresets } = resolveThemeSpec(parsed.theme);
+  // The protobuf wire format (Layout.inline_theme) carries a data-driven theme
+  // in `inlineTheme` with `theme` remaining the base name; studio-format
+  // layouts put the inline object directly in `theme`. When inlineTheme is
+  // present it takes precedence (proto contract), with the string `theme` as
+  // its base unless the object names one itself.
+  const themeSpec =
+    parsed.inlineTheme && typeof parsed.inlineTheme === "object"
+      ? {
+          ...(typeof parsed.theme === "string" ? { base: parsed.theme } : {}),
+          ...parsed.inlineTheme,
+        }
+      : parsed.theme;
+  const { themeKey, patch: themePatch, presetOverrides: themePresets } = resolveThemeSpec(themeSpec);
   const paperWidth =
     typeof parsed.paperWidth === "number" &&
     parsed.paperWidth >= 280 &&

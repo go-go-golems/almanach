@@ -13,6 +13,13 @@ import (
 )
 
 const (
+	// defaultHeatGapDensity is the density used for the non-overridden bands of
+	// a mixed-heat page whose layout sets no page-level printerDensity. 38 is
+	// the paper-verified text density (ALMANACH-PIXELFONT); the firmware has no
+	// way to read the current density back, so gaps need an explicit value once
+	// any block override has mutated the printer state.
+	defaultHeatGapDensity = 38
+
 	printerFeedLinePixels         = 24
 	maxPrinterBitmapBodyBytes     = 1024 * 1024 // 1MB hard limit; anything above maxSafePrinterBitmapBodyBytes gets segmented
 	maxSafePrinterBitmapBodyBytes = 36 * 1024   // ESP32 httpd cannot reliably receive > ~38 KiB
@@ -68,6 +75,18 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	}
 	lastResp["segments"] = len(segments)
 	return lastResp, nil
+}
+
+// heatGapDensity resolves the density used for the non-overridden bands of a
+// mixed-heat page: the page-level density when set, else the paper-verified
+// text default. Never 0 — once a block override mutates the printer's density
+// state there is no way to read the previous value back, so gap bands must
+// always set an explicit density.
+func heatGapDensity(pageDensity int) int {
+	if pageDensity > 0 {
+		return pageDensity
+	}
+	return defaultHeatGapDensity
 }
 
 // densityBand is a contiguous run of bitmap rows [YStart, YEnd) to print at

@@ -151,8 +151,12 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 		if len(result.HeatRegions) > 0 {
 			// Per-segment heat (Phase 6): different bands print at different
 			// densities (text hot, photos cool) in one page. Gaps use the
-			// page-level density.
-			bands := densityBands(result.Bitmap.Height, result.HeatRegions, opts.PrinterDensity)
+			// page-level density. When the page sets no density, the gaps must
+			// still restore an explicit value — the block override mutates the
+			// printer's density state, and there is no firmware endpoint to read
+			// the previous value back, so without this the rest of the page
+			// would print at the last block's density.
+			bands := densityBands(result.Bitmap.Height, result.HeatRegions, heatGapDensity(opts.PrinterDensity))
 			printerResponse, err = sendBitmapWithHeat(printerURL, result.Bitmap, s.FeedLines, bands)
 		} else {
 			// Apply the page-level printer density (heat) render option, if set,

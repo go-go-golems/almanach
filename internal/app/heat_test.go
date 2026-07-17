@@ -67,3 +67,32 @@ func TestSliceBitmapRows(t *testing.T) {
 		t.Errorf("inverted range should be empty, got height %d", got.Height)
 	}
 }
+
+// Gap bands must never print at density 0 once a block override has mutated
+// the printer's density state: with no page-level density, the fallback is the
+// paper-verified text default, so a photo band at 20 does not leak into the
+// text below it (PR #7 follow-up review).
+func TestHeatGapDensityFallback(t *testing.T) {
+	if got := heatGapDensity(0); got != defaultHeatGapDensity {
+		t.Errorf("no page density: got %d, want %d", got, defaultHeatGapDensity)
+	}
+	if got := heatGapDensity(-1); got != defaultHeatGapDensity {
+		t.Errorf("negative page density: got %d, want %d", got, defaultHeatGapDensity)
+	}
+	if got := heatGapDensity(25); got != 25 {
+		t.Errorf("page density set: got %d, want 25", got)
+	}
+
+	// End to end through densityBands: a photo override at rows [10,20) on a
+	// 30-row page with no page density -> gaps print at the text default.
+	bands := densityBands(30, []HeatRegion{{YStart: 10, YEnd: 20, Density: 20}}, heatGapDensity(0))
+	if len(bands) != 3 {
+		t.Fatalf("bands = %+v", bands)
+	}
+	if bands[0].Density != defaultHeatGapDensity || bands[2].Density != defaultHeatGapDensity {
+		t.Errorf("gap bands must restore the default density, got %+v", bands)
+	}
+	if bands[1].Density != 20 {
+		t.Errorf("override band density = %d, want 20", bands[1].Density)
+	}
+}
