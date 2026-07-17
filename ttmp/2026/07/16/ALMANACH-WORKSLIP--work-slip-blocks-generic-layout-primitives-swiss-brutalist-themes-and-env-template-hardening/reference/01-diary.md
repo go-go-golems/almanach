@@ -10,12 +10,18 @@ Topics:
 DocType: reference
 Intent: long-term
 Owners: []
+RelatedFiles:
+    - Path: repo://internal/app/template.go
+      Note: '{{$ENV}} removal (commit 1de738e)'
+    - Path: repo://internal/app/template_boundary_test.go
+      Note: boundary tests (commit 1de738e)
 ExternalSources: []
-Summary: "Implementation diary for the work-slip integration (slip-studio block pack, theme tokens, $ENV removal)."
+Summary: Implementation diary for the work-slip integration (slip-studio block pack, theme tokens, $ENV removal).
 LastUpdated: 2026-07-16T21:20:00-04:00
-WhatFor: "Review and continuation of the ALMANACH-WORKSLIP implementation."
-WhenToUse: "Read before continuing or reviewing this ticket's work."
+WhatFor: Review and continuation of the ALMANACH-WORKSLIP implementation.
+WhenToUse: Read before continuing or reviewing this ticket's work.
 ---
+
 
 # Diary
 
@@ -126,3 +132,88 @@ feature, with onboarding-quality documentation readable on the reMarkable.
   `awk frontmatter-strip | pandoc -f gfm -t html` → replace
   `<pre class="mermaid">` with mmdc PNG data URI → wrap with print CSS →
   `google-chrome-stable --headless --print-to-pdf --no-pdf-header-footer`.
+
+## Step 2: Phase 1 — remove {{$ENV}}, pin the env boundary with tests
+
+Removed the environment-variable branch from the template expression resolver
+so a layout can never read process env vars, updated the template tests to
+assert the *absence* of the behavior, and added boundary tests around
+`layoutJSONFromObjectOrDefault`. While writing the boundary test I found the
+vulnerability was worse than designed-for: the function merges a layout's own
+`data:` map into the data context, so template resolution could be
+self-activated by any layout — including one POSTed to the HTTP server — and
+`{{$SECRET}}` would then have resolved server-side. The "server never
+resolves" assumption from the design review was wrong; removal (not
+allowlisting) was the right call.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 1 — "remove it too. Create a new docmgr ticket for all this, ...")
+
+**Assistant interpretation:** Execute Phase 1 of the plan: delete `$ENV`
+support, keep `{{key}}`/`{{key:fallback}}` intact, prove the boundary with
+tests, update docs.
+
+**Inferred user intent:** Close the env-exfiltration hole before layouts start
+arriving from upstream generators.
+
+**Commit (code):** 1de738e — "fix(template): remove {{$ENV}} resolution — layouts can no longer read process env"
+
+### What I did
+- `internal/app/template.go`: deleted the `$`-prefix `os.LookupEnv` branch in
+  `resolveExpr` (and the `os` import); left a comment stating the security
+  rationale. `$FOO` now behaves like any unknown key (fallback or error).
+- `internal/app/template_test.go`: replaced the three env tests with
+  `TestResolveValue_EnvVarSyntaxDoesNotResolve` (env set → still an error, and
+  the error must not leak the value) and
+  `TestResolveValue_EnvVarSyntaxUsesFallbackNotEnv`; replaced the
+  context-vs-env test with `TestResolveValue_DollarKeyResolvesFromContext`.
+- New `internal/app/template_boundary_test.go`:
+  `TestLayoutObject_SelfActivatedDataCannotReadEnv` (layout with its own
+  `data:` map + `{{$SECRET}}` must error without leaking) and
+  `TestLayoutObject_NoContextLeavesMarkersUnresolved` (nil context → markers
+  pass through verbatim; this is what the server path relies on).
+- `internal/app/doc/layout-dsl-reference.md`: dropped the two `$ENV` rows,
+  added the rationale paragraph, fixed the data-context priority section.
+
+### Why
+- Decided in this session's design review; the guide records the threat model.
+
+### What worked
+- `go build`, `go test ./internal/app/` and `golangci-lint` all green on the
+  first full run; lefthook pre-commit re-ran both.
+
+### What didn't work
+- N/A — no failed attempts this step.
+
+### What I learned
+- `layoutJSONFromObjectOrDefault` (render_oneshot.go:98-109) merges the
+  layout's own `data:` map into the data context before resolving. The design
+  guide claimed the server path "never resolves templates because ctx is nil"
+  — that was false for layouts carrying `data:`. The boundary test now
+  encodes the true invariant: resolution may run, but the environment is
+  never a source.
+
+### What was tricky to build
+- Nothing structurally; the subtlety was test design — asserting both the
+  error *and* that the error string does not contain the env value (an error
+  that echoed the resolved value would itself be a leak channel).
+
+### What warrants a second pair of eyes
+- Behavior change: `{{$NAME}}` in an existing layout now errors (or takes its
+  fallback) instead of reading the environment. No repo layouts or docs used
+  it outside the reference table, but any private layout relying on it breaks
+  loudly with "template variable \"$NAME\" not provided".
+
+### What should be done in the future
+- N/A (phases 2-4 are tracked as tasks).
+
+### Code review instructions
+- Start at `internal/app/template.go` `resolveExpr` (the deleted branch), then
+  `internal/app/template_boundary_test.go` for the invariant.
+- Validate: `GOWORK=off go test ./internal/app/ -run 'TestResolve|TestLayoutObject' -count=1`.
+
+### Technical details
+- The self-activation path: `layoutJSONFromObjectOrDefault` → merge
+  `obj["data"]` into `wrappedDataCtx` → `ResolveTemplate(layoutMap, wrappedDataCtx)`
+  runs whenever that map is non-empty, on both CLI and server code paths.

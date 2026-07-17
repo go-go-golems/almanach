@@ -7,7 +7,8 @@ import {
   Sun, Moon, Leaf, Mountain, Rocket, BookMarked, Coffee,
   Image as ImageIcon, Upload
 } from "lucide-react";
-import { defineBlock, createBlockRegistry, resolveBlockAdapter } from "./blocks/registry.js";
+import { defineBlock, createBlockRegistry, mergeBlockRegistries, resolveBlockAdapter } from "./blocks/registry.js";
+import { SLIP_ADAPTERS, SLIP_DEFAULTS, SLIP_BLOCK_TYPES } from "./blocks/slip/adapters.jsx";
 import { makePresetResolver, mergePresetMaps } from "./typography/presets.js";
 
 /* ================================================================
@@ -336,7 +337,16 @@ const GROUPS = {
   daily: { label: "Daily", color: "#9bb088" },
   tracker: { label: "Trackers", color: "#b88869" },
   knowledge: { label: "Knowledge", color: "#9c9bc4" },
+  slip: { label: "Work Slip", color: "#8fb7c9" },
 };
+
+// Work-slip pack (ALMANACH-WORKSLIP): generic layout primitives. The pack's
+// palette entries all share one icon set assigned here (lucide imports live in
+// this file); defaults merge into the studio's so import/add-block backfills
+// work identically for both packs.
+const SLIP_TYPES_WITH_ICONS = SLIP_BLOCK_TYPES.map((t) => ({ ...t, icon: Layers, group: "slip" }));
+const ALL_BLOCK_TYPES = [...BLOCK_TYPES, ...SLIP_TYPES_WITH_ICONS];
+const ALL_DEFAULTS = { ...DEFAULTS, ...SLIP_DEFAULTS };
 
 // ---- HELPERS ----------------------------------------------------
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -344,7 +354,7 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const newBlock = (type) => ({
   id: uid(),
   type,
-  data: JSON.parse(JSON.stringify(DEFAULTS[type])),
+  data: JSON.parse(JSON.stringify(ALL_DEFAULTS[type])),
 });
 
 const STARTER_BLOCKS = [
@@ -883,13 +893,23 @@ const BLOCK_ADAPTERS = [
   defineBlock({ type: "divider", module: "studio", render: (data, ctx) => <DividerBlock data={data} theme={ctx.theme} blockStyle={ctx.block?.style} /> }),
 ];
 
-const BLOCK_REGISTRY = createBlockRegistry(BLOCK_ADAPTERS);
+const BLOCK_REGISTRY = mergeBlockRegistries(
+  createBlockRegistry(BLOCK_ADAPTERS),
+  createBlockRegistry(SLIP_ADAPTERS),
+);
 
 // Render one block through the registry, falling back to a visible placeholder.
+// ctx.renderBlock lets container blocks (slip `row`) render nested blocks
+// through the same dispatch; nested blocks share the parent ctx but get their
+// own `block` reference.
 function renderBlock(block, ctx) {
   const adapter = resolveBlockAdapter(ctx.registry, block.type);
   if (!adapter) return <UnknownBlock type={block.type} theme={ctx.theme} />;
-  return adapter.render(block.data, { ...ctx, block });
+  return adapter.render(block.data, {
+    ...ctx,
+    block,
+    renderBlock: (child) => renderBlock(child, ctx),
+  });
 }
 
 // =================================================================
@@ -1253,6 +1273,57 @@ const ReflectionEditor = ({ data, set }) => (
   </>
 );
 
+// Fallback editor for blocks without a bespoke form (the work-slip layout
+// primitives): edit the block's data as JSON with live apply on valid parse.
+// `lastEmitted` prevents the resync effect from clobbering in-progress typing:
+// when the data change came from this editor, the reference matches and the
+// textarea keeps the user's formatting.
+const GenericJsonEditor = ({ data, set }) => {
+  const [text, setText] = useState(() => JSON.stringify(data, null, 2));
+  const [error, setError] = useState(null);
+  const lastEmitted = useRef(data);
+
+  useEffect(() => {
+    if (lastEmitted.current === data) return;
+    lastEmitted.current = data;
+    setText(JSON.stringify(data, null, 2));
+    setError(null);
+  }, [data]);
+
+  const onChange = (e) => {
+    const t = e.target.value;
+    setText(t);
+    try {
+      const parsed = JSON.parse(t);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setError("block data must be a JSON object");
+        return;
+      }
+      setError(null);
+      lastEmitted.current = parsed;
+      set(parsed);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <>
+      <Field label="Block data (JSON)">
+        <TextArea
+          value={text}
+          onChange={onChange}
+          spellCheck={false}
+          style={{ minHeight: 220, fontFamily: "'JetBrains Mono', 'DejaVu Sans Mono', monospace", fontSize: 11.5, whiteSpace: "pre" }}
+        />
+      </Field>
+      <div style={{ fontSize: 10.5, lineHeight: 1.4, color: error ? "var(--ui-danger)" : "var(--ui-muted)" }}>
+        {error ? `JSON error: ${error}` : "Valid JSON — changes apply live."}
+      </div>
+    </>
+  );
+};
+
 const DividerEditor = ({ data, set }) => (
   <Field label="Style">
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
@@ -1593,7 +1664,7 @@ function parseLayoutJson(text) {
   const blocks = parsed.blocks
     .filter((b) => b && typeof b.type === "string")
     .map((b) => {
-      const defaults = DEFAULTS[b.type]; // undefined for unregistered types
+      const defaults = ALL_DEFAULTS[b.type]; // undefined for unregistered types
       const data = b.data && typeof b.data === "object"
         ? { ...(defaults || {}), ...b.data }
         : defaults
@@ -2041,12 +2112,14 @@ export default function AlmanachStudio() {
     [flashToast]
   );
 
-  const Editor = selected ? EDITORS[selected.type] : null;
+  // Bespoke form when one exists; otherwise the generic JSON editor, so every
+  // registered block (incl. the work-slip pack) is editable in the inspector.
+  const Editor = selected ? (EDITORS[selected.type] ?? GenericJsonEditor) : null;
 
   // Group block types
   const groupedTypes = useMemo(() => {
     const out = {};
-    BLOCK_TYPES.forEach((t) => {
+    ALL_BLOCK_TYPES.forEach((t) => {
       if (!out[t.group]) out[t.group] = [];
       out[t.group].push(t);
     });
@@ -2767,7 +2840,7 @@ export default function AlmanachStudio() {
                 <div className="inspector-header">
                   <span className="type-badge">{selected.type}</span>
                   <span className="type-name">
-                    {BLOCK_TYPES.find((b) => b.type === selected.type)?.label}
+                    {ALL_BLOCK_TYPES.find((b) => b.type === selected.type)?.label ?? selected.type}
                   </span>
                   <div style={{ flex: 1 }} />
                   <button className="mini-btn" onClick={() => duplicateBlock(selected.id)} title="Duplicate">
