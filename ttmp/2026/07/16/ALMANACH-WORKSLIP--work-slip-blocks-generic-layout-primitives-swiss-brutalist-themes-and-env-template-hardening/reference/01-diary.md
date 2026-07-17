@@ -488,3 +488,69 @@ job-feed producer, verified on real hardware.
 ### Technical details
 - Prints: density 38, 384 dots wide; job slip 395 rows single segment, triage
   card 868 rows in 2 segments.
+
+## Step 6: Bolder defaults — arm's-length type scale, tight work-theme padding
+
+User feedback on the first physical prints: default fonts should be bigger,
+margins much smaller, and the result should feel properly brutalist/bold.
+Bumped the slip type scale, gave the work themes size+weight preset overrides
+and a tight default page padding, thickened the rule tokens and banners, and
+reprinted.
+
+### Prompt Context
+
+**User prompt (verbatim):** "defaults shouldbe bigger fonts and there should be much less margin. [image] Here's an example of what it should look like" — followed mid-turn by "right now the printout doesn't feel brutalist / bold enough"
+
+**Assistant interpretation:** Tune the *defaults* (presets + work themes), not
+the example layouts, so any slip gets the big/tight/bold look without
+per-layout settings.
+
+**Inferred user intent:** Slips are glanced at from arm's length; the visual
+target is the slip-studio mock (near edge-to-edge type, heavy everything).
+
+**Commit (code):** ada024a — "feat(slip): bolder defaults — bigger type scale, tight 10x8 work-theme padding"
+
+### What I did
+- Presets: `h1` 25→30 (lineHeight 1.08), `h2` 19→22, `display` 40→46,
+  `micro` 10→11.
+- Work themes now carry size/weight `presetOverrides`: swiss body 15/600,
+  bodyStrong 15/800, caption 13; brutalist nothing under weight 800, h1 32
+  and h1/h2/display forced uppercase (mixed-case headline looked wrong on the
+  triage card); terminal display 36/h1 23/body 14.
+- New `theme.padding` field: `ThermalPaper` resolves
+  `layout margin ?? theme.padding ?? legacy defaults`; work themes set
+  `"10px 8px"`. Examples dropped their explicit `margin:` lines.
+- Rule tokens heavier (swiss hair 2/thick 5/heavy 9; brutalist hair 7/thick
+  10/heavy 14); banner padMap 7/11/18 and weight 800.
+- Triage-card title clamp 2→3 lines (bigger h1 pushed "Tooling" into the
+  ellipsis). Rebuilt SPA, re-rendered all five examples, refreshed
+  `docs/screenshots/`, reprinted job slip + triage card (density 38).
+- Doc: margin section notes the 10×8 work-theme default.
+
+### Why
+- The look belongs in theme data, not in every layout — that is exactly what
+  presetOverrides/tokens/padding exist for.
+
+### What worked
+- The re-render matches the user's reference mock closely (title fills the
+  width in 3 lines, banner nearly edge to edge).
+
+### What didn't work
+- First bold pass left the brutalist h1 mixed-case (forceCase had only been
+  mapped onto body-role presets) and clamped the title mid-word — both fixed
+  in the same commit.
+
+### What warrants a second pair of eyes
+- The new prints on paper — banner at 10px page padding sits ~8px from the
+  strip edge; check the head doesn't clip the leftmost column of the inverted
+  banner.
+
+### What should be done in the future
+- If almanac themes also want the tighter look someday, `theme.padding` is
+  now the lever (kept almanac defaults untouched).
+
+### Code review instructions
+- Diff of `THEMES` (swiss/brutalist/terminal), `DEFAULT_PRESETS`, and the
+  `ThermalPaper` padding line in `web/src/almanach-studio.jsx`.
+- Validate: `pnpm --dir web build`, render `examples/layouts/10-job-slip.yaml`
+  and compare with `docs/screenshots/10-job-slip.png`.

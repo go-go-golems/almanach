@@ -39,3 +39,8 @@ Step 5 (Phase 4 complete): example layouts 10-14 + screenshots + physical prints
 
 Ticket closed
 
+
+## 2026-07-16
+
+Step 6: bolder defaults per user feedback — bigger slip type scale, work-theme presetOverrides, theme.padding 10x8, heavier rules/banners; screenshots refreshed, reprinted (commit ada024a).
+
