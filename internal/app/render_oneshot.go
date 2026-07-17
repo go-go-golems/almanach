@@ -61,6 +61,15 @@ func renderOneShot(ctx context.Context, req oneShotRenderRequest) (*RenderResult
 	opts := req.Options.withDefaults()
 	opts.BaseURL = "http://" + ln.Addr().String()
 
+	// Per-block render overrides drive block-aware rasterization (Phase 6).
+	perBlock, err := perBlockRenderOptions(req.LayoutJSON)
+	if err != nil {
+		return nil, fmt.Errorf("parse per-block render options: %w", err)
+	}
+	if len(perBlock) > 0 {
+		opts.PerBlockRender = perBlock
+	}
+
 	allocatorCtx, allocatorCancel := newChromeAllocatorWithViewport(cfg, opts.ViewportWidth, opts.ViewportHeight, opts.SupersampleScale)
 	defer allocatorCancel()
 

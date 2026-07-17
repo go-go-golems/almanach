@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -66,6 +68,115 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 	}
 	lastResp["segments"] = len(segments)
 	return lastResp, nil
+}
+
+// densityBand is a contiguous run of bitmap rows [YStart, YEnd) to print at
+// Density (0 = leave the printer's current density unchanged).
+type densityBand struct {
+	YStart  int
+	YEnd    int
+	Density int
+}
+
+// densityBands turns per-region heat requests into a top-to-bottom cover of all
+// rows: each heat region becomes a band at its density, gaps get defaultDensity.
+// Assumes regions do not overlap (block boxes are vertically disjoint).
+func densityBands(height int, regions []HeatRegion, defaultDensity int) []densityBand {
+	sorted := append([]HeatRegion(nil), regions...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].YStart < sorted[j].YStart })
+	var bands []densityBand
+	y := 0
+	for _, r := range sorted {
+		ys := clampInt(r.YStart, 0, height)
+		ye := clampInt(r.YEnd, 0, height)
+		if ye <= ys || ye <= y {
+			continue
+		}
+		if ys > y {
+			bands = append(bands, densityBand{y, ys, defaultDensity})
+		}
+		bands = append(bands, densityBand{maxInt(ys, y), ye, r.Density})
+		y = ye
+	}
+	if y < height {
+		bands = append(bands, densityBand{y, height, defaultDensity})
+	}
+	return bands
+}
+
+// sliceBitmapRows returns the sub-bitmap covering rows [y0, y1).
+func sliceBitmapRows(bm *Bitmap, y0, y1 int) *Bitmap {
+	y0 = clampInt(y0, 0, bm.Height)
+	y1 = clampInt(y1, 0, bm.Height)
+	if y1 <= y0 {
+		return &Bitmap{Width: bm.Width, Height: 0, BytesPerRow: bm.BytesPerRow}
+	}
+	return &Bitmap{
+		Width:       bm.Width,
+		Height:      y1 - y0,
+		BytesPerRow: bm.BytesPerRow,
+		Data:        bm.Data[y0*bm.BytesPerRow : y1*bm.BytesPerRow],
+	}
+}
+
+// sendBitmapWithHeat prints a bitmap in density bands (Phase 6, per-segment
+// heat): it sets the printer density before each band, so a single page can burn
+// text hot and photos cool. Feed rows are baked into the final band only.
+func sendBitmapWithHeat(printerURL string, bitmap *Bitmap, feedLines int, bands []densityBand) (map[string]any, error) {
+	if feedLines > 20 {
+		feedLines = 20
+	}
+	type unit struct {
+		bm      *Bitmap
+		density int
+	}
+	var units []unit
+	for _, band := range bands {
+		s := sliceBitmapRows(bitmap, band.YStart, band.YEnd)
+		if s.Height == 0 {
+			continue
+		}
+		units = append(units, unit{bm: s, density: band.Density})
+	}
+	if len(units) == 0 {
+		return nil, fmt.Errorf("no printable rows")
+	}
+	units[len(units)-1].bm = bitmapWithTrailingBlankRows(units[len(units)-1].bm, feedLines)
+
+	var lastResp map[string]any
+	total := 0
+	for ui, u := range units {
+		if u.density > 0 {
+			if err := setPrinterDensity(printerURL, u.density); err != nil {
+				log.Printf("warning: set density %d for heat band failed: %v", u.density, err)
+			}
+		}
+		segs := splitBitmap(u.bm, maxSafePrinterBitmapBodyBytes)
+		for si, seg := range segs {
+			segFeed := 0
+			if ui == len(units)-1 && si == len(segs)-1 {
+				segFeed = feedLines
+			}
+			resp, err := sendSingleBitmap(printerURL, seg, segFeed)
+			if err != nil {
+				return nil, fmt.Errorf("heat band %d segment %d: %w", ui+1, si+1, err)
+			}
+			lastResp = resp
+			total++
+		}
+	}
+	if lastResp == nil {
+		lastResp = map[string]any{}
+	}
+	lastResp["segments"] = total
+	return lastResp, nil
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // setPrinterDensity POSTs a head density/heat value to the printer's

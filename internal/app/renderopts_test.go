@@ -90,7 +90,7 @@ func TestApplyRenderOptions_Overlay(t *testing.T) {
 func TestApplyRenderOptions_NilKeepsBase(t *testing.T) {
 	base := RenderOptions{Selector: ".x", Threshold: 100}
 	got := applyRenderOptions(base, nil)
-	if got != base {
+	if got.Selector != base.Selector || got.Threshold != base.Threshold {
 		t.Errorf("nil overlay changed base: %+v", got)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/chromedp/chromedp"
+	layoutv1 "github.com/go-go-golems/almanach/gen/almanach/layout/v1"
 	"gopkg.in/yaml.v3"
 )
 
@@ -45,6 +46,11 @@ type RenderOptions struct {
 	Gamma          float64 // 0 = unset
 	PrinterDensity int     // 0 = unset
 	PrinterSpeed   int     // 0 = unset
+
+	// PerBlockRender maps block id -> its render override, used for block-aware
+	// rasterization (Phase 6): a block's bounding box becomes a raster region
+	// with the block's mode/gamma/threshold.
+	PerBlockRender map[string]*layoutv1.RenderOptions
 }
 
 // RenderMetrics contains browser layout measurements for important elements.
@@ -74,6 +80,18 @@ type RenderResult struct {
 	LayoutJSON string
 	Metrics    RenderMetrics
 	Selector   string
+
+	// HeatRegions are row bands that request a specific printer density, derived
+	// from per-block printerDensity render options + block bounding boxes. Used
+	// for per-segment heat (Phase 6): text hotter, photos cooler in one page.
+	HeatRegions []HeatRegion
+}
+
+// HeatRegion is a [YStart, YEnd) band of bitmap rows to print at Density.
+type HeatRegion struct {
+	YStart  int
+	YEnd    int
+	Density int
 }
 
 // Bitmap represents a 1-bit monochrome image in MSB-first packed format.
@@ -223,6 +241,12 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	if opts.CollectMetrics {
 		actions = append(actions, chromedp.Evaluate(collectMetricsJS(), &metrics))
 	}
+	// Collect per-block bounding boxes when any block carries a render override,
+	// so we can rasterize its region differently (Phase 6).
+	var blockMetrics []blockMetric
+	if len(opts.PerBlockRender) > 0 {
+		actions = append(actions, chromedp.Evaluate(collectBlockMetricsJS(opts.Selector), &blockMetrics))
+	}
 	actions = append(actions,
 		chromedp.Screenshot(opts.Selector, &screenshotBuf, chromedp.ByQuery, chromedp.NodeVisible),
 	)
@@ -235,20 +259,23 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	log.Printf("[render] Screenshot captured: %d bytes PNG", len(screenshotBuf))
 
 	// Downscale the oversampled screenshot back to the target resolution, then
-	// convert to 1-bit. At scale 1 this is the plain threshold path.
-	bitmap, err := pngToBitmapSupersampled(screenshotBuf, opts.Threshold, opts.SupersampleScale)
+	// convert to 1-bit. At scale 1 with no per-block regions this is the plain
+	// threshold path; per-block render overrides add raster regions (Phase 6).
+	regions := blockRasterRegions(blockMetrics, opts.PerBlockRender)
+	bitmap, err := pngToBitmapSupersampledRegions(screenshotBuf, opts.Threshold, opts.SupersampleScale, regions)
 	if err != nil {
 		return nil, fmt.Errorf("bitmap convert: %w", err)
 	}
 
 	result := &RenderResult{
-		Bitmap:     bitmap,
-		PNG:        screenshotBuf,
-		Theme:      extractThemeFromLayout(layoutJSON),
-		RenderedAt: time.Now().UTC().Format(time.RFC3339),
-		LayoutJSON: layoutJSON,
-		Metrics:    metrics,
-		Selector:   opts.Selector,
+		Bitmap:      bitmap,
+		PNG:         screenshotBuf,
+		Theme:       extractThemeFromLayout(layoutJSON),
+		RenderedAt:  time.Now().UTC().Format(time.RFC3339),
+		LayoutJSON:  layoutJSON,
+		Metrics:     metrics,
+		Selector:    opts.Selector,
+		HeatRegions: blockHeatRegions(blockMetrics, opts.PerBlockRender),
 	}
 
 	if opts.DebugDir != "" {

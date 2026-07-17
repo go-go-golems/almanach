@@ -1374,6 +1374,8 @@ const ThermalPaper = React.forwardRef(({ blocks, theme, selectedId, onSelect, on
             return (
               <div
                 key={b.id}
+                data-block-id={b.id}
+                data-block-type={b.type}
                 className={`block-wrap ${isSelected ? "selected" : ""}`}
                 onClick={(e) => { e.stopPropagation(); onSelect(b.id); }}
               >

@@ -583,3 +583,109 @@ the browser, and gain a margin knob for tuning.
   `perBlockRenderOptions` with the per-element bounding boxes from
   `collectMetricsJS` to threshold text vs dither images and set per-segment
   printer density in one page.
+
+## Step 7: Phase 6 — block-aware rasterization + per-segment heat
+
+Implemented the "real fix for mixed pages": one page can now threshold its text
+(crisp strokes) while dithering its photos (Atkinson + gamma), and print each
+region at its own printer heat (text hot, photos cool). This is the last phase
+of the handoff and the payoff of the whole DSL v2 — a per-block `render`
+override plus a bounding box is all it takes.
+
+### Prompt Context
+
+**User prompt (verbatim):** (see Step 5 — "phase 4 5 6, continue...")
+
+**Assistant interpretation:** Finish Phase 6 — block-aware rasterization and
+per-segment heat — with tests, a diary, and commits.
+
+**Inferred user intent:** Complete the DSL v2 build end to end.
+
+**Commit (code):** <this step's commit>
+
+### What I did
+- **Region-aware rasterizer** (`internal/app/rasterize.go`): `imageToBitmapRegions`
+  converts an image to 1-bit applying each region's technique to its rows and the
+  page default threshold elsewhere. `atkinsonBand` runs Atkinson error diffusion
+  (6/8 of the error, confined to the band so it can't bleed into adjacent text);
+  `applyGamma` a tone curve; `thresholdBand` a hard threshold.
+- **Per-block boxes**: added `data-block-id`/`data-block-type` to `.block-wrap`
+  and `collectBlockMetricsJS(selector)` returning each block's top/bottom relative
+  to the screenshot element. `blockRasterRegions` builds raster regions (mode/
+  gamma/threshold) and `blockHeatRegions` builds heat regions (printerDensity)
+  from those boxes + per-block render options.
+- **Wiring**: `RenderOptions.PerBlockRender` (set in `renderOneShot` from
+  `perBlockRenderOptions`); `renderWithChrome` collects block metrics when
+  per-block overrides exist and rasterizes via `pngToBitmapSupersampledRegions`;
+  `RenderResult.HeatRegions` populated.
+- **Per-segment heat** (`printer.go`): `densityBands` covers all rows (regions at
+  their density, gaps at the page default); `sendBitmapWithHeat` sets density
+  before each band and prints them in order (feed baked into the last band only).
+  `cmd_print` uses it when heat regions exist.
+- **Tests**: `rasterize_test.go` (threshold/atkinson/mixed-regions/gamma) and
+  `heat_test.go` (density bands + row slicing).
+
+### Why
+- The pipeline emits 1-bit, and text vs photos want *opposite* rasterization
+  (threshold vs dither) and *different* heat (ALMANACH-RASTER-LAB). A single page
+  couldn't express that. Regions derived from block boxes make it a per-block
+  data choice.
+
+### What worked
+- A pure horizontal-gradient image renders as a clean Atkinson dot ramp (108
+  black/white transitions per row vs a threshold's single edge); a gradient photo
+  becomes a proper halftone while the title/quote stay crisp. A mixed page
+  printed with per-segment heat as 7 segments (text 38 / photo 20 / text 38).
+
+### What didn't work (then fixed)
+- First end-to-end renders showed the "dithered" image as a hard threshold. Two
+  causes, found in order: (1) I edited the JSX to add `data-block-id` but did not
+  rebuild `web/dist`, so the served bundle had no block ids and
+  `collectBlockMetricsJS` returned `[]` -> no regions. Rebuilt. (2) After the
+  rebuild it *looked* unchanged in the image viewer, but a transitions-per-row
+  count (108) proved it was dithering — the viewer was down-sampling the fine
+  Atkinson dots into apparent solids. A 6x NEAREST zoom of the mid-tone band
+  showed the halftone clearly.
+
+### What was tricky to build
+- **Confining error diffusion.** Atkinson diffuses error down and right; across a
+  region boundary that would smear an image's noise into the text below. Fixed by
+  running the dither on a per-band working buffer and clamping diffusion to the
+  band (`atkinsonBand`).
+- **Coordinate alignment.** Block boxes are measured in CSS px relative to the
+  screenshot element; they line up with final bitmap rows only because render is
+  1x / deviceScaleFactor 1 and supersample downscaling happens *before* regions
+  are applied (`pngToBitmapSupersampledRegions` downscales, then rasterizes in
+  final coords).
+- **Stale-bundle trap.** Any studio JSX change needs `pnpm --dir web build` before
+  a headless render will see it — cost me a wrong-diagnosis loop.
+
+### What warrants a second pair of eyes
+- Region granularity is the whole block box (label + content). For an image block
+  that means the label text is dithered too; acceptable here (labels are large),
+  but a future refinement could target only the `<img>` sub-box.
+- `sendBitmapWithHeat` issues an extra `setPrinterDensity` per band; on a page
+  with many heat blocks that is several small POSTs. Fine at current scale.
+- Overlapping heat regions are assumed absent (block boxes are vertically
+  disjoint); `densityBands` takes the sorted-first region on overlap.
+
+### Verified
+- `go test ./...` (rasterize + heat unit tests), `make test-web`, `golangci-lint`
+  clean, `-tags embed` build. On paper: per-segment heat print (7 segments);
+  on screen: Atkinson halftone zoom.
+
+### Code review instructions
+- Start at `internal/app/rasterize.go` (`imageToBitmapRegions`, `atkinsonBand`,
+  `blockRasterRegions`, `blockHeatRegions`) + `rasterize_test.go`; then
+  `printer.go` (`densityBands`, `sliceBitmapRows`, `sendBitmapWithHeat`) +
+  `heat_test.go`; then the wiring in `renderer.go` (block metrics + regions +
+  HeatRegions) and `cmd_print.go`. Validate: `go test ./internal/app/...`; render
+  a layout with an image block whose `render.rasterMode` is `RASTER_MODE_ATKINSON`
+  and `--debug-dir`, unpack `bitmap.bin`, zoom the image band.
+
+### What should be done next
+- All six phases are shipped. Optional follow-ups: a studio typography/preset
+  editing panel (currently presets are edited via imported JSON or
+  `presets.js`); target dithering to the `<img>` sub-box rather than the whole
+  block; round-trip inline themes on export; migrate hot block types from
+  `google.protobuf.Struct` to typed `oneof` messages.

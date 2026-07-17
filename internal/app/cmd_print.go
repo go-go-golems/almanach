@@ -140,15 +140,23 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	printerOK := false
 	var printerResponse map[string]any
 	if !s.DryRun {
-		// Apply the page-level printer density (heat) render option, if set,
-		// before sending the bitmap. Text prints best hotter (~38), photos
-		// cooler (~20). A failure here is non-fatal — warn and print anyway.
-		if opts.PrinterDensity > 0 {
-			if derr := setPrinterDensity(printerURL, opts.PrinterDensity); derr != nil {
-				log.Printf("warning: could not set printer density=%d: %v", opts.PrinterDensity, derr)
+		if len(result.HeatRegions) > 0 {
+			// Per-segment heat (Phase 6): different bands print at different
+			// densities (text hot, photos cool) in one page. Gaps use the
+			// page-level density.
+			bands := densityBands(result.Bitmap.Height, result.HeatRegions, opts.PrinterDensity)
+			printerResponse, err = sendBitmapWithHeat(printerURL, result.Bitmap, s.FeedLines, bands)
+		} else {
+			// Apply the page-level printer density (heat) render option, if set,
+			// before sending the bitmap. Text prints best hotter (~38), photos
+			// cooler (~20). A failure here is non-fatal — warn and print anyway.
+			if opts.PrinterDensity > 0 {
+				if derr := setPrinterDensity(printerURL, opts.PrinterDensity); derr != nil {
+					log.Printf("warning: could not set printer density=%d: %v", opts.PrinterDensity, derr)
+				}
 			}
+			printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
 		}
-		printerResponse, err = sendBitmapToPrinter(printerURL, result.Bitmap, s.FeedLines)
 		if err != nil {
 			return err
 		}

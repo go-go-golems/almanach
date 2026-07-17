@@ -62,16 +62,24 @@ func downscaleBoxGray(img image.Image, scale int) image.Image {
 	return out
 }
 
-// pngToBitmapSupersampled decodes a screenshot PNG rendered at `scale` x the
-// target resolution, box-averages it down to the target, and converts to a 1-bit
-// bitmap at the given threshold. scale <= 1 is the plain 1x path.
-func pngToBitmapSupersampled(pngData []byte, threshold uint8, scale int) (*Bitmap, error) {
-	if scale <= 1 {
+// pngToBitmapSupersampledRegions decodes a screenshot PNG rendered at `scale` x
+// the target resolution, box-averages it down to the target, and converts to a
+// 1-bit bitmap. With no regions it is the plain threshold path (scale <= 1 is the
+// 1x fast path); with block-aware raster regions (Phase 6) each band uses its own
+// technique (dither/gamma/threshold) and the rest uses the page default.
+func pngToBitmapSupersampledRegions(pngData []byte, threshold uint8, scale int, regions []rasterRegion) (*Bitmap, error) {
+	if scale <= 1 && len(regions) == 0 {
 		return PngToBitmap(pngData, threshold)
 	}
 	img, _, err := image.Decode(bytes.NewReader(pngData))
 	if err != nil {
 		return nil, fmt.Errorf("decode PNG: %w", err)
 	}
-	return imageToBitmap(downscaleBoxGray(img, scale), threshold)
+	if scale > 1 {
+		img = downscaleBoxGray(img, scale)
+	}
+	if len(regions) == 0 {
+		return imageToBitmap(img, threshold)
+	}
+	return imageToBitmapRegions(img, threshold, regions), nil
 }
