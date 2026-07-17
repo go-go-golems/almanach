@@ -192,7 +192,9 @@ the base theme's tokens wholesale.
 ## Page Margin
 
 `margin` controls the padding of the printed page body. Omit it to keep the
-theme default (~20×22px). Three forms are accepted:
+theme default (~20×22px for the almanac themes; the work themes
+`swiss`/`brutalist`/`terminal` default to a tight 10×8px so slips run nearly
+edge to edge). Three forms are accepted:
 
 ```yaml
 margin: 8                                     # uniform px on all sides

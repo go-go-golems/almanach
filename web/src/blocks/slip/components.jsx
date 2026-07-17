@@ -48,10 +48,10 @@ export const SlipTextBlock = ({ data, theme, blockStyle }) => (
 // Full-width emphasis bar. data: { text, right?, preset?, pad? }. The theme's
 // bannerStyle token picks filled ("invert") or bordered ("outline").
 export const BannerBlock = ({ data, theme, blockStyle }) => {
-  const padMap = { s: 5, m: 8, l: 13 };
+  const padMap = { s: 7, m: 11, l: 18 };
   const pad = padMap[data.pad] ?? padMap.s;
   const invert = bannerStyleToken(theme) !== "outline";
-  const st = theme.preset(data.preset || "caption", { weight: 700, letterSpacing: 0.12, textCase: "upper" }, blockStyle);
+  const st = theme.preset(data.preset || "caption", { weight: 800, letterSpacing: 0.12, textCase: "upper" }, blockStyle);
   return (
     <div
       style={{

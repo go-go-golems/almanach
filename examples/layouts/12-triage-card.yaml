@@ -7,7 +7,6 @@ theme: brutalist
 paperWidth: 384
 bodyScale: 1
 feedLines: 3
-margin: { x: 12, y: 14 }
 blocks:
   - id: head
     type: banner
@@ -20,7 +19,7 @@ blocks:
     data:
       text: "Go Developer: MCP Server for Internal Tooling"
       preset: h1
-      lines: 2
+      lines: 3
   - id: gap2
     type: space
     data: { size: "s" }

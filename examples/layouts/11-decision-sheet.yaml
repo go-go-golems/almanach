@@ -6,7 +6,6 @@ theme: swiss
 paperWidth: 384
 bodyScale: 1
 feedLines: 3
-margin: { x: 12, y: 14 }
 blocks:
   - id: head
     type: row
