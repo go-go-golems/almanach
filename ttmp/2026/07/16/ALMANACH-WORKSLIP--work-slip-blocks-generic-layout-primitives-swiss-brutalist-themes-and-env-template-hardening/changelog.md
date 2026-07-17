@@ -69,3 +69,8 @@ Step 10: merged upstream/main into PR branch (main had independently bumped go t
 
 Step 11: PR #7 follow-up fixes — heat gap density fallback (38) + wire-format inlineTheme honored (commit 7311cff); replied to review comments.
 
+
+## 2026-07-17
+
+Step 12: docs publishing wired — release.yaml publish-docs enabled (PR #9), terraform almanach publisher (wesen/terraform#14); apply pending operator.
+

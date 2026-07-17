@@ -833,3 +833,54 @@ both in the same "the DSL advertises it, the pipeline drops it" family.
   site; the `themeSpec` construction in `parseLayoutJson`.
 - Validate: `GOWORK=off go test ./internal/app/ -run TestHeatGap -count=1`;
   render a wire-format layout with `inlineTheme` headless.
+
+## Step 12: Docs publishing to docs.yolo.scapegoat.dev
+
+Wired almanach into the Vault-OIDC docs publishing pipeline (the pattern from
+the vault article "Vault OIDC for CI/CD Docs Publishing"): on every v* release
+tag, the release workflow exports the Glazed help system to SQLite and
+publishes it to the public docs registry with a short-lived package-scoped
+JWT minted by Vault.
+
+### Prompt Context
+
+**User prompt (verbatim):** "can we add docs publishing (see https://parc.yolo.scapegoat.dev/note/projects/2026/05/26/article-vault-oidc-for-ci/cd-docs-publishing-designing-short-lived-package-scoped-credentials )"
+
+**Commits:** almanach `582801a` (cherry-picked to `ci/docs-publishing`, PR #9);
+terraform `feature/docsctl-almanach-publisher` (wesen/terraform PR #14).
+
+### What I did
+- Discovered release.yaml already carried the go-template *disabled* stub of
+  the publish-docs job — with a wrong export command (`cmd/build-web`, the
+  Dagger web builder, instead of the CLI). Fixed the command to
+  `go run ./cmd/almanach-render-service help export --format sqlite ...`
+  (verified locally: 7 help sections exported), removed the `false &&` guard,
+  added `id-token: write` (mirroring glazed's release workflow).
+- Terraform (wesen/terraform): added the `almanach` docsctl publisher entry
+  (repository_id 1233455074, release.yaml @ refs/tags/v*). The local checkout
+  was on a stale task branch — the first plan wanted to *destroy* the
+  rag-eval publisher that main had added since; switched to fresh main,
+  re-applied the change, and the plan came back clean: 3 to add (identity
+  OIDC role, JWT auth role, policy), 0 to destroy.
+- Opened wesen/terraform#14 and go-go-golems/almanach#9. Also discovered PR
+  #7 had been merged meanwhile; the workflow change was cherry-picked onto a
+  fresh branch off upstream main, and the accidentally-resurrected
+  almanach-pixelfont remote branch was deleted.
+- `terraform apply` was blocked by the permission classifier (live infra
+  mutation) — the plan file is saved at /tmp/almanach-docs.tfplan for the
+  operator to apply.
+
+### What warrants a second pair of eyes
+- The plan-wants-to-destroy-rag-eval near-miss: always `git pull` the
+  terraform repo before planning; live state tracks main, not your checkout.
+
+### What should be done in the future (operator steps)
+1. Apply the terraform plan (see below), or re-plan + apply after merging #14.
+2. Merge go-go-golems/almanach#9.
+3. Tag a release (v*) — the publish-docs job should mint the JWT and publish
+   `almanach@<tag>` to https://docs.yolo.scapegoat.dev.
+
+### Technical details
+- Apply command:
+  `cd /home/manuel/code/wesen/terraform/vault/github-actions/envs/k3s && AWS_PROFILE=manuel VAULT_ADDR=https://vault.yolo.scapegoat.dev VAULT_TOKEN="$(cat ~/.vault-token)" terraform apply /tmp/almanach-docs.tfplan`
+- Verify: `vault read auth/github-actions/role/docsctl-almanach-publisher`.

@@ -122,6 +122,7 @@ func applyRenderOptions(base RenderOptions, p *layoutv1.RenderOptions) RenderOpt
 	}
 	if p.PrinterDensity != nil {
 		base.PrinterDensity = int(*p.PrinterDensity)
+		base.PrinterDensitySet = true
 	}
 	if p.PrinterSpeed != nil {
 		base.PrinterSpeed = int(*p.PrinterSpeed)
