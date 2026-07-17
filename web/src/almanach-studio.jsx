@@ -1786,8 +1786,17 @@ function parseLayoutJson(text) {
     .filter((b) => b && typeof b.type === "string")
     .map((b) => {
       const defaults = ALL_DEFAULTS[b.type]; // undefined for unregistered types
-      const data = b.data && typeof b.data === "object"
-        ? { ...(defaults || {}), ...b.data }
+      // Studio layouts carry block payloads under `data`; the protobuf wire
+      // format (layoutpb.MarshalJSON / Block.content) carries them under
+      // `content`. Accept both so a DSL v2 layout renders its own wire format.
+      const payload =
+        b.data && typeof b.data === "object"
+          ? b.data
+          : b.content && typeof b.content === "object"
+            ? b.content
+            : null;
+      const data = payload
+        ? { ...(defaults || {}), ...payload }
         : defaults
           ? JSON.parse(JSON.stringify(defaults))
           : {};
