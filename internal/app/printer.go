@@ -81,16 +81,17 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 // mixed-heat page: the page-level density when set, else the paper-verified
 // text default. Never 0 — once a block override mutates the printer's density
 // state there is no way to read the previous value back, so gap bands must
-// always set an explicit density.
-func heatGapDensity(pageDensity int) int {
-	if pageDensity > 0 {
+// always set an explicit density. An explicit zero is the firmware's minimum
+// density and must not be confused with an unset page-level option.
+func heatGapDensity(pageDensity int, pageDensitySet bool) int {
+	if pageDensitySet {
 		return pageDensity
 	}
 	return defaultHeatGapDensity
 }
 
 // densityBand is a contiguous run of bitmap rows [YStart, YEnd) to print at
-// Density (0 = leave the printer's current density unchanged).
+// Density. Every generated band has an explicit density, including zero.
 type densityBand struct {
 	YStart  int
 	YEnd    int
@@ -165,10 +166,8 @@ func sendBitmapWithHeat(printerURL string, bitmap *Bitmap, feedLines int, bands 
 	var lastResp map[string]any
 	total := 0
 	for ui, u := range units {
-		if u.density > 0 {
-			if err := setPrinterDensity(printerURL, u.density); err != nil {
-				log.Printf("warning: set density %d for heat band failed: %v", u.density, err)
-			}
+		if err := setPrinterDensity(printerURL, u.density); err != nil {
+			log.Printf("warning: set density %d for heat band failed: %v", u.density, err)
 		}
 		segs := splitBitmap(u.bm, maxSafePrinterBitmapBodyBytes)
 		for si, seg := range segs {

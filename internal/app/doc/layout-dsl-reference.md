@@ -264,7 +264,7 @@ supply the same values as defaults.
 | `viewportHeight` | integer | `3000` | Browser viewport height. |
 | `rasterMode` | string | `RASTER_MODE_THRESHOLD` | `RASTER_MODE_THRESHOLD`, `RASTER_MODE_ATKINSON`, `RASTER_MODE_FLOYD_STEINBERG`, `RASTER_MODE_BAYER`. |
 | `gamma` | number | unset | Tone-curve gamma applied before dithering. Photos want `~0.8`. |
-| `printerDensity` | integer | unset | Printer head heat, `0`–`255`. Text reads best `~38`, photos `~20`. |
+| `printerDensity` | integer | unset | Printer head heat, `0`–`39` (the firmware-supported range). Text reads best `~38`, photos `~20`. |
 | `printerSpeed` | integer | unset | Printer feed speed. |
 
 ### Per-block render overrides

@@ -42,10 +42,11 @@ type RenderOptions struct {
 	// (DSL v2). Zero values mean "unset / use default". RasterMode and Gamma
 	// feed the block-aware rasterizer (Phase 6); PrinterDensity/PrinterSpeed
 	// are applied to the printer before a print.
-	RasterMode     string  // "", "threshold", "atkinson", "floydSteinberg", "bayer"
-	Gamma          float64 // 0 = unset
-	PrinterDensity int     // 0 = unset
-	PrinterSpeed   int     // 0 = unset
+	RasterMode        string  // "", "threshold", "atkinson", "floydSteinberg", "bayer"
+	Gamma             float64 // 0 = unset
+	PrinterDensity    int     // valid range 0-39 when PrinterDensitySet
+	PrinterDensitySet bool    // distinguishes an explicit firmware minimum (0) from unset
+	PrinterSpeed      int     // 0 = unset
 
 	// PerBlockRender maps block id -> its render override, used for block-aware
 	// rasterization (Phase 6): a block's bounding box becomes a raster region

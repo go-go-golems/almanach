@@ -156,13 +156,13 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 			// printer's density state, and there is no firmware endpoint to read
 			// the previous value back, so without this the rest of the page
 			// would print at the last block's density.
-			bands := densityBands(result.Bitmap.Height, result.HeatRegions, heatGapDensity(opts.PrinterDensity))
+			bands := densityBands(result.Bitmap.Height, result.HeatRegions, heatGapDensity(opts.PrinterDensity, opts.PrinterDensitySet))
 			printerResponse, err = sendBitmapWithHeat(printerURL, result.Bitmap, s.FeedLines, bands)
 		} else {
 			// Apply the page-level printer density (heat) render option, if set,
 			// before sending the bitmap. Text prints best hotter (~38), photos
 			// cooler (~20). A failure here is non-fatal — warn and print anyway.
-			if opts.PrinterDensity > 0 {
+			if opts.PrinterDensitySet {
 				if derr := setPrinterDensity(printerURL, opts.PrinterDensity); derr != nil {
 					log.Printf("warning: could not set printer density=%d: %v", opts.PrinterDensity, derr)
 				}

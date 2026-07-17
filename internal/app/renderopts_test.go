@@ -96,11 +96,23 @@ func TestApplyRenderOptions_Overlay(t *testing.T) {
 	if got.ViewportWidth != 384 {
 		t.Errorf("viewportWidth should keep base, got %d", got.ViewportWidth)
 	}
-	if got.PrinterDensity != 38 {
-		t.Errorf("printerDensity = %d", got.PrinterDensity)
+	if got.PrinterDensity != 38 || !got.PrinterDensitySet {
+		t.Errorf("printer density = %d, set = %t", got.PrinterDensity, got.PrinterDensitySet)
 	}
 	if got.RasterMode != "threshold" {
 		t.Errorf("rasterMode = %q", got.RasterMode)
+	}
+}
+
+func TestApplyRenderOptions_ExplicitZeroDensity(t *testing.T) {
+	base := RenderOptions{PrinterDensity: 38, PrinterDensitySet: true}
+	p, err := parseRenderOptions(map[string]interface{}{"printerDensity": float64(0)})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	got := applyRenderOptions(base, p)
+	if got.PrinterDensity != 0 || !got.PrinterDensitySet {
+		t.Errorf("printer density = %d, set = %t; want explicit zero", got.PrinterDensity, got.PrinterDensitySet)
 	}
 }
 
