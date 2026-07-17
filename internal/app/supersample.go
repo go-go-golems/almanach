@@ -56,7 +56,9 @@ func downscaleBoxGray(img image.Image, scale int) image.Image {
 					sum += 299*int(rgba.Pix[p]) + 587*int(rgba.Pix[p+1]) + 114*int(rgba.Pix[p+2])
 				}
 			}
-			out.Pix[oy*out.Stride+ox] = uint8(sum / (area * 1000))
+			// sum <= area*1000*255 by construction, so the quotient is 0..255;
+			// clamp anyway to keep the conversion provably in range (gosec G115).
+			out.Pix[oy*out.Stride+ox] = clampToUint8(sum / (area * 1000))
 		}
 	}
 	return out

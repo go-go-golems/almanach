@@ -50,11 +50,28 @@ func validateRenderOptions(o *layoutv1.RenderOptions) error {
 	if o.ViewportHeight != nil && *o.ViewportHeight <= 0 {
 		return fmt.Errorf("render.viewportHeight must be > 0, got %d", *o.ViewportHeight)
 	}
-	if o.PrinterDensity != nil && (*o.PrinterDensity < 0 || *o.PrinterDensity > 255) {
-		return fmt.Errorf("render.printerDensity must be 0-255, got %d", *o.PrinterDensity)
+	// The K118/AtomS3R firmware (firmware/atoms3r/main/web_server.c) accepts
+	// density 0..39 and only a discrete set of speeds; reject anything else here
+	// so a bad layout fails loudly instead of printing at the previous setting.
+	if o.PrinterDensity != nil && (*o.PrinterDensity < 0 || *o.PrinterDensity > 39) {
+		return fmt.Errorf("render.printerDensity must be 0-39, got %d", *o.PrinterDensity)
+	}
+	if o.PrinterSpeed != nil && !supportedPrinterSpeeds[*o.PrinterSpeed] {
+		return fmt.Errorf("render.printerSpeed must be one of %v, got %d", printerSpeedList, *o.PrinterSpeed)
 	}
 	return nil
 }
+
+// printerSpeedList mirrors the firmware's web_speed_supported table.
+var printerSpeedList = []int32{25, 30, 37, 50, 56, 62, 70, 80, 90, 100, 120, 150, 180, 200, 220}
+
+var supportedPrinterSpeeds = func() map[int32]bool {
+	m := make(map[int32]bool, len(printerSpeedList))
+	for _, s := range printerSpeedList {
+		m[s] = true
+	}
+	return m
+}()
 
 // rasterModeString maps the proto enum to the lowercase name the rasterizer uses.
 func rasterModeString(m layoutv1.RasterMode) string {

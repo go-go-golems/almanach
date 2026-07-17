@@ -45,10 +45,27 @@ func TestParseRenderOptions_Validation(t *testing.T) {
 		{"supersampleScale": float64(0)},
 		{"viewportWidth": float64(-1)},
 		{"printerDensity": float64(-5)},
+		// The firmware accepts density 0..39 only — 100 used to pass validation,
+		// reach the printer, error there, and print at the old density.
+		{"printerDensity": float64(100)},
+		// The firmware accepts a discrete speed set; 45 is not in it.
+		{"printerSpeed": float64(45)},
+		{"printerSpeed": float64(0)},
 	}
 	for i, m := range cases {
 		if _, err := parseRenderOptions(m); err == nil {
 			t.Errorf("case %d: expected validation error, got nil", i)
+		}
+	}
+	// Boundary and supported values pass.
+	valid := []map[string]interface{}{
+		{"printerDensity": float64(39)},
+		{"printerSpeed": float64(50)},
+		{"printerSpeed": float64(220)},
+	}
+	for i, m := range valid {
+		if _, err := parseRenderOptions(m); err != nil {
+			t.Errorf("valid case %d: unexpected error: %v", i, err)
 		}
 	}
 }

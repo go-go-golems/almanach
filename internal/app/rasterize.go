@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"image"
 	"math"
+	"sort"
 
 	layoutv1 "github.com/go-go-golems/almanach/gen/almanach/layout/v1"
 )
@@ -67,7 +68,7 @@ func blockRasterRegions(metrics []blockMetric, perBlock map[string]*layoutv1.Ren
 			reg.Gamma = ro.GetGamma()
 		}
 		if hasThreshold {
-			reg.Threshold = uint8(ro.GetThreshold())
+			reg.Threshold = clampToUint8(int(ro.GetThreshold()))
 		}
 		if reg.YEnd > reg.YStart {
 			regions = append(regions, reg)
@@ -88,9 +89,38 @@ func blockRasterRegions(metrics []blockMetric, perBlock map[string]*layoutv1.Ren
 type rasterRegion struct {
 	YStart    int
 	YEnd      int
-	Mode      string  // "threshold" | "atkinson" | "floydSteinberg" (falls back to threshold)
+	Mode      string  // "" (threshold) | "atkinson" | "floydSteinberg" | "bayer"; unknown falls back to threshold
 	Gamma     float64 // <=0 means 1.0 (no tone curve)
 	Threshold uint8   // threshold used for non-dithered regions; 0 means use the page default
+}
+
+// pageRasterRegions turns page-level render options (Layout.render rasterMode /
+// gamma) into raster regions covering every row NOT already claimed by a
+// per-block region, so a full-page photo layout can request e.g. Atkinson
+// without per-block overrides. Returns nil when the page options request plain
+// default-threshold rasterization. YEnd of the trailing region is MaxInt32 —
+// imageToBitmapRegions clamps to the image height.
+func pageRasterRegions(mode string, gamma float64, blockRegions []rasterRegion) []rasterRegion {
+	if mode == "threshold" {
+		mode = ""
+	}
+	if mode == "" && (gamma <= 0 || gamma == 1) {
+		return nil
+	}
+
+	sorted := append([]rasterRegion(nil), blockRegions...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].YStart < sorted[j].YStart })
+
+	var out []rasterRegion
+	y := 0
+	for _, r := range sorted {
+		if r.YStart > y {
+			out = append(out, rasterRegion{YStart: y, YEnd: r.YStart, Mode: mode, Gamma: gamma})
+		}
+		y = maxInt(y, r.YEnd)
+	}
+	out = append(out, rasterRegion{YStart: y, YEnd: math.MaxInt32, Mode: mode, Gamma: gamma})
+	return out
 }
 
 // grayAt returns the BT.601 luminance (0..255) of a pixel.
@@ -131,18 +161,15 @@ func imageToBitmapRegions(img image.Image, defaultThreshold uint8, regions []ras
 			continue
 		}
 		switch reg.Mode {
-		case "atkinson", "floydSteinberg", "":
-			if reg.Mode == "" {
-				// A region with a custom threshold but no dither mode.
-				thr := reg.Threshold
-				if thr == 0 {
-					thr = defaultThreshold
-				}
-				thresholdBand(img, black, bounds, w, ys, ye, reg.Gamma, thr)
-			} else {
-				atkinsonBand(img, black, bounds, w, ys, ye, reg.Gamma)
-			}
+		case "atkinson":
+			atkinsonBand(img, black, bounds, w, ys, ye, reg.Gamma)
+		case "floydSteinberg":
+			floydSteinbergBand(img, black, bounds, w, ys, ye, reg.Gamma)
+		case "bayer":
+			bayerBand(img, black, bounds, w, ys, ye, reg.Gamma)
 		default:
+			// "" (threshold, possibly with gamma/custom threshold) and any
+			// unknown mode: hard threshold.
 			thr := reg.Threshold
 			if thr == 0 {
 				thr = defaultThreshold
@@ -229,6 +256,69 @@ func atkinsonBand(img image.Image, black []bool, bounds image.Rectangle, w, ys, 
 			diffuse(j+1, x, e)
 			diffuse(j+1, x+1, e)
 			diffuse(j+2, x, e)
+		}
+	}
+}
+
+// floydSteinbergBand runs classic Floyd-Steinberg error diffusion over a row
+// band (7/16 right, 3/16 below-left, 5/16 below, 1/16 below-right). Error is
+// confined to the band, matching atkinsonBand's containment guarantee. Compared
+// to Atkinson it diffuses the full error, which preserves more tonal accuracy
+// but reads slightly noisier on a thermal head.
+func floydSteinbergBand(img image.Image, black []bool, bounds image.Rectangle, w, ys, ye int, gamma float64) {
+	bh := ye - ys
+	buf := make([]float64, w*bh)
+	for j := 0; j < bh; j++ {
+		for x := 0; x < w; x++ {
+			buf[j*w+x] = applyGamma(grayAt(img, bounds.Min.X+x, bounds.Min.Y+ys+j), gamma)
+		}
+	}
+	diffuse := func(j, x int, e float64) {
+		if x < 0 || x >= w || j < 0 || j >= bh {
+			return
+		}
+		buf[j*w+x] += e
+	}
+	for j := 0; j < bh; j++ {
+		for x := 0; x < w; x++ {
+			old := buf[j*w+x]
+			var newv float64
+			if old >= 128 {
+				newv = 255
+			} else {
+				newv = 0
+				black[(ys+j)*w+x] = true
+			}
+			e := old - newv
+			diffuse(j, x+1, e*7/16)
+			diffuse(j+1, x-1, e*3/16)
+			diffuse(j+1, x, e*5/16)
+			diffuse(j+1, x+1, e*1/16)
+		}
+	}
+}
+
+// bayer4 is the classic 4x4 ordered-dither matrix (values 0..15).
+var bayer4 = [4][4]float64{
+	{0, 8, 2, 10},
+	{12, 4, 14, 6},
+	{3, 11, 1, 9},
+	{15, 7, 13, 5},
+}
+
+// bayerBand runs 4x4 ordered (Bayer) dithering over a row band: each pixel is
+// compared against a position-dependent threshold, producing a regular
+// crosshatch pattern. No error diffusion means no state, so the pattern is
+// stable across renders — useful when dither noise between prints matters more
+// than tonal accuracy.
+func bayerBand(img image.Image, black []bool, bounds image.Rectangle, w, ys, ye int, gamma float64) {
+	for y := ys; y < ye; y++ {
+		for x := 0; x < w; x++ {
+			v := applyGamma(grayAt(img, bounds.Min.X+x, bounds.Min.Y+y), gamma)
+			t := (bayer4[y%4][x%4] + 0.5) / 16 * 255
+			if v < t {
+				black[y*w+x] = true
+			}
 		}
 	}
 }

@@ -93,6 +93,102 @@ func TestMixedRegions(t *testing.T) {
 	}
 }
 
+// Floyd-Steinberg on a mid-gray also dithers to ~half coverage — and must not
+// fall through to a hard threshold (which would give all-or-nothing).
+func TestFloydSteinbergMidGrayDithers(t *testing.T) {
+	w, h := 32, 32
+	regions := []rasterRegion{{YStart: 0, YEnd: h, Mode: "floydSteinberg"}}
+	bm := imageToBitmapRegions(solidGray(w, h, 128), 128, regions)
+	black := countBlack(bm, w, h)
+	total := w * h
+	if black < total*3/10 || black > total*7/10 {
+		t.Errorf("floydSteinberg mid-gray black=%d/%d, want ~half (dithered)", black, total)
+	}
+}
+
+// Bayer ordered dithering on a mid-gray produces the regular ~50% crosshatch;
+// before ALMANACH-WORKSLIP PR review it silently fell back to a hard threshold.
+func TestBayerMidGrayDithers(t *testing.T) {
+	w, h := 32, 32
+	regions := []rasterRegion{{YStart: 0, YEnd: h, Mode: "bayer"}}
+	bm := imageToBitmapRegions(solidGray(w, h, 128), 128, regions)
+	black := countBlack(bm, w, h)
+	total := w * h
+	if black < total*4/10 || black > total*6/10 {
+		t.Errorf("bayer mid-gray black=%d/%d, want ~half (ordered dither)", black, total)
+	}
+	// Ordered dithering is position-deterministic: the same 4x4 tile repeats.
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			a := bm.Data[y*bm.BytesPerRow+x/8]&(byte(0x80)>>(x%8)) != 0
+			b := bm.Data[(y+4)*bm.BytesPerRow+(x+4)/8]&(byte(0x80)>>((x+4)%8)) != 0
+			if a != b {
+				t.Fatalf("bayer pattern not tiled at (%d,%d)", x, y)
+			}
+		}
+	}
+}
+
+// Page-level rasterMode/gamma produce full-page regions covering the rows that
+// per-block overrides don't claim (and the whole page when there are none).
+func TestPageRasterRegions(t *testing.T) {
+	// Plain threshold page: no regions.
+	if got := pageRasterRegions("", 0, nil); got != nil {
+		t.Errorf("threshold page produced regions: %v", got)
+	}
+	if got := pageRasterRegions("threshold", 1, nil); got != nil {
+		t.Errorf("explicit threshold page produced regions: %v", got)
+	}
+
+	// Full-page dither with no block overrides: one region covering everything.
+	full := pageRasterRegions("atkinson", 0.8, nil)
+	if len(full) != 1 || full[0].YStart != 0 || full[0].Mode != "atkinson" || full[0].Gamma != 0.8 {
+		t.Fatalf("full-page regions = %+v", full)
+	}
+
+	// Block override in the middle: page regions cover the complement.
+	blocks := []rasterRegion{{YStart: 100, YEnd: 200, Mode: ""}}
+	gaps := pageRasterRegions("bayer", 0, blocks)
+	if len(gaps) != 2 {
+		t.Fatalf("expected 2 gap regions, got %+v", gaps)
+	}
+	if gaps[0].YStart != 0 || gaps[0].YEnd != 100 || gaps[1].YStart != 200 {
+		t.Errorf("gap regions = %+v", gaps)
+	}
+
+	// Gamma-only page (threshold + tone curve) still needs regions.
+	g := pageRasterRegions("", 0.8, nil)
+	if len(g) != 1 || g[0].Mode != "" || g[0].Gamma != 0.8 {
+		t.Errorf("gamma-only page regions = %+v", g)
+	}
+}
+
+// End to end: a page-level atkinson region dithers rows outside a block's
+// threshold band.
+func TestPageLevelDitherAroundBlock(t *testing.T) {
+	w, h := 24, 30
+	blocks := []rasterRegion{{YStart: 10, YEnd: 20, Mode: "", Threshold: 200}} // block: all black at gray 128
+	regions := append(blocks, pageRasterRegions("atkinson", 0, blocks)...)
+	bm := imageToBitmapRegions(solidGray(w, h, 128), 128, regions)
+
+	blockBlack := 0
+	for y := 10; y < 20; y++ {
+		for x := 0; x < w; x++ {
+			if bm.Data[y*bm.BytesPerRow+x/8]&(byte(0x80)>>(x%8)) != 0 {
+				blockBlack++
+			}
+		}
+	}
+	if blockBlack != 10*w {
+		t.Errorf("block band black=%d, want %d (threshold 200 on gray 128)", blockBlack, 10*w)
+	}
+	outside := countBlack(bm, w, h) - blockBlack
+	outsideTotal := (h - 10) * w
+	if outside < outsideTotal*3/10 || outside > outsideTotal*7/10 {
+		t.Errorf("page dither outside block black=%d/%d, want ~half", outside, outsideTotal)
+	}
+}
+
 // Gamma < 1 lifts a dark gray above a threshold, reducing black coverage.
 func TestGammaLiftsShadows(t *testing.T) {
 	w, h := 16, 16

@@ -185,6 +185,20 @@ func maxInt(a, b int) int {
 // photos cooler (~20). Returns an error the caller may choose to warn on rather
 // than abort.
 func setPrinterDensity(printerBitmapURL string, density int) error {
+	return postPrinterSetting(printerBitmapURL, "/api/printer/density", "density", density)
+}
+
+// setPrinterSpeed POSTs a feed speed to the printer's /api/printer/speed
+// endpoint. The firmware accepts only a discrete set of speeds (validated in
+// validateRenderOptions); slower speeds give the head more dwell time per row,
+// which reduces heat-related artifacts on dense pages.
+func setPrinterSpeed(printerBitmapURL string, speed int) error {
+	return postPrinterSetting(printerBitmapURL, "/api/printer/speed", "speed", speed)
+}
+
+// postPrinterSetting POSTs {key: value} to a printer settings endpoint, deriving
+// the printer base URL from the bitmap print URL.
+func postPrinterSetting(printerBitmapURL, path, key string, value int) error {
 	base := strings.TrimSuffix(printerBitmapURL, "/api/print/bitmap")
 	if base == printerBitmapURL {
 		// URL didn't match the expected shape; best-effort strip of the path.
@@ -192,26 +206,26 @@ func setPrinterDensity(printerBitmapURL string, density int) error {
 			base = printerBitmapURL[:i]
 		}
 	}
-	url := base + "/api/printer/density"
-	payload, err := json.Marshal(map[string]int{"density": density})
+	url := base + path
+	payload, err := json.Marshal(map[string]int{key: value})
 	if err != nil {
-		return fmt.Errorf("marshal density: %w", err)
+		return fmt.Errorf("marshal %s: %w", key, err)
 	}
 	req, err := http.NewRequest("POST", url, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create density request: %w", err)
+		return fmt.Errorf("create %s request: %w", key, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Connection", "close")
 	client := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{DisableKeepAlives: true}}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("set density request failed: %w", err)
+		return fmt.Errorf("set %s request failed: %w", key, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("set density returned %d: %s", resp.StatusCode, body)
+		return fmt.Errorf("set %s returned %d: %s", key, resp.StatusCode, body)
 	}
 	return nil
 }

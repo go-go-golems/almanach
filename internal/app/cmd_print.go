@@ -140,6 +140,14 @@ func (c *PrintCommand) RunIntoGlazeProcessor(ctx context.Context, vals *values.V
 	printerOK := false
 	var printerResponse map[string]any
 	if !s.DryRun {
+		// Apply the page-level printer speed render option before printing. The
+		// firmware validates against its supported set; we validated the layout
+		// value already, so a failure here is connectivity — warn and continue.
+		if opts.PrinterSpeed > 0 {
+			if serr := setPrinterSpeed(printerURL, opts.PrinterSpeed); serr != nil {
+				log.Printf("warning: could not set printer speed=%d: %v", opts.PrinterSpeed, serr)
+			}
+		}
 		if len(result.HeatRegions) > 0 {
 			// Per-segment heat (Phase 6): different bands print at different
 			// densities (text hot, photos cool) in one page. Gaps use the

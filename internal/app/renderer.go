@@ -261,7 +261,10 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	// Downscale the oversampled screenshot back to the target resolution, then
 	// convert to 1-bit. At scale 1 with no per-block regions this is the plain
 	// threshold path; per-block render overrides add raster regions (Phase 6).
+	// Page-level rasterMode/gamma (Layout.render) cover every row not claimed
+	// by a block override, so a full-page dither needs no per-block config.
 	regions := blockRasterRegions(blockMetrics, opts.PerBlockRender)
+	regions = append(regions, pageRasterRegions(opts.RasterMode, opts.Gamma, regions)...)
 	bitmap, err := pngToBitmapSupersampledRegions(screenshotBuf, opts.Threshold, opts.SupersampleScale, regions)
 	if err != nil {
 		return nil, fmt.Errorf("bitmap convert: %w", err)
