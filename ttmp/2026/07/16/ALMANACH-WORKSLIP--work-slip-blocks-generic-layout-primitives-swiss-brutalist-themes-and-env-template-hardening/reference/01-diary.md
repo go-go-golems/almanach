@@ -787,3 +787,49 @@ merge" (b23b854 pushed).
 ### What warrants a second pair of eyes
 - The merge also brought in main's publish-image workflow changes (GitOps app
   tokens) — unrelated to this ticket, came along with the merge.
+
+## Step 11: PR #7 follow-up review — heat gap density and wire-format inlineTheme
+
+The reviewer's second pass (on the Step 9 fixes) found two more real gaps,
+both in the same "the DSL advertises it, the pipeline drops it" family.
+
+### Prompt Context
+
+**User prompt (verbatim):** "Address follow up review comments: https://github.com/go-go-golems/almanach/pull/7"
+
+**Commit (code):** 7311cff (+ embed bundle regen).
+
+### What I did
+- **Heat gap density:** on a mixed-heat page with no page-level
+  `printerDensity`, gap bands carried density 0, which `sendBitmapWithHeat`
+  skips — so everything after a block override printed at that block's
+  density (a photo at 20 bled into the text below). The firmware has no
+  density *getter*, so restoring the literal previous value is impossible;
+  `heatGapDensity` now resolves gaps to the page density or the
+  paper-verified text default (`defaultHeatGapDensity` = 38). Unit +
+  end-to-end test through `densityBands`.
+- **inlineTheme:** `parseLayoutJson` read only `parsed.theme`, so the proto
+  wire format's `Layout.inline_theme` was ignored entirely. Now inlineTheme
+  takes precedence (proto contract) with the string theme as its base.
+  Verified headless: a wire-format layout with fontPalette + presetOverrides
+  + tokens in `inlineTheme` renders all three (900/upper sans body, 12px
+  heavy rule) on a `minimal` base.
+- Replied to both review comments with the fixes; regenerated the embedded
+  bundle (the CI generated-files check requires it after any JSX change).
+
+### What I learned
+- The heat-band "0 = leave unchanged" convention is only sound while nothing
+  in the page changes the density; the moment per-block heat exists, "leave
+  unchanged" means "inherit whatever the previous band set" — a stateful
+  protocol needs every participant to write, not just the ones with opinions.
+
+### What warrants a second pair of eyes
+- The 38 default for gap bands is a policy choice (text-optimal); a photo-only
+  page with one override band now prints its gaps at 38 rather than the
+  printer's previous setting.
+
+### Code review instructions
+- `heatGapDensity`/`defaultHeatGapDensity` in printer.go + the cmd_print call
+  site; the `themeSpec` construction in `parseLayoutJson`.
+- Validate: `GOWORK=off go test ./internal/app/ -run TestHeatGap -count=1`;
+  render a wire-format layout with `inlineTheme` headless.

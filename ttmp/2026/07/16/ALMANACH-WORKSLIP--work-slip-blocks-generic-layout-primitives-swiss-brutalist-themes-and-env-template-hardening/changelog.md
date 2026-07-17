@@ -64,3 +64,8 @@ Step 9: PR #7 review fixes (content field, page-level raster, bayer/FS, printer 
 
 Step 10: merged upstream/main into PR branch (main had independently bumped go to 1.26.5); tidy dropped redundant toolchain directive; pushed b23b854. Lesson: pull_request checks build the merge commit.
 
+
+## 2026-07-17
+
+Step 11: PR #7 follow-up fixes — heat gap density fallback (38) + wire-format inlineTheme honored (commit 7311cff); replied to review comments.
+
