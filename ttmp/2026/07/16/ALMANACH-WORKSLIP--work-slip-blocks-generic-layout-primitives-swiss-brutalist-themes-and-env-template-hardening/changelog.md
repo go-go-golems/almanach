@@ -54,3 +54,8 @@ Step 7: margin:0 experiment exposed stateRef/setMargin bug — headless renders 
 
 Step 8: 0px default padding + blockGap token + scale up one step; decision sheet converted to brutalist mock form; reprinted (commit a4f3c6d).
 
+
+## 2026-07-17
+
+Step 9: PR #7 review fixes (content field, page-level raster, bayer/FS, printer speed, density range) + CI repair (stale embed, gosec G115, toolchain 1.26.5, TruffleHog excludes) — commits da54a8e, f282553.
+

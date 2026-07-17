@@ -649,3 +649,98 @@ dense, loud, edge to edge.
 - Diff `ThermalPaper` (blockGap), the three THEMES entries, DEFAULT_PRESETS,
   and `11-decision-sheet.yaml`; compare `docs/screenshots/11-decision-sheet.png`
   against the user's mock.
+
+## Step 9: PR #7 review fixes and CI repair
+
+Addressed all five Codex review comments on PR #7 and all four failing CI
+checks. The reviewer was right on every count: the P1 (studio ignores the
+proto wire format's `content` field) meant the "cross-language DSL" could not
+render its own golden fixture; the P2s were all real gaps between what the
+DSL advertises and what the pipeline executes (page-level raster modes
+ignored, Bayer unimplemented, Floyd-Steinberg mislabeled as Atkinson,
+printerSpeed never sent, density validated against 0-255 when the firmware
+accepts 0-39).
+
+### Prompt Context
+
+**User prompt (verbatim):** "Address all code issues in https://github.com/go-go-golems/almanach/pull/7\n\nContinue keeping a diary and ommititng at appropriately. Also look at the failed actions. It's not said that everything needs to be addressed, but usually the reviewer is pretty good"
+
+**Assistant interpretation:** Triage and fix the PR's review comments and CI
+failures, with judgment on what's worth addressing (everything was).
+
+**Inferred user intent:** Get PR #7 green and review-clean.
+
+**Commits (code):** da54a8e (render/raster/printer fixes), f282553 (studio
+content fix + embed refresh), + CI commit (toolchain/TruffleHog).
+
+### What I did
+- **P1, studio:** `parseLayoutJson` accepts `b.content` (proto wire format)
+  alongside `b.data`. Verified by rendering
+  `proto/almanach/layout/v1/testdata/layout_golden.json` headless — real
+  content ("THE KNOWLEDGE STRIP", the Dorothy Parker quote) instead of
+  defaults.
+- **P2, page-level raster:** new `pageRasterRegions(mode, gamma, blockRegions)`
+  builds full-page regions covering the complement of per-block bands
+  (trailing region YEnd = MaxInt32, clamped later); wired into
+  `renderWithChrome`. Verified e2e: a gradient image with flat
+  `render: {rasterMode: ATKINSON, gamma: 0.8}` and no per-block override now
+  dithers (134 black/white transitions on the densest row).
+- **P2, dither modes:** implemented `bayerBand` (4x4 ordered matrix,
+  position-deterministic) and `floydSteinbergBand` (real 7/16-3/16-5/16-1/16
+  diffusion, band-confined); the old switch ran Atkinson for
+  "floydSteinberg" and hard threshold for "bayer".
+- **P2, printer speed:** `setPrinterSpeed` (shared `postPrinterSetting`
+  refactor with density) called before printing in cmd_print;
+  `validateRenderOptions` checks speed against the firmware's discrete table
+  {25,30,37,50,56,62,70,80,90,100,120,150,180,200,220} read from
+  `firmware/atoms3r/main/web_server.c`.
+- **P2, density range:** validation tightened 0-255 → 0-39 (firmware range).
+- **CI test job:** `internal/web/embed/public/` was stale (never regenerated
+  since the slip pack); `BUILD_WEB_LOCAL=1 go generate ./internal/web`.
+- **gosec:** G115 x2 fixed with `clampToUint8` (blockRasterRegions threshold,
+  downscaleBoxGray pixel write). Local gosec run: 0 issues.
+- **govulncheck:** GO-2026-5856 (crypto/tls, fixed go1.26.5) — added
+  `toolchain go1.26.5` to go.mod (setup-go's go-version-file honors it).
+- **TruffleHog:** reproduced locally in docker; both unverified findings
+  (Sirv/Aiven) are random base64 substrings in `web/src/fonts-embedded.css`
+  (DejaVu subsets, commit ec81697). Added `.trufflehog-exclude.txt` +
+  `extra_args: --exclude-paths` to the workflow; re-ran locally over the same
+  commit range: 0 findings.
+- New tests: Bayer ~50% coverage + 4x4 tiling determinism, Floyd-Steinberg
+  dithers, `pageRasterRegions` unit cases, page-dither-around-block e2e,
+  density/speed validation boundaries.
+
+### What worked
+- Reproducing TruffleHog in docker with the exact CI base/head made the
+  false-positive diagnosis conclusive instead of guessed.
+
+### What didn't work
+- N/A — no dead ends this step.
+
+### What I learned
+- `imageToBitmapRegions` regions must not overlap (bands only *set* black
+  pixels, so double-processing a row double-dithers it); that is why
+  `pageRasterRegions` emits the complement of block bands instead of one
+  full-page region appended after them.
+- The firmware's speed endpoint accepts a discrete table, not a range —
+  validation had to enumerate, not clamp.
+
+### What warrants a second pair of eyes
+- `pageRasterRegions` semantics: page-level gamma alone (no dither mode) now
+  produces threshold+gamma regions — a behavior change for layouts that set
+  only `render.gamma` (previously ignored; now applied). Intended, but it is
+  the one case where existing output changes.
+- The `toolchain go1.26.5` bump assumes setup-go resolves the toolchain
+  directive; if a CI job pins Go differently it would fail with a version
+  mismatch rather than silently downgrade.
+
+### What should be done in the future
+- Print a Bayer vs Atkinson vs FS comparison strip on paper — modes are now
+  real, but only Atkinson has paper-verified tuning.
+
+### Code review instructions
+- Start at `internal/app/rasterize.go` (`pageRasterRegions`, `bayerBand`,
+  `floydSteinbergBand`, the mode switch), then the two-line renderer.go wire,
+  then `parseLayoutJson` in the studio.
+- Validate: `GOWORK=off go test ./internal/app/ -run 'TestBayer|TestFloyd|TestPage' -count=1`;
+  render the golden fixture headless; gosec + trufflehog runs as in this step.
