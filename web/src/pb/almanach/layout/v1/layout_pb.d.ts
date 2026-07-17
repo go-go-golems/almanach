@@ -339,10 +339,54 @@ export declare type ThemeColors = Message<"almanach.layout.v1.ThemeColors"> & {
 export declare const ThemeColorsSchema: GenMessage<ThemeColors>;
 
 /**
- * A theme as data (Phase 4): colors, the font families it draws from, and its
- * own preset overrides. Built-in themes are seed data of this shape; a layout
- * may carry one inline (Layout.inline_theme) to define or patch a theme with no
- * code change.
+ * Design tokens consumed by layout-primitive blocks (the work-slip pack:
+ * rule, space, banner, writein, row gaps). All fields are optional; unset
+ * values fall back to studio defaults, so themes without tokens keep working
+ * (ALMANACH-WORKSLIP Phase 3).
+ *
+ * @generated from message almanach.layout.v1.ThemeTokens
+ */
+export declare type ThemeTokens = Message<"almanach.layout.v1.ThemeTokens"> & {
+  /**
+   * Named vertical spacing steps in px. Known keys: xs, s, m, l, xl.
+   *
+   * @generated from field: map<string, int32> space = 1;
+   */
+  space: { [key: string]: number };
+
+  /**
+   * Named rule thicknesses in px. Known keys: hair, thick, heavy.
+   *
+   * @generated from field: map<string, int32> rules = 2;
+   */
+  rules: { [key: string]: number };
+
+  /**
+   * How rules draw: "solid" (default) or "dashed".
+   *
+   * @generated from field: string rule_style = 3;
+   */
+  ruleStyle: string;
+
+  /**
+   * How banner blocks draw: "invert" (filled bar, default) or "outline".
+   *
+   * @generated from field: string banner_style = 4;
+   */
+  bannerStyle: string;
+};
+
+/**
+ * Describes the message almanach.layout.v1.ThemeTokens.
+ * Use `create(ThemeTokensSchema)` to create a new message.
+ */
+export declare const ThemeTokensSchema: GenMessage<ThemeTokens>;
+
+/**
+ * A theme as data (Phase 4): colors, the font families it draws from, its own
+ * preset overrides, and design tokens. Built-in themes are seed data of this
+ * shape; a layout may carry one inline (Layout.inline_theme) to define or
+ * patch a theme with no code change.
  *
  * @generated from message almanach.layout.v1.Theme
  */
@@ -372,6 +416,13 @@ export declare type Theme = Message<"almanach.layout.v1.Theme"> & {
    * @generated from field: map<string, almanach.layout.v1.TextStyle> preset_overrides = 4;
    */
   presetOverrides: { [key: string]: TextStyle };
+
+  /**
+   * Design tokens for layout-primitive blocks.
+   *
+   * @generated from field: almanach.layout.v1.ThemeTokens tokens = 5;
+   */
+  tokens?: ThemeTokens | undefined;
 };
 
 /**

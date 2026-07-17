@@ -142,10 +142,25 @@ message ThemeColors {
   string rule = 5;
 }
 
-// A theme as data (Phase 4): colors, the font families it draws from, and its
-// own preset overrides. Built-in themes are seed data of this shape; a layout
-// may carry one inline (Layout.inline_theme) to define or patch a theme with no
-// code change.
+// Design tokens consumed by layout-primitive blocks (the work-slip pack:
+// rule, space, banner, writein, row gaps). All fields are optional; unset
+// values fall back to studio defaults, so themes without tokens keep working
+// (ALMANACH-WORKSLIP Phase 3).
+message ThemeTokens {
+  // Named vertical spacing steps in px. Known keys: xs, s, m, l, xl.
+  map<string, int32> space = 1;
+  // Named rule thicknesses in px. Known keys: hair, thick, heavy.
+  map<string, int32> rules = 2;
+  // How rules draw: "solid" (default) or "dashed".
+  string rule_style = 3;
+  // How banner blocks draw: "invert" (filled bar, default) or "outline".
+  string banner_style = 4;
+}
+
+// A theme as data (Phase 4): colors, the font families it draws from, its own
+// preset overrides, and design tokens. Built-in themes are seed data of this
+// shape; a layout may carry one inline (Layout.inline_theme) to define or
+// patch a theme with no code change.
 message Theme {
   string name = 1;
   ThemeColors colors = 2;
@@ -155,6 +170,8 @@ message Theme {
   // Preset overrides applied on top of the built-in typography defaults when
   // this theme is active.
   map<string, TextStyle> preset_overrides = 4;
+  // Design tokens for layout-primitive blocks.
+  ThemeTokens tokens = 5;
 }
 
 // How a screenshot region becomes a 1-bit bitmap and how the printer burns it.

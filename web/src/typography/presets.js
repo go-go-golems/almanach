@@ -65,6 +65,18 @@ export const DEFAULT_PRESETS = {
   small: { role: "body", size: 11, weight: 600, letterSpacing: 0.02, lineHeight: 1.3, minSize: 11 },
   // Tabular metadata (plan times).
   meta: { role: "body", size: 12, weight: 600, lineHeight: 1.2, minSize: 11 },
+
+  // Work-slip scale (ALMANACH-WORKSLIP Phase 3), ported from slip-studio's
+  // 576-dot designs at ~x0.67 for 384-dot paper. Sizes are print-ready
+  // absolutes — slip layouts should set bodyScale: 1.
+  // Huge stat numerals ("5 PROPOSALS" trios, digest weekday).
+  display: { role: "display", size: 40, weight: 900, lineHeight: 1.02 },
+  // Slip headline (job title).
+  h1: { role: "display", size: 25, weight: 900, lineHeight: 1.1 },
+  // Secondary headline (rates, section heads).
+  h2: { role: "display", size: 19, weight: 700, lineHeight: 1.15 },
+  // Tracked uppercase labels (stat captions, table heads) — floored + bold.
+  micro: { role: "body", size: 10, weight: 700, letterSpacing: 0.14, textCase: "upper", lineHeight: 1.2, minSize: 9 },
 };
 
 /**

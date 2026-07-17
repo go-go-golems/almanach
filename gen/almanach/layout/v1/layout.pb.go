@@ -686,10 +686,86 @@ func (x *ThemeColors) GetRule() string {
 	return ""
 }
 
-// A theme as data (Phase 4): colors, the font families it draws from, and its
-// own preset overrides. Built-in themes are seed data of this shape; a layout
-// may carry one inline (Layout.inline_theme) to define or patch a theme with no
-// code change.
+// Design tokens consumed by layout-primitive blocks (the work-slip pack:
+// rule, space, banner, writein, row gaps). All fields are optional; unset
+// values fall back to studio defaults, so themes without tokens keep working
+// (ALMANACH-WORKSLIP Phase 3).
+type ThemeTokens struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Named vertical spacing steps in px. Known keys: xs, s, m, l, xl.
+	Space map[string]int32 `protobuf:"bytes,1,rep,name=space,proto3" json:"space,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// Named rule thicknesses in px. Known keys: hair, thick, heavy.
+	Rules map[string]int32 `protobuf:"bytes,2,rep,name=rules,proto3" json:"rules,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// How rules draw: "solid" (default) or "dashed".
+	RuleStyle string `protobuf:"bytes,3,opt,name=rule_style,json=ruleStyle,proto3" json:"rule_style,omitempty"`
+	// How banner blocks draw: "invert" (filled bar, default) or "outline".
+	BannerStyle   string `protobuf:"bytes,4,opt,name=banner_style,json=bannerStyle,proto3" json:"banner_style,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ThemeTokens) Reset() {
+	*x = ThemeTokens{}
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ThemeTokens) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ThemeTokens) ProtoMessage() {}
+
+func (x *ThemeTokens) ProtoReflect() protoreflect.Message {
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ThemeTokens.ProtoReflect.Descriptor instead.
+func (*ThemeTokens) Descriptor() ([]byte, []int) {
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ThemeTokens) GetSpace() map[string]int32 {
+	if x != nil {
+		return x.Space
+	}
+	return nil
+}
+
+func (x *ThemeTokens) GetRules() map[string]int32 {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+func (x *ThemeTokens) GetRuleStyle() string {
+	if x != nil {
+		return x.RuleStyle
+	}
+	return ""
+}
+
+func (x *ThemeTokens) GetBannerStyle() string {
+	if x != nil {
+		return x.BannerStyle
+	}
+	return ""
+}
+
+// A theme as data (Phase 4): colors, the font families it draws from, its own
+// preset overrides, and design tokens. Built-in themes are seed data of this
+// shape; a layout may carry one inline (Layout.inline_theme) to define or
+// patch a theme with no code change.
 type Theme struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	Name   string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -700,13 +776,15 @@ type Theme struct {
 	// Preset overrides applied on top of the built-in typography defaults when
 	// this theme is active.
 	PresetOverrides map[string]*TextStyle `protobuf:"bytes,4,rep,name=preset_overrides,json=presetOverrides,proto3" json:"preset_overrides,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Design tokens for layout-primitive blocks.
+	Tokens        *ThemeTokens `protobuf:"bytes,5,opt,name=tokens,proto3" json:"tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Theme) Reset() {
 	*x = Theme{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -718,7 +796,7 @@ func (x *Theme) String() string {
 func (*Theme) ProtoMessage() {}
 
 func (x *Theme) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[6]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -731,7 +809,7 @@ func (x *Theme) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Theme.ProtoReflect.Descriptor instead.
 func (*Theme) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{6}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Theme) GetName() string {
@@ -762,6 +840,13 @@ func (x *Theme) GetPresetOverrides() map[string]*TextStyle {
 	return nil
 }
 
+func (x *Theme) GetTokens() *ThemeTokens {
+	if x != nil {
+		return x.Tokens
+	}
+	return nil
+}
+
 type RenderOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// CSS selector of the element to screenshot (page-level only).
@@ -786,7 +871,7 @@ type RenderOptions struct {
 
 func (x *RenderOptions) Reset() {
 	*x = RenderOptions{}
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[7]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -798,7 +883,7 @@ func (x *RenderOptions) String() string {
 func (*RenderOptions) ProtoMessage() {}
 
 func (x *RenderOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_almanach_layout_v1_layout_proto_msgTypes[7]
+	mi := &file_almanach_layout_v1_layout_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -811,7 +896,7 @@ func (x *RenderOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RenderOptions.ProtoReflect.Descriptor instead.
 func (*RenderOptions) Descriptor() ([]byte, []int) {
-	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{7}
+	return file_almanach_layout_v1_layout_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RenderOptions) GetSelector() string {
@@ -943,12 +1028,27 @@ const file_almanach_layout_v1_layout_proto_rawDesc = "" +
 	"\x03ink\x18\x02 \x01(\tR\x03ink\x12\x14\n" +
 	"\x05muted\x18\x03 \x01(\tR\x05muted\x12\x16\n" +
 	"\x06accent\x18\x04 \x01(\tR\x06accent\x12\x12\n" +
-	"\x04rule\x18\x05 \x01(\tR\x04rule\"\xb5\x02\n" +
+	"\x04rule\x18\x05 \x01(\tR\x04rule\"\xc7\x02\n" +
+	"\vThemeTokens\x12@\n" +
+	"\x05space\x18\x01 \x03(\v2*.almanach.layout.v1.ThemeTokens.SpaceEntryR\x05space\x12@\n" +
+	"\x05rules\x18\x02 \x03(\v2*.almanach.layout.v1.ThemeTokens.RulesEntryR\x05rules\x12\x1d\n" +
+	"\n" +
+	"rule_style\x18\x03 \x01(\tR\truleStyle\x12!\n" +
+	"\fbanner_style\x18\x04 \x01(\tR\vbannerStyle\x1a8\n" +
+	"\n" +
+	"SpaceEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\x1a8\n" +
+	"\n" +
+	"RulesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xee\x02\n" +
 	"\x05Theme\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x127\n" +
 	"\x06colors\x18\x02 \x01(\v2\x1f.almanach.layout.v1.ThemeColorsR\x06colors\x12!\n" +
 	"\ffont_palette\x18\x03 \x03(\tR\vfontPalette\x12Y\n" +
-	"\x10preset_overrides\x18\x04 \x03(\v2..almanach.layout.v1.Theme.PresetOverridesEntryR\x0fpresetOverrides\x1aa\n" +
+	"\x10preset_overrides\x18\x04 \x03(\v2..almanach.layout.v1.Theme.PresetOverridesEntryR\x0fpresetOverrides\x127\n" +
+	"\x06tokens\x18\x05 \x01(\v2\x1f.almanach.layout.v1.ThemeTokensR\x06tokens\x1aa\n" +
 	"\x14PresetOverridesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x123\n" +
 	"\x05value\x18\x02 \x01(\v2\x1d.almanach.layout.v1.TextStyleR\x05value:\x028\x01\"\x9b\x04\n" +
@@ -999,7 +1099,7 @@ func file_almanach_layout_v1_layout_proto_rawDescGZIP() []byte {
 }
 
 var file_almanach_layout_v1_layout_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_almanach_layout_v1_layout_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_almanach_layout_v1_layout_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_almanach_layout_v1_layout_proto_goTypes = []any{
 	(TextCase)(0),           // 0: almanach.layout.v1.TextCase
 	(RasterMode)(0),         // 1: almanach.layout.v1.RasterMode
@@ -1009,35 +1109,41 @@ var file_almanach_layout_v1_layout_proto_goTypes = []any{
 	(*TextStyle)(nil),       // 5: almanach.layout.v1.TextStyle
 	(*Typography)(nil),      // 6: almanach.layout.v1.Typography
 	(*ThemeColors)(nil),     // 7: almanach.layout.v1.ThemeColors
-	(*Theme)(nil),           // 8: almanach.layout.v1.Theme
-	(*RenderOptions)(nil),   // 9: almanach.layout.v1.RenderOptions
-	nil,                     // 10: almanach.layout.v1.Layout.DataEntry
-	nil,                     // 11: almanach.layout.v1.Typography.PresetsEntry
-	nil,                     // 12: almanach.layout.v1.Theme.PresetOverridesEntry
-	(*structpb.Struct)(nil), // 13: google.protobuf.Struct
+	(*ThemeTokens)(nil),     // 8: almanach.layout.v1.ThemeTokens
+	(*Theme)(nil),           // 9: almanach.layout.v1.Theme
+	(*RenderOptions)(nil),   // 10: almanach.layout.v1.RenderOptions
+	nil,                     // 11: almanach.layout.v1.Layout.DataEntry
+	nil,                     // 12: almanach.layout.v1.Typography.PresetsEntry
+	nil,                     // 13: almanach.layout.v1.ThemeTokens.SpaceEntry
+	nil,                     // 14: almanach.layout.v1.ThemeTokens.RulesEntry
+	nil,                     // 15: almanach.layout.v1.Theme.PresetOverridesEntry
+	(*structpb.Struct)(nil), // 16: google.protobuf.Struct
 }
 var file_almanach_layout_v1_layout_proto_depIdxs = []int32{
-	8,  // 0: almanach.layout.v1.Layout.inline_theme:type_name -> almanach.layout.v1.Theme
+	9,  // 0: almanach.layout.v1.Layout.inline_theme:type_name -> almanach.layout.v1.Theme
 	6,  // 1: almanach.layout.v1.Layout.typography:type_name -> almanach.layout.v1.Typography
 	4,  // 2: almanach.layout.v1.Layout.blocks:type_name -> almanach.layout.v1.Block
-	10, // 3: almanach.layout.v1.Layout.data:type_name -> almanach.layout.v1.Layout.DataEntry
-	9,  // 4: almanach.layout.v1.Layout.render:type_name -> almanach.layout.v1.RenderOptions
+	11, // 3: almanach.layout.v1.Layout.data:type_name -> almanach.layout.v1.Layout.DataEntry
+	10, // 4: almanach.layout.v1.Layout.render:type_name -> almanach.layout.v1.RenderOptions
 	3,  // 5: almanach.layout.v1.Layout.margin:type_name -> almanach.layout.v1.EdgeInsets
 	5,  // 6: almanach.layout.v1.Block.style:type_name -> almanach.layout.v1.TextStyle
-	13, // 7: almanach.layout.v1.Block.content:type_name -> google.protobuf.Struct
-	9,  // 8: almanach.layout.v1.Block.render:type_name -> almanach.layout.v1.RenderOptions
+	16, // 7: almanach.layout.v1.Block.content:type_name -> google.protobuf.Struct
+	10, // 8: almanach.layout.v1.Block.render:type_name -> almanach.layout.v1.RenderOptions
 	0,  // 9: almanach.layout.v1.TextStyle.text_case:type_name -> almanach.layout.v1.TextCase
-	11, // 10: almanach.layout.v1.Typography.presets:type_name -> almanach.layout.v1.Typography.PresetsEntry
-	7,  // 11: almanach.layout.v1.Theme.colors:type_name -> almanach.layout.v1.ThemeColors
-	12, // 12: almanach.layout.v1.Theme.preset_overrides:type_name -> almanach.layout.v1.Theme.PresetOverridesEntry
-	1,  // 13: almanach.layout.v1.RenderOptions.raster_mode:type_name -> almanach.layout.v1.RasterMode
-	5,  // 14: almanach.layout.v1.Typography.PresetsEntry.value:type_name -> almanach.layout.v1.TextStyle
-	5,  // 15: almanach.layout.v1.Theme.PresetOverridesEntry.value:type_name -> almanach.layout.v1.TextStyle
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	12, // 10: almanach.layout.v1.Typography.presets:type_name -> almanach.layout.v1.Typography.PresetsEntry
+	13, // 11: almanach.layout.v1.ThemeTokens.space:type_name -> almanach.layout.v1.ThemeTokens.SpaceEntry
+	14, // 12: almanach.layout.v1.ThemeTokens.rules:type_name -> almanach.layout.v1.ThemeTokens.RulesEntry
+	7,  // 13: almanach.layout.v1.Theme.colors:type_name -> almanach.layout.v1.ThemeColors
+	15, // 14: almanach.layout.v1.Theme.preset_overrides:type_name -> almanach.layout.v1.Theme.PresetOverridesEntry
+	8,  // 15: almanach.layout.v1.Theme.tokens:type_name -> almanach.layout.v1.ThemeTokens
+	1,  // 16: almanach.layout.v1.RenderOptions.raster_mode:type_name -> almanach.layout.v1.RasterMode
+	5,  // 17: almanach.layout.v1.Typography.PresetsEntry.value:type_name -> almanach.layout.v1.TextStyle
+	5,  // 18: almanach.layout.v1.Theme.PresetOverridesEntry.value:type_name -> almanach.layout.v1.TextStyle
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_almanach_layout_v1_layout_proto_init() }
@@ -1046,14 +1152,14 @@ func file_almanach_layout_v1_layout_proto_init() {
 		return
 	}
 	file_almanach_layout_v1_layout_proto_msgTypes[3].OneofWrappers = []any{}
-	file_almanach_layout_v1_layout_proto_msgTypes[7].OneofWrappers = []any{}
+	file_almanach_layout_v1_layout_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_almanach_layout_v1_layout_proto_rawDesc), len(file_almanach_layout_v1_layout_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

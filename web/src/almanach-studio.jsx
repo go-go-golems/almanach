@@ -160,6 +160,102 @@ const THEMES = {
     ornateFrame: false,
     grain: 0,
   },
+  // Work themes (ALMANACH-WORKSLIP): bold modern looks for work/logistics
+  // printouts, driven by the embedded Archivo variable font and the theme
+  // tokens the slip block pack consumes (spacing / rule weights / banner
+  // style). `presetOverrides` here layer under layout typography exactly like
+  // an inline theme's.
+  swiss: {
+    name: "Swiss (Archivo)",
+    icon: "▚",
+    paper: "#ffffff",
+    ink: "#000000",
+    muted: "#000000",
+    accent: "#000000",
+    rule: "#000000",
+    fontDisplay: "'Archivo', 'DejaVu Sans', sans-serif",
+    fontBody: "'Archivo', 'DejaVu Sans', sans-serif",
+    fontMono: "'DejaVu Sans Mono', monospace",
+    titleSize: 26,
+    titleWeight: 900,
+    titleSpacing: "0.03em",
+    titleCase: "uppercase",
+    ornateFrame: false,
+    grain: 0,
+    presetOverrides: {
+      body: { weight: 500 },
+      caption: { weight: 600 },
+    },
+    tokens: {
+      space: { xs: 5, s: 10, m: 16, l: 26, xl: 42 },
+      rules: { hair: 1, thick: 3, heavy: 7 },
+      ruleStyle: "solid",
+      bannerStyle: "invert",
+    },
+  },
+  brutalist: {
+    name: "Brutalist (Archivo)",
+    icon: "▉",
+    paper: "#ffffff",
+    ink: "#000000",
+    muted: "#000000",
+    accent: "#000000",
+    rule: "#000000",
+    fontDisplay: "'Archivo', 'DejaVu Sans', sans-serif",
+    fontBody: "'Archivo', 'DejaVu Sans', sans-serif",
+    fontMono: "'DejaVu Sans Mono', monospace",
+    titleSize: 30,
+    titleWeight: 900,
+    titleSpacing: "0",
+    titleCase: "uppercase",
+    ornateFrame: false,
+    grain: 0,
+    // Everything heavy and uppercase — slip-studio's forceCase, expressed as
+    // preset data instead of a special mechanism.
+    presetOverrides: {
+      body: { weight: 700, textCase: "upper" },
+      bodyStrong: { weight: 900, textCase: "upper" },
+      caption: { weight: 700, textCase: "upper" },
+      small: { weight: 700, textCase: "upper" },
+      h2: { weight: 900 },
+      overline: { weight: 700 },
+    },
+    tokens: {
+      space: { xs: 5, s: 10, m: 16, l: 26, xl: 42 },
+      rules: { hair: 6, thick: 8, heavy: 10 },
+      ruleStyle: "solid",
+      bannerStyle: "invert",
+    },
+  },
+  terminal: {
+    name: "Terminal (Mono)",
+    icon: "▤",
+    paper: "#ffffff",
+    ink: "#000000",
+    muted: "#000000",
+    accent: "#000000",
+    rule: "#000000",
+    fontDisplay: "'DejaVu Sans Mono', monospace",
+    fontBody: "'DejaVu Sans Mono', monospace",
+    fontMono: "'DejaVu Sans Mono', monospace",
+    titleSize: 22,
+    titleWeight: 700,
+    titleSpacing: "0.05em",
+    titleCase: "uppercase",
+    ornateFrame: false,
+    grain: 0,
+    presetOverrides: {
+      display: { size: 32, weight: 700 },
+      h1: { size: 21, weight: 700 },
+      h2: { size: 17, weight: 700 },
+    },
+    tokens: {
+      space: { xs: 4, s: 8, m: 13, l: 21, xl: 32 },
+      rules: { hair: 1, thick: 2, heavy: 2 },
+      ruleStyle: "dashed",
+      bannerStyle: "outline",
+    },
+  },
 };
 
 // Normalize a layout `margin` value into a CSS padding string for the paper
@@ -217,6 +313,9 @@ function resolveThemeSpec(spec) {
     if (typeof spec.titleWeight === "number") patch.titleWeight = spec.titleWeight;
     if (typeof spec.titleSpacing === "string") patch.titleSpacing = spec.titleSpacing;
     if (typeof spec.titleCase === "string") patch.titleCase = spec.titleCase;
+    // Design tokens (proto ThemeTokens) replace the base theme's wholesale;
+    // per-name gaps still fall back to the pack defaults in the accessors.
+    if (spec.tokens && typeof spec.tokens === "object") patch.tokens = spec.tokens;
     const presetOverrides = spec.presetOverrides && typeof spec.presetOverrides === "object"
       ? spec.presetOverrides
       : {};
@@ -1880,7 +1979,13 @@ export default function AlmanachStudio() {
   // first two are merged here (layout wins per field). Blocks call
   // theme.preset("body"), etc. See web/src/typography/presets.js.
   theme.fontMono = theme.fontMono || "'JetBrains Mono', 'DejaVu Sans Mono', monospace";
-  theme.preset = makePresetResolver({ presets: mergePresetMaps(themePresets, typography), theme, bodyScale });
+  // Built-in themes may carry presetOverrides (work themes); they layer below
+  // inline-theme overrides, which layer below layout typography.
+  theme.preset = makePresetResolver({
+    presets: mergePresetMaps(THEMES[themeKey].presetOverrides, themePresets, typography),
+    theme,
+    bodyScale,
+  });
   // Convenience alias used in block renderers
   const fs = fsRaw;
   const selected = blocks.find((b) => b.id === selectedId);
