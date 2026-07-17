@@ -56,12 +56,23 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # macOS hosted runners do not provide Docker, so go generate must use its
+      # local pnpm fallback instead of the Dagger builder.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: "~> v2"
           args: release --clean --split
         env:
+          BUILD_WEB_LOCAL: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GGOOS: darwin
