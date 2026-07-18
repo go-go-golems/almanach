@@ -13,7 +13,7 @@ import {
   colWidthStyle,
   normalizeKVItems,
 } from "./tokens.js";
-import { buildQrMatrix } from "./qr.js";
+import { buildQrMatrix, qrValue } from "./qr.js";
 
 // ---- spacing tokens ----
 // Numbers pass through; names resolve from theme tokens, then defaults.
@@ -53,6 +53,11 @@ assert.deepEqual(normalizeKVItems([["tuple", "value"], { k: "object", v: "value"
 assert.deepEqual(normalizeKVItems(null), []);
 
 // ---- QR matrix ----
+assert.equal(qrValue({ value: "https://example.test/value", text: "fallback" }), "https://example.test/value");
+assert.equal(qrValue({ text: "https://example.test/text" }), "https://example.test/text");
+assert.equal(qrValue({ value: "", text: "https://example.test/text" }), "https://example.test/text");
+assert.equal(qrValue(null), "");
+
 const m = buildQrMatrix("https://www.upwork.com/jobs/~022075297946215353790/", 120);
 assert.ok(m, "matrix for a real URL");
 assert.ok(m.count >= 21, "at least version-1 module count");

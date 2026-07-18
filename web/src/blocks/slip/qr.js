@@ -16,6 +16,13 @@ import qrcode from "qrcode-generator";
  *   per module so modules land on pixel boundaries — fractional modules get
  *   eaten or smeared by the 1-bit threshold.
  */
+// qrValue accepts `value` as the documented field and `text` as a compatibility
+// alias used by early/generated work-slip layouts.
+export function qrValue(data) {
+  if (!data || typeof data !== "object") return "";
+  return typeof data.value === "string" && data.value.trim() !== "" ? data.value : data.text;
+}
+
 export function buildQrMatrix(value, targetSize = 120) {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return null;
