@@ -60,7 +60,9 @@ export const SLIP_DEFAULTS = {
   list: { marker: "—", items: ["first item", "second item"] },
   checks: { items: ["option a", "option b"], columns: 2 },
   writein: { label: "NOTES", lines: 2 },
-  qr: { value: "https://example.com", size: 120, align: "right", caption: "scan me" },
+  // A QR must never acquire a fake payload when importing a layout. The editor
+  // shows the explicit no-value placeholder until the author supplies value.
+  qr: { size: 120, align: "right", caption: "scan me" },
   bars: { height: 14, values: [{ label: "alpha", value: 12 }, { label: "beta", value: 7 }, { label: "gamma", value: 3 }] },
   table: {
     cols: [{ label: "item", w: undefined }, { label: "qty", w: 60, align: "right" }],

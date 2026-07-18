@@ -1,6 +1,6 @@
 import React from "react";
 import { spaceToken, ruleToken, ruleStyleToken, bannerStyleToken, colWidthStyle, normalizeKVItems } from "./tokens.js";
-import { buildQrMatrix } from "./qr.js";
+import { buildQrMatrix, qrValue } from "./qr.js";
 
 /* ================================================================
    WORK-SLIP BLOCK PACK (ALMANACH-WORKSLIP)
@@ -208,7 +208,7 @@ export const WriteinBlock = ({ data, theme, blockStyle }) => {
 // module intact; falls back to a crossed box when the value is empty/invalid.
 export const QrBlock = ({ data, theme, blockStyle }) => {
   const target = Math.max(48, Math.min(320, Number(data.size) || 120));
-  const m = buildQrMatrix(data.value, target);
+  const m = buildQrMatrix(qrValue(data), target);
   const justify = data.align === "right" ? "flex-end" : data.align === "center" ? "center" : "flex-start";
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: justify }}>
