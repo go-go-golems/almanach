@@ -4,3 +4,6 @@ almanach-render-service-arm64
 .git
 .gitignore
 README.md
+/dist
+/web/dist
+/web/node_modules

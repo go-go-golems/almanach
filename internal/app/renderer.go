@@ -9,8 +9,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	layoutv1 "github.com/go-go-golems/almanach/gen/almanach/layout/v1"
 	"gopkg.in/yaml.v3"
@@ -22,6 +25,7 @@ const (
 	defaultRenderViewportWidth  = 1200
 	defaultRenderViewportHeight = 2000
 	defaultRenderWait           = 250 * time.Millisecond
+	defaultChromeRenderTimeout  = 2 * time.Minute
 )
 
 // RenderOptions controls one Chrome render pass. HTTP handlers use the legacy
@@ -35,6 +39,7 @@ type RenderOptions struct {
 	ViewportWidth    int
 	ViewportHeight   int
 	WaitAfterLoad    time.Duration
+	RenderTimeout    time.Duration
 	DebugDir         string
 	CollectMetrics   bool
 
@@ -73,6 +78,51 @@ type ElementMetrics struct {
 }
 
 // RenderResult holds the output of a render pass.
+// ChromeRenderError identifies the failing browser stage and preserves the
+// browser errors observed before the render stopped. HTTP handlers expose these
+// fields so clients can distinguish a bad layout from a Chrome timeout.
+type ChromeRenderError struct {
+	Stage       string
+	Elapsed     time.Duration
+	Timeout     time.Duration
+	Cause       error
+	Diagnostics []string
+}
+
+func (e *ChromeRenderError) Error() string {
+	message := fmt.Sprintf("chrome render stage %q failed after %s (timeout %s): %v", e.Stage, e.Elapsed.Round(time.Millisecond), e.Timeout, e.Cause)
+	if len(e.Diagnostics) > 0 {
+		message += "; browser: " + strings.Join(e.Diagnostics, " | ")
+	}
+	return message
+}
+
+func (e *ChromeRenderError) Unwrap() error { return e.Cause }
+
+type browserDiagnosticCollector struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (c *browserDiagnosticCollector) add(message string) {
+	const maxMessages = 8
+	const maxMessageLength = 1000
+	if len(message) > maxMessageLength {
+		message = message[:maxMessageLength] + "…"
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.messages) < maxMessages {
+		c.messages = append(c.messages, message)
+	}
+}
+
+func (c *browserDiagnosticCollector) snapshot() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.messages...)
+}
+
 type RenderResult struct {
 	Bitmap     *Bitmap
 	PNG        []byte // optional PNG for debug/download
@@ -160,7 +210,9 @@ func (s *Server) renderWithChrome(ctx context.Context, layoutJSON string) (*Rend
 }
 
 func defaultHTTPRenderOptions(cfg Config) RenderOptions {
-	return defaultRenderOptions(fmt.Sprintf("http://localhost:%d", cfg.Port))
+	opts := defaultRenderOptions(fmt.Sprintf("http://localhost:%d", cfg.Port))
+	opts.RenderTimeout = cfg.RenderTimeout
+	return opts
 }
 
 func defaultRenderOptions(baseURL string) RenderOptions {
@@ -191,6 +243,9 @@ func (o RenderOptions) withDefaults() RenderOptions {
 	if o.WaitAfterLoad <= 0 {
 		o.WaitAfterLoad = defaultRenderWait
 	}
+	if o.RenderTimeout <= 0 {
+		o.RenderTimeout = defaultChromeRenderTimeout
+	}
 	if o.SupersampleScale <= 0 {
 		o.SupersampleScale = defaultSupersampleScale
 	}
@@ -211,8 +266,23 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 
 	tabCtx, tabCancel := chromedp.NewContext(allocatorCtx)
 	defer tabCancel()
+	browserDiagnostics := &browserDiagnosticCollector{}
+	chromedp.ListenTarget(tabCtx, func(event any) {
+		switch e := event.(type) {
+		case *runtime.EventExceptionThrown:
+			message := "exception: " + e.ExceptionDetails.Error()
+			browserDiagnostics.add(message)
+			log.Printf("[render] browser %s", message)
+		case *runtime.EventConsoleAPICalled:
+			if e.Type == runtime.APITypeError || e.Type == runtime.APITypeWarning {
+				message := fmt.Sprintf("console %s: %s", e.Type, formatBrowserConsoleArgs(e.Args))
+				browserDiagnostics.add(message)
+				log.Printf("[render] browser %s", message)
+			}
+		}
+	})
 
-	renderCtx, renderCancel := context.WithTimeout(tabCtx, 30*time.Second)
+	renderCtx, renderCancel := context.WithTimeout(tabCtx, opts.RenderTimeout)
 	defer renderCancel()
 
 	var screenshotBuf []byte
@@ -222,39 +292,66 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	if err != nil {
 		return nil, fmt.Errorf("marshal layout argument: %w", err)
 	}
+	selectorArg, err := json.Marshal(opts.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("marshal screenshot selector: %w", err)
+	}
 
 	captureJS, err := injectCaptureCSSJS(captureCSS())
 	if err != nil {
 		return nil, err
 	}
 
-	actions := []chromedp.Action{
-		chromedp.EmulateViewport(int64(opts.ViewportWidth), int64(opts.ViewportHeight), chromedp.EmulateScale(float64(opts.SupersampleScale))),
-		chromedp.Navigate(opts.BaseURL + "/almanach"),
-		chromedp.WaitVisible("body", chromedp.ByQuery),
-		chromedp.Poll(`window.almanachReady === true`, nil, chromedp.WithPollingTimeout(10*time.Second)),
-		chromedp.Evaluate(fmt.Sprintf(`window.almanachLoadLayout(JSON.parse(%s))`, layoutArg), nil),
-		chromedp.Evaluate(waitForFontsAndFramesJS(), nil),
-		chromedp.Sleep(opts.WaitAfterLoad),
-		chromedp.Evaluate(captureJS, nil),
-		chromedp.Evaluate(waitForFontsAndFramesJS(), nil),
+	type renderStage struct {
+		name    string
+		actions []chromedp.Action
+	}
+	stages := []renderStage{
+		{"viewport", []chromedp.Action{chromedp.EmulateViewport(int64(opts.ViewportWidth), int64(opts.ViewportHeight), chromedp.EmulateScale(float64(opts.SupersampleScale)))}},
+		{"navigate", []chromedp.Action{chromedp.Navigate(opts.BaseURL + "/almanach")}},
+		{"body-ready", []chromedp.Action{chromedp.WaitVisible("body", chromedp.ByQuery)}},
+		{"almanach-ready", []chromedp.Action{chromedp.Poll(`window.almanachReady === true`, nil, chromedp.WithPollingTimeout(10*time.Second))}},
+		{"load-layout", []chromedp.Action{chromedp.Evaluate(fmt.Sprintf(`window.almanachLoadLayout(JSON.parse(%s))`, layoutArg), nil)}},
+		{"layout-visible", []chromedp.Action{chromedp.Poll(fmt.Sprintf(`document.querySelector(%s) !== null`, selectorArg), nil, chromedp.WithPollingTimeout(10*time.Second))}},
+		{"fonts-and-frames", []chromedp.Action{chromedp.Evaluate(waitForFontsAndFramesJS(), nil)}},
+		{"settle", []chromedp.Action{chromedp.Sleep(opts.WaitAfterLoad)}},
+		{"capture-css", []chromedp.Action{chromedp.Evaluate(captureJS, nil)}},
+		{"post-capture-fonts-and-frames", []chromedp.Action{chromedp.Evaluate(waitForFontsAndFramesJS(), nil)}},
 	}
 	if opts.CollectMetrics {
-		actions = append(actions, chromedp.Evaluate(collectMetricsJS(), &metrics))
+		stages = append(stages, renderStage{"page-metrics", []chromedp.Action{chromedp.Evaluate(collectMetricsJS(), &metrics)}})
 	}
 	// Collect per-block bounding boxes when any block carries a render override,
 	// so we can rasterize its region differently (Phase 6).
 	var blockMetrics []blockMetric
 	if len(opts.PerBlockRender) > 0 {
-		actions = append(actions, chromedp.Evaluate(collectBlockMetricsJS(opts.Selector), &blockMetrics))
+		stages = append(stages, renderStage{"block-metrics", []chromedp.Action{chromedp.Evaluate(collectBlockMetricsJS(opts.Selector), &blockMetrics)}})
 	}
-	actions = append(actions,
-		chromedp.Screenshot(opts.Selector, &screenshotBuf, chromedp.ByQuery, chromedp.NodeVisible),
-	)
+	stages = append(stages, renderStage{"screenshot", []chromedp.Action{chromedp.Screenshot(opts.Selector, &screenshotBuf, chromedp.ByQuery, chromedp.NodeVisible)}})
 
-	if err := chromedp.Run(renderCtx, actions...); err != nil {
-		log.Printf("[render] Chrome error: %v", err)
-		return nil, fmt.Errorf("chrome render: %w", err)
+	for _, stage := range stages {
+		stageStart := time.Now()
+		if err := chromedp.Run(renderCtx, stage.actions...); err != nil {
+			renderErr := &ChromeRenderError{
+				Stage:       stage.name,
+				Elapsed:     time.Since(start),
+				Timeout:     opts.RenderTimeout,
+				Cause:       err,
+				Diagnostics: browserDiagnostics.snapshot(),
+			}
+			log.Printf("[render] %v", renderErr)
+			if opts.DebugDir != "" {
+				if debugErr := writeRenderFailureDebugArtifacts(opts.DebugDir, layoutJSON, renderErr); debugErr != nil {
+					log.Printf("[render] write failure debug artifacts: %v", debugErr)
+				}
+			}
+			return nil, renderErr
+		}
+		log.Printf("[render] Chrome stage=%s completed in %s", stage.name, time.Since(stageStart))
+		if stage.name == "page-metrics" {
+			metricsJSON, _ := json.Marshal(metrics)
+			log.Printf("[render] page metrics: %s", metricsJSON)
+		}
 	}
 
 	log.Printf("[render] Screenshot captured: %d bytes PNG", len(screenshotBuf))
@@ -292,6 +389,25 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 	log.Printf("Rendered %dx%d bitmap (%d bytes) in %v", bitmap.Width, bitmap.Height, len(bitmap.Data), elapsed)
 
 	return result, nil
+}
+
+func formatBrowserConsoleArgs(args []*runtime.RemoteObject) string {
+	parts := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg == nil {
+			continue
+		}
+		if arg.Description != "" {
+			parts = append(parts, arg.Description)
+			continue
+		}
+		if arg.Value != nil {
+			parts = append(parts, arg.Value.String())
+			continue
+		}
+		parts = append(parts, string(arg.Type))
+	}
+	return strings.Join(parts, " ")
 }
 
 func injectCaptureCSSJS(css string) (string, error) {
@@ -404,6 +520,21 @@ func collectMetricsJS() string {
 		}];
 	}));
 })()`
+}
+
+func writeRenderFailureDebugArtifacts(debugDir, layoutJSON string, renderErr *ChromeRenderError) error {
+	if err := os.MkdirAll(debugDir, 0o750); err != nil {
+		return fmt.Errorf("create debug dir: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(debugDir, "layout.json"), []byte(layoutJSON), 0o600); err != nil {
+		return fmt.Errorf("write layout: %w", err)
+	}
+	diagnostics := strings.Join(renderErr.Diagnostics, "\n\n")
+	contents := fmt.Sprintf("stage: %s\nelapsed: %s\ntimeout: %s\nerror: %v\n\nbrowser diagnostics:\n%s\n", renderErr.Stage, renderErr.Elapsed, renderErr.Timeout, renderErr.Cause, diagnostics)
+	if err := os.WriteFile(filepath.Join(debugDir, "render-error.txt"), []byte(contents), 0o600); err != nil {
+		return fmt.Errorf("write render error: %w", err)
+	}
+	return nil
 }
 
 func writeRenderDebugArtifacts(debugDir string, result *RenderResult) error {

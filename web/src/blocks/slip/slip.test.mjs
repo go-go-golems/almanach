@@ -11,6 +11,7 @@ import {
   ruleStyleToken,
   bannerStyleToken,
   colWidthStyle,
+  normalizeKVItems,
 } from "./tokens.js";
 import { buildQrMatrix } from "./qr.js";
 
@@ -43,6 +44,13 @@ assert.deepEqual(colWidthStyle("1fr"), { flex: "1 1 0%", minWidth: 0 });
 assert.deepEqual(colWidthStyle("2.5fr"), { flex: "2.5 1 0%", minWidth: 0 });
 assert.deepEqual(colWidthStyle(undefined), { flex: "1 1 0%", minWidth: 0 });
 assert.deepEqual(colWidthStyle("garbage"), { flex: "1 1 0%", minWidth: 0 });
+
+// ---- key/value data ----
+assert.deepEqual(normalizeKVItems([["tuple", "value"], { k: "object", v: "value" }]), [
+  ["tuple", "value"],
+  ["object", "value"],
+]);
+assert.deepEqual(normalizeKVItems(null), []);
 
 // ---- QR matrix ----
 const m = buildQrMatrix("https://www.upwork.com/jobs/~022075297946215353790/", 120);

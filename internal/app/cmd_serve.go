@@ -14,18 +14,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const renderResponseWriteOverhead = 15 * time.Second
+
+// httpWriteTimeout allows a completed render to be serialized and written after
+// its Chrome deadline. It must never be shorter than the render deadline.
+func httpWriteTimeout(renderTimeout time.Duration) time.Duration {
+	if renderTimeout <= 0 {
+		renderTimeout = defaultChromeRenderTimeout
+	}
+	return renderTimeout + renderResponseWriteOverhead
+}
+
 type serveSettings struct {
-	Port         int
-	WebDir       string
-	PrinterIP    string
-	ChromePath   string
-	ChromeWSURL  string
-	PaperWidth   int
-	BodyScale    float64
-	FeedLines    int
-	DefaultTheme string
-	LogLevel     string
-	StateFile    string
+	Port          int
+	WebDir        string
+	PrinterIP     string
+	ChromePath    string
+	ChromeWSURL   string
+	PaperWidth    int
+	BodyScale     float64
+	FeedLines     int
+	DefaultTheme  string
+	LogLevel      string
+	StateFile     string
+	RenderTimeout time.Duration
 }
 
 func serveSettingsFromConfig(cfg Config) serveSettings {
@@ -97,7 +109,7 @@ func runHTTPServer(ctx context.Context, cfg Config, addr, serviceName string) er
 		Addr:         listener.Addr().String(),
 		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		WriteTimeout: httpWriteTimeout(cfg.RenderTimeout),
 		IdleTimeout:  120 * time.Second,
 	}
 

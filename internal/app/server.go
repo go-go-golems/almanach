@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -60,10 +61,7 @@ func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.render(r.Context(), r.Body)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"ok":    false,
-			"error": err.Error(),
-		})
+		writeRenderError(w, err)
 		return
 	}
 
@@ -107,10 +105,7 @@ func (s *Server) handleRenderAndPrint(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.render(r.Context(), r.Body)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"ok":    false,
-			"error": err.Error(),
-		})
+		writeRenderError(w, err)
 		return
 	}
 
@@ -150,6 +145,18 @@ func (s *Server) handleSchedule(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"ok": false, "error": "use GET, POST, or DELETE"})
 	}
+}
+
+func writeRenderError(w http.ResponseWriter, err error) {
+	response := map[string]any{"ok": false, "error": err.Error()}
+	var chromeErr *ChromeRenderError
+	if errors.As(err, &chromeErr) {
+		response["stage"] = chromeErr.Stage
+		response["elapsed_ms"] = chromeErr.Elapsed.Milliseconds()
+		response["timeout_ms"] = chromeErr.Timeout.Milliseconds()
+		response["browser_diagnostics"] = chromeErr.Diagnostics
+	}
+	writeJSON(w, http.StatusInternalServerError, response)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
