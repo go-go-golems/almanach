@@ -130,14 +130,15 @@ almanach-render-service render \
   --define "title=OVERRIDE TITLE" \
   --out /tmp/preview.png
 
-# Inline only (no data file). Multiple values are comma-separated in one flag.
+# Inline only (no data file). Multiple assignments are comma-separated;
+# values themselves must not contain commas.
 almanach-render-service render \
   --layout template.yaml \
-  --define "title=HELLO,date=May 26, 2026" \
+  --define "title=HELLO,date=May-26-2026" \
   --out /tmp/preview.png
 ```
 
-Template expressions: `{{key}}` (required) and `{{key:fallback}}` (with default). Environment variables are **not** resolvable from layouts (`{{$NAME}}` was removed as a security hardening in ALMANACH-WORKSLIP — a layout could exfiltrate process env vars into prints); pass every value via `--data`/`--define`. Use `--define`, not `-D`; no short `-D` alias exists. Inline defines override values loaded from `--data`.
+Template expressions: `{{key}}` (required) and `{{key:fallback}}` (with default). Environment variables are **not** resolvable from layouts (`{{$NAME}}` was removed as a security hardening in ALMANACH-WORKSLIP — a layout could exfiltrate process env vars into prints); pass every value via `--data`/`--define`. Use `--define`, not `-D`; no short `-D` alias exists. `--define` splits assignments on commas, so put values containing commas in a `--data` file instead. Inline defines override values loaded from `--data`.
 
 When no `--data` or `--define` is provided, template resolution is skipped entirely, so literal `{{...}}` strings remain unchanged. Almanach no longer fetches or invents content: YAML/layout files and explicit data contexts are the only content sources. If no layout is supplied, the app renders only the minimal scaffold (title + date).
 
@@ -360,7 +361,7 @@ Each collection has a `manifest.json` with source metadata. Files are named desc
 To use an image in a layout, embed it as a data URL:
 
 ```bash
-IMG=~/.pi/agent/skills/almanach-printing/images/marine/rowboat.png
+IMG=~/code/wesen/go-go-golems/almanach/skills/almanach-printing/images/marine/rowboat.png
 DATA_URL=$(python3 -c "import base64,sys; print('data:image/png;base64,' + base64.b64encode(open(sys.argv[1],'rb').read()).decode())" "$IMG")
 
 # Then use $DATA_URL as the `src` value in an image block
@@ -384,4 +385,4 @@ DATA_URL=$(python3 -c "import base64,sys; print('data:image/png;base64,' + base6
 | Docker image | `ghcr.io/go-go-golems/almanach:sha-<commit>` (GitOps-managed immutable tag) |
 | Example layouts | `~/code/wesen/go-go-golems/almanach/examples/layouts/` |
 | Firmware | `~/code/wesen/go-go-golems/almanach/firmware/atoms3r/` |
-| Image library | `~/.pi/agent/skills/almanach-printing/images/` |
+| Image library | `skills/almanach-printing/images/` (relative to this repository) |
