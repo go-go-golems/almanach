@@ -88,6 +88,36 @@ func TestSendBitmapWithOptionsPreservesMixedDensityRegions(t *testing.T) {
 	}
 }
 
+func TestSendBitmapWithOptionsFailsClosedOnMixedHeatSettingError(t *testing.T) {
+	bitmapRequests := 0
+	printer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/printer/density" {
+			http.Error(w, "density unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if r.URL.Path == "/api/print/bitmap" {
+			bitmapRequests++
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer printer.Close()
+
+	bitmap := &Bitmap{Width: 8, Height: 1, BytesPerRow: 1, Data: []byte{0x55}}
+	_, err := sendBitmapWithOptions(
+		printer.URL+"/api/print/bitmap",
+		bitmap,
+		0,
+		RenderOptions{},
+		[]HeatRegion{{YStart: 0, YEnd: 1, Density: 20}},
+	)
+	if err == nil {
+		t.Fatal("expected mixed-heat density-setting failure")
+	}
+	if bitmapRequests != 0 {
+		t.Fatalf("bitmap sent despite mixed-heat setting failure: %d requests", bitmapRequests)
+	}
+}
+
 func TestSegmentedBitmapHandlesNullPrinterResponse(t *testing.T) {
 	printer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.Copy(io.Discard, r.Body)

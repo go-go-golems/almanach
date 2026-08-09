@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -191,7 +190,7 @@ func sendBitmapWithHeat(printerURL string, bitmap *Bitmap, feedLines int, bands 
 	total := 0
 	for ui, u := range units {
 		if err := setPrinterDensity(printerURL, u.density); err != nil {
-			log.Printf("warning: set density %d for heat band failed: %v", u.density, err)
+			return nil, fmt.Errorf("set density %d for heat band %d: %w", u.density, ui+1, err)
 		}
 		segs := splitBitmap(u.bm, maxSafePrinterBitmapBodyBytes)
 		for si, seg := range segs {
