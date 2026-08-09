@@ -104,6 +104,7 @@ func applyRenderOptions(base RenderOptions, p *layoutv1.RenderOptions) RenderOpt
 	}
 	if p.Threshold != nil {
 		base.Threshold = clampToUint8(int(*p.Threshold))
+		base.ThresholdSet = true
 	}
 	if p.SupersampleScale != nil {
 		base.SupersampleScale = int(*p.SupersampleScale)

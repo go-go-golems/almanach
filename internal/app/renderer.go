@@ -35,7 +35,8 @@ type RenderOptions struct {
 	BaseURL          string
 	Selector         string
 	Threshold        uint8
-	SupersampleScale int // render oversampling factor; downscaled before 1-bit conversion
+	ThresholdSet     bool // distinguishes an explicit zero cutoff from unset
+	SupersampleScale int  // render oversampling factor; downscaled before 1-bit conversion
 	ViewportWidth    int
 	ViewportHeight   int
 	WaitAfterLoad    time.Duration
@@ -241,7 +242,7 @@ func (o RenderOptions) withDefaults() RenderOptions {
 	if o.Selector == "" {
 		o.Selector = defaultRenderSelector
 	}
-	if o.Threshold == 0 {
+	if o.Threshold == 0 && !o.ThresholdSet {
 		o.Threshold = defaultRenderThreshold
 	}
 	if o.ViewportWidth <= 0 {

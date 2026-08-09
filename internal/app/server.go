@@ -115,9 +115,12 @@ func (s *Server) handleRenderAndPrint(w http.ResponseWriter, r *http.Request) {
 	// setting changes and every transport segment of this bitmap in one critical
 	// section so concurrent HTTP jobs cannot inherit or interleave heat settings.
 	printerURL := fmt.Sprintf("http://%s/api/print/bitmap", printerIP)
-	s.printerMu.Lock()
-	printResp, err := sendBitmapWithOptions(printerURL, result.Bitmap, s.cfg.FeedLines, result.Options)
-	s.printerMu.Unlock()
+	var printResp map[string]any
+	func() {
+		s.printerMu.Lock()
+		defer s.printerMu.Unlock()
+		printResp, err = sendBitmapWithOptions(printerURL, result.Bitmap, s.cfg.FeedLines, result.Options, result.HeatRegions)
+	}()
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
 			"ok":         false,

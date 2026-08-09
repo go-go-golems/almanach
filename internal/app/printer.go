@@ -31,11 +31,15 @@ const (
 // sendBitmapWithOptions applies explicit page-level printer state before sending
 // the bitmap. Setting failures are fatal: printing with stale heat while claiming
 // success would violate the layout contract and waste paper.
-func sendBitmapWithOptions(printerURL string, bitmap *Bitmap, feedLines int, opts RenderOptions) (map[string]any, error) {
+func sendBitmapWithOptions(printerURL string, bitmap *Bitmap, feedLines int, opts RenderOptions, heatRegions []HeatRegion) (map[string]any, error) {
 	if opts.PrinterSpeed > 0 {
 		if err := setPrinterSpeed(printerURL, opts.PrinterSpeed); err != nil {
 			return nil, fmt.Errorf("set printer speed %d: %w", opts.PrinterSpeed, err)
 		}
+	}
+	if len(heatRegions) > 0 {
+		bands := densityBands(bitmap.Height, heatRegions, heatGapDensity(opts.PrinterDensity, opts.PrinterDensitySet))
+		return sendBitmapWithHeat(printerURL, bitmap, feedLines, bands)
 	}
 	if opts.PrinterDensitySet {
 		if err := setPrinterDensity(printerURL, opts.PrinterDensity); err != nil {
@@ -89,6 +93,9 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 			return nil, fmt.Errorf("segment %d/%d failed: %w", i+1, len(segments), err)
 		}
 		lastResp = resp
+	}
+	if lastResp == nil {
+		lastResp = map[string]any{}
 	}
 	lastResp["segments"] = len(segments)
 	return lastResp, nil
