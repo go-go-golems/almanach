@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 )
 
 // Server holds the shared state for the HTTP server.
@@ -15,6 +16,7 @@ type Server struct {
 	allocatorCtx  context.Context
 	allocatorDone context.CancelFunc
 	setupDevices  *setupDeviceStore
+	printerMu     sync.Mutex
 }
 
 // RegisterRoutes wires all HTTP handlers onto the given mux.
@@ -109,9 +111,16 @@ func (s *Server) handleRenderAndPrint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Forward to ESP32
+	// Printer density and speed are mutable global device state. Keep the
+	// setting changes and every transport segment of this bitmap in one critical
+	// section so concurrent HTTP jobs cannot inherit or interleave heat settings.
 	printerURL := fmt.Sprintf("http://%s/api/print/bitmap", printerIP)
-	printResp, err := sendBitmapToPrinter(printerURL, result.Bitmap, s.cfg.FeedLines)
+	var printResp map[string]any
+	func() {
+		s.printerMu.Lock()
+		defer s.printerMu.Unlock()
+		printResp, err = sendBitmapWithOptions(printerURL, result.Bitmap, s.cfg.FeedLines, result.Options, result.HeatRegions)
+	}()
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
 			"ok":         false,

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -27,6 +26,27 @@ const (
 	// Allow generous headroom so large prints outlive the transfer.
 	printerHTTPTimeout = 120 * time.Second
 )
+
+// sendBitmapWithOptions applies explicit page-level printer state before sending
+// the bitmap. Setting failures are fatal: printing with stale heat while claiming
+// success would violate the layout contract and waste paper.
+func sendBitmapWithOptions(printerURL string, bitmap *Bitmap, feedLines int, opts RenderOptions, heatRegions []HeatRegion) (map[string]any, error) {
+	if opts.PrinterSpeed > 0 {
+		if err := setPrinterSpeed(printerURL, opts.PrinterSpeed); err != nil {
+			return nil, fmt.Errorf("set printer speed %d: %w", opts.PrinterSpeed, err)
+		}
+	}
+	if len(heatRegions) > 0 {
+		bands := densityBands(bitmap.Height, heatRegions, heatGapDensity(opts.PrinterDensity, opts.PrinterDensitySet))
+		return sendBitmapWithHeat(printerURL, bitmap, feedLines, bands)
+	}
+	if opts.PrinterDensitySet {
+		if err := setPrinterDensity(printerURL, opts.PrinterDensity); err != nil {
+			return nil, fmt.Errorf("set printer density %d: %w", opts.PrinterDensity, err)
+		}
+	}
+	return sendBitmapToPrinter(printerURL, bitmap, feedLines)
+}
 
 // sendBitmapToPrinter sends a 1-bit bitmap to the ESP32's /api/print/bitmap endpoint.
 // If the bitmap exceeds the ESP32's safe receive limit (~38 KiB), it is split into
@@ -72,6 +92,9 @@ func sendBitmapToPrinter(printerURL string, bitmap *Bitmap, feedLines int) (map[
 			return nil, fmt.Errorf("segment %d/%d failed: %w", i+1, len(segments), err)
 		}
 		lastResp = resp
+	}
+	if lastResp == nil {
+		lastResp = map[string]any{}
 	}
 	lastResp["segments"] = len(segments)
 	return lastResp, nil
@@ -167,7 +190,7 @@ func sendBitmapWithHeat(printerURL string, bitmap *Bitmap, feedLines int, bands 
 	total := 0
 	for ui, u := range units {
 		if err := setPrinterDensity(printerURL, u.density); err != nil {
-			log.Printf("warning: set density %d for heat band failed: %v", u.density, err)
+			return nil, fmt.Errorf("set density %d for heat band %d: %w", u.density, ui+1, err)
 		}
 		segs := splitBitmap(u.bm, maxSafePrinterBitmapBodyBytes)
 		for si, seg := range segs {

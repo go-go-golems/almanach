@@ -69,6 +69,7 @@ func blockRasterRegions(metrics []blockMetric, perBlock map[string]*layoutv1.Ren
 		}
 		if hasThreshold {
 			reg.Threshold = clampToUint8(int(ro.GetThreshold()))
+			reg.ThresholdSet = true
 		}
 		if reg.YEnd > reg.YStart {
 			regions = append(regions, reg)
@@ -87,11 +88,12 @@ func blockRasterRegions(metrics []blockMetric, perBlock map[string]*layoutv1.Ren
 // rasterRegion is a horizontal band [YStart, YEnd) of the screenshot with its
 // own rasterization technique. Y values are image pixel rows.
 type rasterRegion struct {
-	YStart    int
-	YEnd      int
-	Mode      string  // "" (threshold) | "atkinson" | "floydSteinberg" | "bayer"; unknown falls back to threshold
-	Gamma     float64 // <=0 means 1.0 (no tone curve)
-	Threshold uint8   // threshold used for non-dithered regions; 0 means use the page default
+	YStart       int
+	YEnd         int
+	Mode         string  // "" (threshold) | "atkinson" | "floydSteinberg" | "bayer"; unknown falls back to threshold
+	Gamma        float64 // <=0 means 1.0 (no tone curve)
+	Threshold    uint8
+	ThresholdSet bool // distinguishes an explicit zero cutoff from page-default inheritance
 }
 
 // pageRasterRegions turns page-level render options (Layout.render rasterMode /
@@ -171,7 +173,7 @@ func imageToBitmapRegions(img image.Image, defaultThreshold uint8, regions []ras
 			// "" (threshold, possibly with gamma/custom threshold) and any
 			// unknown mode: hard threshold.
 			thr := reg.Threshold
-			if thr == 0 {
+			if !reg.ThresholdSet && thr == 0 {
 				thr = defaultThreshold
 			}
 			thresholdBand(img, black, bounds, w, ys, ye, reg.Gamma, thr)

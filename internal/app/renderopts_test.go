@@ -104,6 +104,17 @@ func TestApplyRenderOptions_Overlay(t *testing.T) {
 	}
 }
 
+func TestApplyRenderOptions_PreservesExplicitZeroThresholdThroughDefaults(t *testing.T) {
+	p, err := parseRenderOptions(map[string]interface{}{"threshold": float64(0)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := applyRenderOptions(RenderOptions{}, p).withDefaults()
+	if !got.ThresholdSet || got.Threshold != 0 {
+		t.Fatalf("threshold = %d, set = %t; want explicit zero", got.Threshold, got.ThresholdSet)
+	}
+}
+
 func TestApplyRenderOptions_ExplicitZeroDensity(t *testing.T) {
 	base := RenderOptions{PrinterDensity: 38, PrinterDensitySet: true}
 	p, err := parseRenderOptions(map[string]interface{}{"printerDensity": float64(0)})

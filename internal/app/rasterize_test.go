@@ -4,6 +4,8 @@ import (
 	"image"
 	"image/color"
 	"testing"
+
+	layoutv1 "github.com/go-go-golems/almanach/gen/almanach/layout/v1"
 )
 
 // solidGray builds a w x h image filled with a single gray level.
@@ -27,6 +29,22 @@ func countBlack(bm *Bitmap, w, h int) int {
 		}
 	}
 	return n
+}
+
+func TestBlockRasterRegionPreservesExplicitZeroThreshold(t *testing.T) {
+	zero := uint32(0)
+	regions := blockRasterRegions(
+		[]blockMetric{{ID: "zero", Top: 0, Bottom: 4}},
+		map[string]*layoutv1.RenderOptions{"zero": {Threshold: &zero}},
+	)
+	if len(regions) != 1 || !regions[0].ThresholdSet || regions[0].Threshold != 0 {
+		t.Fatalf("explicit zero region lost presence: %#v", regions)
+	}
+
+	bitmap := imageToBitmapRegions(solidGray(8, 4, 1), 128, regions)
+	if got := countBlack(bitmap, 8, 4); got != 0 {
+		t.Fatalf("explicit threshold zero produced %d black dots, want 0", got)
+	}
 }
 
 // A dark solid image thresholds to all-black; a light one to all-white.
