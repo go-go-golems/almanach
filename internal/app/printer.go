@@ -28,6 +28,23 @@ const (
 	printerHTTPTimeout = 120 * time.Second
 )
 
+// sendBitmapWithOptions applies explicit page-level printer state before sending
+// the bitmap. Setting failures are fatal: printing with stale heat while claiming
+// success would violate the layout contract and waste paper.
+func sendBitmapWithOptions(printerURL string, bitmap *Bitmap, feedLines int, opts RenderOptions) (map[string]any, error) {
+	if opts.PrinterSpeed > 0 {
+		if err := setPrinterSpeed(printerURL, opts.PrinterSpeed); err != nil {
+			return nil, fmt.Errorf("set printer speed %d: %w", opts.PrinterSpeed, err)
+		}
+	}
+	if opts.PrinterDensitySet {
+		if err := setPrinterDensity(printerURL, opts.PrinterDensity); err != nil {
+			return nil, fmt.Errorf("set printer density %d: %w", opts.PrinterDensity, err)
+		}
+	}
+	return sendBitmapToPrinter(printerURL, bitmap, feedLines)
+}
+
 // sendBitmapToPrinter sends a 1-bit bitmap to the ESP32's /api/print/bitmap endpoint.
 // If the bitmap exceeds the ESP32's safe receive limit (~38 KiB), it is split into
 // segments that are sent as sequential print commands. Only the final segment carries

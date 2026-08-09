@@ -131,6 +131,7 @@ type RenderResult struct {
 	LayoutJSON string
 	Metrics    RenderMetrics
 	Selector   string
+	Options    RenderOptions
 
 	// HeatRegions are row bands that request a specific printer density, derived
 	// from per-block printerDensity render options + block bounding boxes. Used
@@ -153,21 +154,34 @@ type Bitmap struct {
 	Data        []byte
 }
 
-// renderLayoutJSON builds a layout from fetchers and renders it via Chrome headless.
+// renderLayoutJSON normalizes a request, applies its typed page/per-block render
+// options, and renders it through Chrome. HTTP and CLI callers therefore share
+// the same layout contract instead of silently falling back to threshold mode.
 func (s *Server) render(ctx context.Context, layoutOverride io.Reader) (*RenderResult, error) {
-	layoutJSON, err := s.layoutJSONFromReader(layoutOverride)
+	layoutJSON, rawPageRender, err := s.layoutJSONFromReader(layoutOverride)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.renderWithChrome(ctx, layoutJSON)
+	pageRender, err := parseRenderOptions(rawPageRender)
+	if err != nil {
+		return nil, fmt.Errorf("parse page render options: %w", err)
+	}
+	perBlock, err := perBlockRenderOptions(layoutJSON)
+	if err != nil {
+		return nil, fmt.Errorf("parse per-block render options: %w", err)
+	}
+
+	opts := applyRenderOptions(defaultHTTPRenderOptions(s.cfg), pageRender)
+	opts.PerBlockRender = perBlock
+	return renderWithChrome(ctx, s.allocatorCtx, layoutJSON, opts)
 }
 
-func (s *Server) layoutJSONFromReader(layoutOverride io.Reader) (string, error) {
+func (s *Server) layoutJSONFromReader(layoutOverride io.Reader) (string, map[string]interface{}, error) {
 	if layoutOverride != nil {
 		data, err := io.ReadAll(layoutOverride)
 		if err != nil {
-			return "", fmt.Errorf("read layout: %w", err)
+			return "", nil, fmt.Errorf("read layout: %w", err)
 		}
 		if len(bytes.TrimSpace(data)) > 0 {
 			return s.layoutJSONFromRaw(data)
@@ -177,36 +191,32 @@ func (s *Server) layoutJSONFromReader(layoutOverride io.Reader) (string, error) 
 	layout := buildScaffoldLayout(s.cfg)
 	b, err := json.Marshal(layout)
 	if err != nil {
-		return "", fmt.Errorf("marshal scaffold: %w", err)
+		return "", nil, fmt.Errorf("marshal scaffold: %w", err)
 	}
-	return string(b), nil
+	return string(b), nil, nil
 }
 
-// layoutJSONFromRaw parses raw JSON/YAML, extracts a data context from a
-// top-level "data" key, resolves template expressions, and returns the
-// marshaled layout JSON.
-func (s *Server) layoutJSONFromRaw(raw []byte) (string, error) {
+// layoutJSONFromRaw parses raw JSON/YAML, extracts a data context and page
+// render options, resolves template expressions, and returns normalized layout
+// JSON plus the render settings that were intentionally removed from the studio
+// payload.
+func (s *Server) layoutJSONFromRaw(raw []byte) (string, map[string]interface{}, error) {
 	var obj map[string]interface{}
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		// Not valid JSON — try YAML.
 		if yamlErr := yaml.Unmarshal(raw, &obj); yamlErr != nil {
-			return "", fmt.Errorf("parse layout: json: %v, yaml: %v", err, yamlErr)
+			return "", nil, fmt.Errorf("parse layout: json: %v, yaml: %v", err, yamlErr)
 		}
 	}
 	if len(obj) == 0 {
-		return string(raw), nil
+		return string(raw), nil, nil
 	}
 
-	layoutJSON, _, err := layoutJSONFromObjectOrDefault(obj, s.cfg, nil)
+	layoutJSON, renderOptions, err := layoutJSONFromObjectOrDefault(obj, s.cfg, nil)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return layoutJSON, nil
-}
-
-// renderWithChrome drives Chrome headless to render the layout.
-func (s *Server) renderWithChrome(ctx context.Context, layoutJSON string) (*RenderResult, error) {
-	return renderWithChrome(ctx, s.allocatorCtx, layoutJSON, defaultHTTPRenderOptions(s.cfg))
+	return layoutJSON, renderOptions, nil
 }
 
 func defaultHTTPRenderOptions(cfg Config) RenderOptions {
@@ -376,6 +386,7 @@ func renderWithChrome(ctx context.Context, allocatorCtx context.Context, layoutJ
 		LayoutJSON:  layoutJSON,
 		Metrics:     metrics,
 		Selector:    opts.Selector,
+		Options:     opts,
 		HeatRegions: blockHeatRegions(blockMetrics, opts.PerBlockRender),
 	}
 
